@@ -54,11 +54,17 @@ function delay(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-let registered = false;
-async function ensureRegistered(): Promise<void> {
-  if (registered) return;
-  registered = true;
-  await import("./register");
+let registro: Promise<void> | null = null;
+/**
+ * Carrega e executa o registro das rotas mockadas uma única vez.
+ * A chamada explícita de `registrarMocks()` é obrigatória: imports apenas por
+ * efeito colateral são removidos no build de produção (`sideEffects: false`).
+ */
+function ensureRegistered(): Promise<void> {
+  registro ??= import("./register").then(({ registrarMocks }) => {
+    registrarMocks();
+  });
+  return registro;
 }
 
 export async function handleMockRequest<T>(request: ApiRequest): Promise<ApiResponse<T>> {

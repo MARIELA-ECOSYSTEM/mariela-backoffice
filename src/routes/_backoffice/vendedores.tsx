@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CalendarHeart, Pencil, Phone, Plus, Power, Trash2 } from "lucide-react";
+import { CalendarDays, KeyRound, Pencil, Phone, Plus, Power, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
@@ -33,132 +33,150 @@ import {
 } from "@/components/common/pessoa-card";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
-  CLIENTE_VALORES_PADRAO,
-  ClienteDialog,
-  type ClienteFormValues,
-} from "@/components/cadastros/cliente-dialog";
+  VENDEDOR_VALORES_PADRAO,
+  VendedorDialog,
+  type VendedorFormValues,
+} from "@/components/cadastros/vendedor-dialog";
+import { SenhaDialog, type SenhaFormValues } from "@/components/cadastros/senha-dialog";
 import {
-  useAlterarStatusCliente,
-  useAtualizarCliente,
-  useClientes,
-  useCriarCliente,
-  useRemoverCliente,
-} from "@/hooks/use-cadastros";
+  useAlterarStatusVendedor,
+  useAtualizarVendedor,
+  useCriarVendedor,
+  useRedefinirSenhaVendedor,
+  useRemoverVendedor,
+  useVendedores,
+} from "@/hooks/use-vendedores";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarData } from "@/utils/format";
-import type { Cliente } from "@/types/cliente";
+import type { Vendedor, VendedorPayload } from "@/types/vendedor";
 
-export const Route = createFileRoute("/_backoffice/clientes")({
+export const Route = createFileRoute("/_backoffice/vendedores")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Clientes — MARIELA Backoffice" },
-      { name: "description", content: "Cadastro e histórico de clientes da loja Mariela." },
-      { property: "og:title", content: "Clientes — MARIELA Backoffice" },
-      { property: "og:description", content: "Cadastro e histórico de clientes da loja Mariela." },
+      { title: "Vendedores — MARIELA Backoffice" },
+      {
+        name: "description",
+        content: "Gerenciamento dos vendedores que utilizam o MARIELA PDV.",
+      },
+      { property: "og:title", content: "Vendedores — MARIELA Backoffice" },
+      {
+        property: "og:description",
+        content: "Gerenciamento dos vendedores que utilizam o MARIELA PDV.",
+      },
     ],
   }),
-  component: ClientesPage,
+  component: VendedoresPage,
 });
 
 const POR_PAGINA = 12;
 
-type Ordenacao = "nome" | "recentes" | "nascimento";
+type Ordenacao = "nome" | "recentes";
 
-function ordenar(lista: Cliente[], ordem: Ordenacao): Cliente[] {
-  const copia = [...lista];
-  if (ordem === "nome") return copia.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  if (ordem === "recentes") return copia.sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
-  return copia.sort((a, b) =>
-    (a.dataNascimento ?? "9999").localeCompare(b.dataNascimento ?? "9999"),
-  );
-}
-
-function ClientesPage() {
-  const { data: clientes, isPending, isError, error, refetch } = useClientes();
-  const criar = useCriarCliente();
-  const atualizar = useAtualizarCliente();
-  const alterarStatus = useAlterarStatusCliente();
-  const remover = useRemoverCliente();
+function VendedoresPage() {
+  const { data: vendedores, isPending, isError, error, refetch } = useVendedores();
+  const criar = useCriarVendedor();
+  const atualizar = useAtualizarVendedor();
+  const alterarStatus = useAlterarStatusVendedor();
+  const redefinirSenha = useRedefinirSenhaVendedor();
+  const remover = useRemoverVendedor();
 
   const [busca, setBusca] = useState("");
   const [status, setStatus] = useState("todos");
   const [ordem, setOrdem] = useState<Ordenacao>("nome");
   const [pagina, setPagina] = useState(1);
   const [dialogAberto, setDialogAberto] = useState(false);
-  const [emEdicao, setEmEdicao] = useState<Cliente | null>(null);
-  const [paraExcluir, setParaExcluir] = useState<Cliente | null>(null);
-  const [detalhe, setDetalhe] = useState<Cliente | null>(null);
+  const [emEdicao, setEmEdicao] = useState<Vendedor | null>(null);
+  const [paraSenha, setParaSenha] = useState<Vendedor | null>(null);
+  const [paraExcluir, setParaExcluir] = useState<Vendedor | null>(null);
+  const [detalhe, setDetalhe] = useState<Vendedor | null>(null);
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    const lista = (clientes ?? []).filter((cliente) => {
+    const lista = (vendedores ?? []).filter((vendedor) => {
       const casaTermo =
         !termo ||
-        cliente.nome.toLowerCase().includes(termo) ||
-        cliente.telefone.toLowerCase().includes(termo);
+        vendedor.nome.toLowerCase().includes(termo) ||
+        vendedor.telefone.toLowerCase().includes(termo);
       const casaStatus =
-        status === "todos" || (status === "ativos" ? cliente.ativo : !cliente.ativo);
+        status === "todos" || (status === "ativos" ? vendedor.ativo : !vendedor.ativo);
       return casaTermo && casaStatus;
     });
-    return ordenar(lista, ordem);
-  }, [clientes, busca, status, ordem]);
+    const copia = [...lista];
+    return ordem === "nome"
+      ? copia.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+      : copia.sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
+  }, [vendedores, busca, status, ordem]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
   const visiveis = filtrados.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
 
-  const valoresIniciais: ClienteFormValues = emEdicao
+  const valoresIniciais: VendedorFormValues = emEdicao
     ? {
         nome: emEdicao.nome,
         foto: emEdicao.foto ?? "",
         telefone: emEdicao.telefone,
         dataNascimento: emEdicao.dataNascimento ?? "",
         observacao: emEdicao.observacao,
+        senha: "",
+        confirmacaoSenha: "",
         ativo: emEdicao.ativo,
       }
-    : CLIENTE_VALORES_PADRAO;
+    : VENDEDOR_VALORES_PADRAO;
 
   function abrirNovo() {
     setEmEdicao(null);
     setDialogAberto(true);
   }
 
-  async function salvar(valores: ClienteFormValues) {
-    const payload = {
+  async function salvar(valores: VendedorFormValues) {
+    const payload: VendedorPayload = {
       nome: valores.nome,
       foto: valores.foto || null,
       telefone: valores.telefone,
       dataNascimento: valores.dataNascimento || null,
       observacao: valores.observacao,
       ativo: valores.ativo,
+      ...(valores.senha ? { senha: valores.senha } : {}),
     };
     try {
       if (emEdicao) await atualizar.mutateAsync({ id: emEdicao.id, payload });
       else await criar.mutateAsync(payload);
-      toast.success(emEdicao ? "Cliente atualizada." : "Cliente cadastrada.");
+      toast.success(emEdicao ? "Vendedor(a) atualizado(a)." : "Vendedor(a) cadastrado(a).");
       setDialogAberto(false);
       setEmEdicao(null);
     } catch (err) {
-      toast.error(mensagemDeErro(err, "Não foi possível salvar o cliente."));
+      toast.error(mensagemDeErro(err, "Não foi possível salvar o vendedor."));
     }
   }
 
-  async function alternarStatus(cliente: Cliente) {
+  async function alternarStatus(vendedor: Vendedor) {
     try {
-      await alterarStatus.mutateAsync({ id: cliente.id, ativo: !cliente.ativo });
-      toast.success(cliente.ativo ? "Cliente inativada." : "Cliente ativada.");
+      await alterarStatus.mutateAsync({ id: vendedor.id, ativo: !vendedor.ativo });
+      toast.success(vendedor.ativo ? "Acesso ao PDV suspenso." : "Acesso ao PDV liberado.");
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível alterar o status."));
     }
   }
 
-  async function excluir(cliente: Cliente) {
+  async function salvarSenha(valores: SenhaFormValues) {
+    if (!paraSenha) return;
     try {
-      await remover.mutateAsync(cliente.id);
-      toast.success("Cliente excluída.");
+      await redefinirSenha.mutateAsync({ id: paraSenha.id, senha: valores.senha });
+      toast.success("Senha redefinida.");
+      setParaSenha(null);
     } catch (err) {
-      toast.error(mensagemDeErro(err, "Não foi possível excluir o cliente."));
+      toast.error(mensagemDeErro(err, "Não foi possível redefinir a senha."));
+    }
+  }
+
+  async function excluir(vendedor: Vendedor) {
+    try {
+      await remover.mutateAsync(vendedor.id);
+      toast.success("Vendedor(a) excluído(a).");
+    } catch (err) {
+      toast.error(mensagemDeErro(err, "Não foi possível excluir o vendedor."));
     } finally {
       setParaExcluir(null);
     }
@@ -166,16 +184,21 @@ function ClientesPage() {
 
   return (
     <Page
-      titulo="Clientes"
-      breadcrumbs={[{ label: "Cadastros" }, { label: "Clientes" }]}
-      descricao="Base de clientes da loja com telefone, data de nascimento, observações e status."
+      titulo="Vendedores"
+      breadcrumbs={[{ label: "Cadastros" }, { label: "Vendedores" }]}
+      descricao="Usuários do MARIELA PDV. O backoffice é exclusivo da administração — vendedores não acessam esta área."
       acoes={
         <Button onClick={abrirNovo}>
           <Plus aria-hidden className="size-4" />
-          Nova cliente
+          Novo vendedor
         </Button>
       }
     >
+      <NotaDemonstracao>
+        As senhas são enviadas à API para geração do hash. O backoffice nunca exibe nem armazena
+        senhas.
+      </NotaDemonstracao>
+
       <DataToolbar
         busca={busca}
         onBuscaChange={(valor) => {
@@ -201,13 +224,12 @@ function ClientesPage() {
           </SelectContent>
         </Select>
         <Select value={ordem} onValueChange={(valor) => setOrdem(valor as Ordenacao)}>
-          <SelectTrigger className="w-52" aria-label="Ordenar clientes">
+          <SelectTrigger className="w-52" aria-label="Ordenar vendedores">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="nome">Nome (A–Z)</SelectItem>
             <SelectItem value="recentes">Cadastro mais recente</SelectItem>
-            <SelectItem value="nascimento">Aniversário</SelectItem>
           </SelectContent>
         </Select>
       </DataToolbar>
@@ -218,54 +240,59 @@ function ClientesPage() {
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : filtrados.length === 0 ? (
         <EmptyState
-          titulo="Nenhuma cliente encontrada"
-          descricao="Ajuste a busca e os filtros ou cadastre a primeira cliente da loja."
+          titulo="Nenhum vendedor encontrado"
+          descricao="Ajuste a busca e os filtros ou cadastre o primeiro usuário do PDV."
           acao={
             <Button onClick={abrirNovo}>
               <Plus aria-hidden className="size-4" />
-              Nova cliente
+              Novo vendedor
             </Button>
           }
         />
       ) : (
         <PessoaGrid>
-          {visiveis.map((cliente) => (
+          {visiveis.map((vendedor) => (
             <PessoaCard
-              key={cliente.id}
-              nome={cliente.nome}
-              foto={cliente.foto}
-              ativo={cliente.ativo}
-              subtitulo={`Cliente desde ${formatarData(cliente.criadoEm)}`}
+              key={vendedor.id}
+              nome={vendedor.nome}
+              foto={vendedor.foto}
+              ativo={vendedor.ativo}
+              subtitulo="Usuário do MARIELA PDV"
               campos={[
-                { icon: Phone, label: "Telefone", valor: cliente.telefone },
+                { icon: Phone, label: "Telefone", valor: vendedor.telefone },
                 {
-                  icon: CalendarHeart,
-                  label: "Nascimento",
-                  valor: formatarData(cliente.dataNascimento),
+                  icon: CalendarDays,
+                  label: "Cadastro",
+                  valor: `Cadastro em ${formatarData(vendedor.criadoEm)}`,
                 },
               ]}
-              observacao={cliente.observacao}
-              onVisualizar={() => setDetalhe(cliente)}
+              observacao={vendedor.observacao}
+              onVisualizar={() => setDetalhe(vendedor)}
               acoes={[
                 {
                   label: "Editar",
                   icon: Pencil,
                   onClick: () => {
-                    setEmEdicao(cliente);
+                    setEmEdicao(vendedor);
                     setDialogAberto(true);
                   },
                 },
                 {
-                  label: cliente.ativo ? "Inativar" : "Ativar",
+                  label: vendedor.ativo ? "Inativar" : "Ativar",
                   icon: Power,
-                  onClick: () => void alternarStatus(cliente),
+                  onClick: () => void alternarStatus(vendedor),
+                },
+                {
+                  label: "Redefinir senha",
+                  icon: KeyRound,
+                  onClick: () => setParaSenha(vendedor),
                 },
                 {
                   label: "Excluir",
                   icon: Trash2,
                   destrutivo: true,
                   separarAntes: true,
-                  onClick: () => setParaExcluir(cliente),
+                  onClick: () => setParaExcluir(vendedor),
                 },
               ]}
             />
@@ -277,11 +304,11 @@ function ClientesPage() {
         pagina={paginaAtual}
         totalPaginas={totalPaginas}
         total={filtrados.length}
-        rotulo="cliente(s)"
+        rotulo="vendedor(es)"
         onPaginaChange={setPagina}
       />
 
-      <ClienteDialog
+      <VendedorDialog
         open={dialogAberto}
         onOpenChange={(aberto) => {
           setDialogAberto(aberto);
@@ -293,15 +320,25 @@ function ClientesPage() {
         onSubmit={(valores) => void salvar(valores)}
       />
 
+      <SenhaDialog
+        open={paraSenha !== null}
+        onOpenChange={(aberto) => {
+          if (!aberto) setParaSenha(null);
+        }}
+        nome={paraSenha?.nome ?? ""}
+        salvando={redefinirSenha.isPending}
+        onSubmit={(valores) => void salvarSenha(valores)}
+      />
+
       <ConfirmDialog
         open={paraExcluir !== null}
         onOpenChange={(aberto) => {
           if (!aberto) setParaExcluir(null);
         }}
-        titulo="Excluir cliente"
+        titulo="Excluir vendedor"
         descricao={
           paraExcluir
-            ? `"${paraExcluir.nome}" será removida da base de clientes. Esta ação não pode ser desfeita.`
+            ? `"${paraExcluir.nome}" perderá o acesso ao MARIELA PDV. Esta ação não pode ser desfeita.`
             : ""
         }
         confirmarLabel="Excluir"
@@ -319,7 +356,7 @@ function ClientesPage() {
         <SheetContent className="w-full sm:max-w-lg">
           <SheetHeader>
             <SheetTitle className="font-display text-3xl">{detalhe?.nome}</SheetTitle>
-            <SheetDescription>Ficha da cliente e histórico de relacionamento.</SheetDescription>
+            <SheetDescription>Dados do vendedor e acesso ao PDV.</SheetDescription>
           </SheetHeader>
 
           {detalhe ? (
@@ -343,18 +380,19 @@ function ClientesPage() {
                   <dd>{formatarData(detalhe.criadoEm)}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Atualização</dt>
+                  <dd>{formatarData(detalhe.atualizadoEm)}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
                   <dt className="text-muted-foreground">Observação</dt>
                   <dd className="max-w-[60%] text-right">{detalhe.observacao || "—"}</dd>
                 </div>
               </dl>
 
-              <div>
-                <p className="text-eyebrow mb-3">Histórico de compras</p>
-                <NotaDemonstracao>
-                  O histórico de vendas será exibido aqui quando o módulo de Vendas do PDV estiver
-                  integrado à API.
-                </NotaDemonstracao>
-              </div>
+              <Button variant="outline" className="w-full" onClick={() => setParaSenha(detalhe)}>
+                <KeyRound aria-hidden className="size-4" />
+                Redefinir senha do PDV
+              </Button>
             </div>
           ) : null}
         </SheetContent>

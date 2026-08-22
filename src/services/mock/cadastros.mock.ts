@@ -70,6 +70,7 @@ function registrarClientes(): void {
     const cliente: Cliente = {
       id: gerarId("cli"),
       nome,
+      foto: texto(payload.foto) || null,
       telefone,
       dataNascimento: texto(payload.dataNascimento) || null,
       observacao: texto(payload.observacao),
@@ -92,10 +93,19 @@ function registrarClientes(): void {
     validar(errors);
 
     cliente.nome = nome;
+    cliente.foto = texto(payload.foto) || null;
     cliente.telefone = telefone;
     cliente.dataNascimento = texto(payload.dataNascimento) || null;
     cliente.observacao = texto(payload.observacao);
     cliente.ativo = booleano(payload.ativo, cliente.ativo);
+    cliente.atualizadoEm = agora();
+    return { data: clonar(cliente) };
+  });
+
+  registerMock("PATCH", "/clientes/:id/status", ({ params, body }) => {
+    const cliente = encontrar(db.clientes, params["id"]!, "Cliente");
+    const payload = (body ?? {}) as { ativo?: boolean };
+    cliente.ativo = typeof payload.ativo === "boolean" ? payload.ativo : !cliente.ativo;
     cliente.atualizadoEm = agora();
     return { data: clonar(cliente) };
   });
@@ -127,9 +137,15 @@ function registrarFornecedores(): void {
     const fornecedor: Fornecedor = {
       id: gerarId("for"),
       nome,
+      foto: texto(payload.foto) || null,
       contato: texto(payload.contato),
       telefone: texto(payload.telefone),
+      email: texto(payload.email),
+      cnpj: texto(payload.cnpj),
+      instagram: texto(payload.instagram),
+      ativo: booleano(payload.ativo),
       criadoEm: agora(),
+      atualizadoEm: agora(),
     };
     db.fornecedores.unshift(fornecedor);
     return { data: clonar(fornecedor) };
@@ -141,8 +157,22 @@ function registrarFornecedores(): void {
     const nome = texto(payload.nome);
     if (!nome) validar([{ field: "nome", message: "Nome é obrigatório." }]);
     fornecedor.nome = nome;
+    fornecedor.foto = texto(payload.foto) || null;
     fornecedor.contato = texto(payload.contato);
     fornecedor.telefone = texto(payload.telefone);
+    fornecedor.email = texto(payload.email);
+    fornecedor.cnpj = texto(payload.cnpj);
+    fornecedor.instagram = texto(payload.instagram);
+    fornecedor.ativo = booleano(payload.ativo, fornecedor.ativo);
+    fornecedor.atualizadoEm = agora();
+    return { data: clonar(fornecedor) };
+  });
+
+  registerMock("PATCH", "/fornecedores/:id/status", ({ params, body }) => {
+    const fornecedor = encontrar(db.fornecedores, params["id"]!, "Fornecedor");
+    const payload = (body ?? {}) as { ativo?: boolean };
+    fornecedor.ativo = typeof payload.ativo === "boolean" ? payload.ativo : !fornecedor.ativo;
+    fornecedor.atualizadoEm = agora();
     return { data: clonar(fornecedor) };
   });
 

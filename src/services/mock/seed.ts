@@ -3,6 +3,7 @@ import type { Variante } from "@/types/variante";
 import type { Configuracoes } from "@/types/configuracoes";
 import type { Cliente } from "@/types/cliente";
 import type { Fornecedor } from "@/types/fornecedor";
+import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
 
@@ -536,43 +537,78 @@ export function seedConfiguracoes(): Configuracoes {
 }
 
 export function seedFornecedores(): Fornecedor[] {
-  return [
-    {
-      id: "for_001",
-      nome: "Ateliê Bella Vita",
-      contato: "Renata Prado",
-      telefone: "(11) 98123-0011",
-      criadoEm: iso(200),
-    },
-    {
-      id: "for_002",
-      nome: "Malharia Vittoria",
-      contato: "Carlos Menezes",
-      telefone: "(11) 97722-8090",
-      criadoEm: iso(190),
-    },
-    {
-      id: "for_003",
-      nome: "Alfaiataria Duarte",
-      contato: "Marina Duarte",
-      telefone: "(21) 98455-1200",
-      criadoEm: iso(150),
-    },
-    {
-      id: "for_004",
-      nome: "Confecções Lumière",
-      contato: "Paula Ferraz",
-      telefone: "(31) 99111-3322",
-      criadoEm: iso(120),
-    },
-    {
-      id: "for_005",
-      nome: "Acessórios Dolce",
-      contato: "Iris Nakamura",
-      telefone: "(11) 96555-7788",
-      criadoEm: iso(80),
-    },
+  const base: [string, string, string, string, string, string, string, boolean, number][] = [
+    [
+      "for_001",
+      "Ateliê Bella Vita",
+      "Renata Prado",
+      "(11) 98123-0011",
+      "contato@bellavita.com.br",
+      "12.345.678/0001-90",
+      "@atelierbellavita",
+      true,
+      200,
+    ],
+    [
+      "for_002",
+      "Malharia Vittoria",
+      "Carlos Menezes",
+      "(11) 97722-8090",
+      "comercial@malhariavittoria.com.br",
+      "23.456.789/0001-01",
+      "@malhariavittoria",
+      true,
+      190,
+    ],
+    [
+      "for_003",
+      "Alfaiataria Duarte",
+      "Marina Duarte",
+      "(21) 98455-1200",
+      "marina@alfaiatariaduarte.com.br",
+      "",
+      "@alfaiatariaduarte",
+      true,
+      150,
+    ],
+    [
+      "for_004",
+      "Confecções Lumière",
+      "Paula Ferraz",
+      "(31) 99111-3322",
+      "",
+      "34.567.890/0001-12",
+      "",
+      true,
+      120,
+    ],
+    [
+      "for_005",
+      "Acessórios Dolce",
+      "Iris Nakamura",
+      "(11) 96555-7788",
+      "iris@acessoriosdolce.com.br",
+      "",
+      "@acessoriosdolce",
+      false,
+      80,
+    ],
   ];
+  return base.map(
+    ([id, nome, contato, telefone, email, cnpj, instagram, ativo, dias]): Fornecedor => ({
+      id,
+      nome,
+      foto: null,
+      contato,
+      telefone,
+      email,
+      cnpj,
+      instagram,
+      ativo,
+      criadoEm: iso(dias),
+      atualizadoEm: iso(Math.max(0, dias - 5)),
+    }),
+  );
 }
 
 function dia(diasAtras: number): string {
@@ -678,11 +714,56 @@ export function seedClientes(): Cliente[] {
   return base.map(([id, nome, telefone, dataNascimento, observacao, ativo, dias]) => ({
     id,
     nome,
+    foto: null,
     telefone,
     dataNascimento: dataNascimento || null,
     observacao,
     ativo,
     criadoEm: iso(dias),
     atualizadoEm: iso(Math.max(0, dias - 2)),
+  }));
+}
+
+export function seedVendedores(): Vendedor[] {
+  const base: [string, string, string, string, string, boolean, number][] = [
+    [
+      "ven_001",
+      "Mariana Alves",
+      "(11) 99444-1122",
+      "1994-03-12",
+      "Responsável pelo turno da manhã.",
+      true,
+      120,
+    ],
+    [
+      "ven_002",
+      "Fernanda Rocha",
+      "(11) 98333-7744",
+      "1991-09-30",
+      "Atende principalmente clientes de crediário.",
+      true,
+      95,
+    ],
+    ["ven_003", "Bianca Teixeira", "(11) 97555-2211", "1998-06-05", "", true, 60],
+    [
+      "ven_004",
+      "Sabrina Costa",
+      "(11) 96222-8899",
+      "1989-12-19",
+      "Afastada temporariamente.",
+      false,
+      30,
+    ],
+  ];
+  return base.map(([id, nome, telefone, dataNascimento, observacao, ativo, dias]): Vendedor => ({
+    id,
+    nome,
+    foto: null,
+    telefone,
+    dataNascimento: dataNascimento || null,
+    observacao,
+    ativo,
+    criadoEm: iso(dias),
+    atualizadoEm: iso(Math.max(0, dias - 3)),
   }));
 }

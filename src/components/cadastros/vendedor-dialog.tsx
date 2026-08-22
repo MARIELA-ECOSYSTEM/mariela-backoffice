@@ -18,27 +18,48 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Field } from "@/components/common/field";
 
-const clienteSchema = z.object({
-  nome: z.string().trim().min(1, "Nome é obrigatório.").max(120),
-  foto: z.string().trim().max(400),
-  telefone: z.string().trim().min(1, "Telefone é obrigatório.").max(20),
-  dataNascimento: z.string().trim(),
-  observacao: z.string().trim().max(400),
-  ativo: z.boolean(),
-});
+const vendedorSchema = z
+  .object({
+    nome: z.string().trim().min(1, "Nome é obrigatório.").max(120),
+    foto: z.string().trim().max(400),
+    telefone: z.string().trim().max(20),
+    dataNascimento: z.string().trim(),
+    observacao: z.string().trim().max(400),
+    senha: z.string(),
+    confirmacaoSenha: z.string(),
+    ativo: z.boolean(),
+  })
+  .superRefine((valores, ctx) => {
+    if (valores.senha && valores.senha.length < 6) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["senha"],
+        message: "A senha deve ter ao menos 6 caracteres.",
+      });
+    }
+    if (valores.senha !== valores.confirmacaoSenha) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["confirmacaoSenha"],
+        message: "As senhas não conferem.",
+      });
+    }
+  });
 
-export type ClienteFormValues = z.infer<typeof clienteSchema>;
+export type VendedorFormValues = z.infer<typeof vendedorSchema>;
 
-export const CLIENTE_VALORES_PADRAO: ClienteFormValues = {
+export const VENDEDOR_VALORES_PADRAO: VendedorFormValues = {
   nome: "",
   foto: "",
   telefone: "",
   dataNascimento: "",
   observacao: "",
+  senha: "",
+  confirmacaoSenha: "",
   ativo: true,
 };
 
-export function ClienteDialog({
+export function VendedorDialog({
   open,
   onOpenChange,
   edicao,
@@ -49,12 +70,12 @@ export function ClienteDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   edicao: boolean;
-  valoresIniciais: ClienteFormValues;
+  valoresIniciais: VendedorFormValues;
   salvando: boolean;
-  onSubmit: (valores: ClienteFormValues) => void;
+  onSubmit: (valores: VendedorFormValues) => void;
 }) {
-  const form = useForm<ClienteFormValues>({
-    resolver: zodResolver(clienteSchema),
+  const form = useForm<VendedorFormValues>({
+    resolver: zodResolver(vendedorSchema),
     defaultValues: valoresIniciais,
   });
   const errors = form.formState.errors;
@@ -63,21 +84,29 @@ export function ClienteDialog({
     if (open) form.reset(valoresIniciais);
   }, [open, valoresIniciais, form]);
 
+  function submeter(valores: VendedorFormValues) {
+    if (!edicao && !valores.senha) {
+      form.setError("senha", { message: "Senha é obrigatória para novos vendedores." });
+      return;
+    }
+    onSubmit(valores);
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{edicao ? "Editar cliente" : "Novo cliente"}</DialogTitle>
+          <DialogTitle>{edicao ? "Editar vendedor(a)" : "Novo vendedor(a)"}</DialogTitle>
           <DialogDescription>
-            Cadastro conforme especificação: nome, telefone, data de nascimento, observação e
-            status.
+            Usuário do MARIELA PDV. A senha é enviada à API, que gera o hash — o backoffice nunca
+            exibe senhas.
           </DialogDescription>
         </DialogHeader>
         <form
-          id="cliente-form"
+          id="vendedor-form"
           noValidate
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-5"
+          onSubmit={form.handleSubmit(submeter)}
+          className="max-h-[65vh] space-y-5 overflow-y-auto px-1"
         >
           <Field id="nome" label="Nome" erro={errors.nome?.message}>
             <Input id="nome" {...form.register("nome")} />
@@ -100,8 +129,34 @@ export function ClienteDialog({
           <Field id="observacao" label="Observação" erro={errors.observacao?.message}>
             <Textarea id="observacao" rows={3} {...form.register("observacao")} />
           </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              id="senha"
+              label={edicao ? "Nova senha (opcional)" : "Senha"}
+              erro={errors.senha?.message}
+            >
+              <Input
+                id="senha"
+                type="password"
+                autoComplete="new-password"
+                {...form.register("senha")}
+              />
+            </Field>
+            <Field
+              id="confirmacaoSenha"
+              label="Confirmar senha"
+              erro={errors.confirmacaoSenha?.message}
+            >
+              <Input
+                id="confirmacaoSenha"
+                type="password"
+                autoComplete="new-password"
+                {...form.register("confirmacaoSenha")}
+              />
+            </Field>
+          </div>
           <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-            <Label htmlFor="ativo">Cliente ativo</Label>
+            <Label htmlFor="ativo">Vendedor(a) ativo(a)</Label>
             <Switch
               id="ativo"
               checked={form.watch("ativo")}
@@ -113,7 +168,7 @@ export function ClienteDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button type="submit" form="cliente-form" disabled={salvando}>
+          <Button type="submit" form="vendedor-form" disabled={salvando}>
             {salvando ? <Loader2 aria-hidden className="size-4 animate-spin" /> : null}
             Salvar
           </Button>
