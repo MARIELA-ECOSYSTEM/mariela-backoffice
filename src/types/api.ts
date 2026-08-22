@@ -6,10 +6,27 @@ export interface ApiMeta {
   [key: string]: unknown;
 }
 
+/** Opção de faceta (filtro) com a contagem calculada pela camada de dados. */
+export interface FacetOption {
+  valor: string;
+  count: number;
+}
+
+/**
+ * Contagens de filtros por grupo, no formato do contrato da API:
+ * `{ categorias: [{ valor, count }], estoque: [{ valor, count }] }`.
+ */
+export type ApiFacets = Record<string, FacetOption[]>;
+
 export interface ApiResponse<T> {
   data: T;
   meta?: ApiMeta;
+  /** Contagens dos filtros referentes ao conjunto COMPLETO (não à página). */
+  facets?: ApiFacets;
 }
+
+/** Resposta paginada com facets — contrato usado pelas listagens. */
+export type PaginatedResponse<T> = ApiResponse<T[]>;
 
 export interface ApiFieldError {
   field: string;
