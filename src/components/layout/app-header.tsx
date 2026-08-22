@@ -21,43 +21,49 @@ export function AppHeader({ titulo, breadcrumbs }: { titulo: string; breadcrumbs
   const { usuario, logout } = useAuth();
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-card px-8">
+    <header className="sticky top-0 z-30 flex h-18 shrink-0 items-center justify-between border-b border-border bg-card/85 px-8 backdrop-blur-md">
       <div className="min-w-0">
         {breadcrumbs && breadcrumbs.length > 0 ? (
           <nav
             aria-label="Trilha de navegação"
-            className="flex items-center gap-1 text-xs text-muted-foreground"
+            className="flex items-center gap-1 font-brand text-[0.62rem] uppercase tracking-[0.16em] text-muted-foreground/80"
           >
             {breadcrumbs.map((crumb, index) => (
               <span key={`${crumb.label}-${index}`} className="flex items-center gap-1">
-                {index > 0 ? <ChevronRight aria-hidden className="size-3" /> : null}
+                {index > 0 ? <ChevronRight aria-hidden className="size-3 opacity-50" /> : null}
                 {crumb.to ? (
-                  <Link to={crumb.to} className="transition-colors hover:text-foreground">
+                  <Link to={crumb.to} className="transition-colors hover:text-primary">
                     {crumb.label}
                   </Link>
                 ) : (
-                  <span className="text-foreground/70">{crumb.label}</span>
+                  <span>{crumb.label}</span>
                 )}
               </span>
             ))}
           </nav>
         ) : null}
-        <h1 className="truncate font-display text-2xl leading-tight">{titulo}</h1>
+        <h1 className="mt-0.5 truncate font-display text-[1.65rem] font-medium leading-tight">
+          {titulo}
+        </h1>
       </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="gap-3 px-2" aria-label="Menu do usuário">
-            <span className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+          <Button
+            variant="ghost"
+            className="h-auto gap-3 py-1.5 pl-2 pr-3"
+            aria-label="Menu do usuário"
+          >
+            <span className="flex size-9 items-center justify-center rounded-full border border-primary/20 bg-primary-soft font-brand text-[0.7rem] font-medium tracking-widest text-primary">
               {iniciais(usuario?.nome ?? "Mariela")}
             </span>
             <span className="hidden text-left leading-tight sm:block">
-              <span className="block text-sm">{usuario?.nome ?? "—"}</span>
+              <span className="block text-sm text-foreground">{usuario?.nome ?? "—"}</span>
               <span className="block text-eyebrow">{usuario?.tipo ?? ""}</span>
             </span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
             <User aria-hidden className="size-3.5" /> Sessão administrativa
           </DropdownMenuLabel>

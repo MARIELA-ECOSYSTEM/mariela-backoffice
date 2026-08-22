@@ -60,30 +60,41 @@ function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
-      <div className="hidden flex-col justify-between bg-sidebar px-14 py-14 text-sidebar-foreground lg:flex">
-        <span className="font-display text-3xl tracking-[0.24em] text-sidebar-primary">
-          MARIELA
-        </span>
-        <div className="max-w-md">
-          <h2 className="font-display text-4xl leading-tight">
+    <div className="grid min-h-screen lg:grid-cols-[1.15fr_1fr]">
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-sidebar px-16 py-16 text-sidebar-foreground lg:flex">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-32 top-1/4 size-[26rem] rounded-full bg-sidebar-primary/8 blur-3xl"
+        />
+        <div className="relative">
+          <span className="block font-display text-4xl font-medium tracking-[0.34em] text-sidebar-primary">
+            MARIELA
+          </span>
+          <span aria-hidden className="rule-gold mt-4 block h-px w-40 opacity-70" />
+          <span className="mt-4 block font-brand text-[0.6rem] font-medium uppercase tracking-[0.3em] text-sidebar-foreground/50">
+            Backoffice
+          </span>
+        </div>
+        <div className="relative max-w-md">
+          <h2 className="font-display text-[2.75rem] font-medium leading-[1.15]">
             A gestão da sua loja, com a elegância que a marca merece.
           </h2>
-          <p className="mt-4 text-sm text-sidebar-foreground/70">
+          <p className="mt-5 text-sm leading-relaxed text-sidebar-foreground/65">
             Catálogo, variantes, estoque e configurações em um único lugar.
           </p>
         </div>
-        <p className="text-xs text-sidebar-foreground/50">
-          Backoffice administrativo · acesso restrito
+        <p className="relative font-brand text-[0.6rem] uppercase tracking-[0.22em] text-sidebar-foreground/40">
+          Acesso restrito · Mariela Loja
         </p>
       </div>
 
-      <div className="flex items-center justify-center px-6 py-14">
+      <div className="flex items-center justify-center bg-background px-6 py-14">
         <div className="w-full max-w-sm">
           <span className="text-eyebrow">Acesso administrativo</span>
-          <h1 className="mt-1 font-display text-3xl">Entrar no Backoffice</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Use as credenciais de demonstração <strong>admin</strong> / <strong>123456</strong>.
+          <h1 className="mt-2 font-display text-4xl font-medium">Entrar no Backoffice</h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+            Use as credenciais de demonstração <strong className="font-medium">admin</strong> /{" "}
+            <strong className="font-medium">123456</strong>.
           </p>
 
           <form onSubmit={form.handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>

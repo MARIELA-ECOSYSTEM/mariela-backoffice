@@ -33,27 +33,30 @@ export function VarianteCard({
   const semTamanhos = variante.tamanhos.length === 0;
 
   return (
-    <Card className="shadow-card">
+    <Card className="transition-shadow duration-200 hover:shadow-raised">
       <CardContent className="flex flex-col gap-5 py-5 lg:flex-row">
         <div className="flex gap-4">
           {variante.foto ? (
             <img
               src={variante.foto}
               alt={`${produto.nome} — ${variante.cor}`}
-              className="size-24 rounded-md object-cover"
+              className="h-32 w-24 rounded-sm border border-border object-cover"
               loading="lazy"
             />
           ) : (
             <span
               aria-label="Sem foto"
-              className="flex size-24 items-center justify-center rounded-md bg-muted text-muted-foreground"
+              className="flex h-32 w-24 items-center justify-center rounded-sm border border-dashed border-border-strong bg-surface text-muted-foreground/60"
             >
               <ImageIcon aria-hidden className="size-6" />
             </span>
           )}
           <div className="min-w-40">
-            <p className="font-display text-xl leading-tight">{variante.cor}</p>
-            <p className="font-mono text-xs text-muted-foreground">{variante.codVariante}</p>
+            <p className="font-display text-2xl leading-tight">{variante.cor}</p>
+            <p className="font-brand text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground">
+              {variante.codVariante}
+            </p>
+
             <p className="mt-2 text-sm">
               <span className="tabular-nums font-medium">{variante.quantidadeVariante}</span> peças
               na variante
