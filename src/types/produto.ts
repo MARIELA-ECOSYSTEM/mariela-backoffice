@@ -1,3 +1,4 @@
+import type { SelecaoFacetas } from "@/lib/filtros/facetas";
 import type { Variante } from "./variante";
 
 export interface Produto {
