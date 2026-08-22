@@ -33,15 +33,14 @@ export interface ApiRequest {
   token: string | null;
 }
 
+/** Leitura/escrita do token sempre via abstração `TokenStorage`. */
 export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+  return tokenStorage.get();
 }
 
 export function setToken(token: string | null): void {
-  if (typeof window === "undefined") return;
-  if (token) window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
-  else window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  if (token) tokenStorage.set(token);
+  else tokenStorage.clear();
 }
 
 function buildQueryString(params: QueryParams): string {
