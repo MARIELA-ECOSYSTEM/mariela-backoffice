@@ -54,7 +54,7 @@ async function httpRequest<T>(request: ApiRequest): Promise<ApiResponse<T>> {
         "content-type": "application/json",
         ...(request.token ? { authorization: `Bearer ${request.token}` } : {}),
       },
-      body: request.body === undefined ? undefined : JSON.stringify(request.body),
+      ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
       signal: controller.signal,
     });
 
