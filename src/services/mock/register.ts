@@ -6,6 +6,7 @@ import { registerConfiguracoesMocks } from "./configuracoes.mock";
 import { registerCadastrosMocks } from "./cadastros.mock";
 import { registerVendedoresMocks } from "./vendedores.mock";
 import { registerRelatoriosMocks } from "./relatorios.mock";
+import { registerDashboardMocks } from "./dashboard.mock";
 import { registerIntegracoesMocks } from "./integracoes.mock";
 
 let registrado = false;
@@ -31,5 +32,6 @@ export function registrarMocks(): void {
   registerCadastrosMocks();
   registerVendedoresMocks();
   registerRelatoriosMocks();
+  registerDashboardMocks();
   registerIntegracoesMocks();
 }

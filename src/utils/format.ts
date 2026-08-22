@@ -25,3 +25,8 @@ export function iniciais(texto: string): string {
     .map((parte) => parte[0]?.toUpperCase() ?? "")
     .join("");
 }
+
+/** Escolhe singular/plural de acordo com a quantidade informada. */
+export function pluralizar(quantidade: number, singular: string, plural: string): string {
+  return Math.abs(quantidade) === 1 ? singular : plural;
+}
