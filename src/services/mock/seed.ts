@@ -1,0 +1,421 @@
+import type { Produto } from "@/types/produto";
+import type { Variante } from "@/types/variante";
+import type { Configuracoes } from "@/types/configuracoes";
+import type { Cliente } from "@/types/cliente";
+import type { Fornecedor } from "@/types/fornecedor";
+import type { Colecao } from "@/types/colecao";
+import type { Campanha } from "@/types/campanha";
+
+export const CATEGORIAS = [
+  "Vestidos",
+  "Blusas",
+  "Camisas",
+  "Calças",
+  "Saias",
+  "Shorts",
+  "Macacões",
+  "Casacos",
+  "Acessórios",
+  "Praia",
+];
+
+export const TAMANHOS = ["PP", "P", "M", "G", "GG", "36", "38", "U"];
+
+export const CORES = [
+  "Preto",
+  "Off White",
+  "Bege",
+  "Nude",
+  "Vinho",
+  "Rosé",
+  "Azul Marinho",
+  "Verde Oliva",
+  "Terracota",
+  "Estampado Floral",
+];
+
+export const FORMAS_PAGAMENTO = ["Dinheiro", "Pix", "Cartão de Débito", "Cartão de Crédito", "Crediário"];
+
+function iso(diasAtras: number): string {
+  return new Date(Date.now() - diasAtras * 86_400_000).toISOString();
+}
+
+function margem(custo: number, venda: number): number {
+  if (custo <= 0) return 0;
+  return Number((((venda - custo) / custo) * 100).toFixed(2));
+}
+
+interface VarianteSeed {
+  cor: string;
+  tamanhos: [string, number][];
+}
+
+interface ProdutoSeed {
+  cod: string;
+  nome: string;
+  descricao: string;
+  categoria: string;
+  custo: number;
+  venda: number;
+  novidade?: boolean;
+  promocao?: boolean;
+  precoPromocional?: number;
+  colecaoId?: string;
+  campanhaId?: string;
+  fornecedorId?: string;
+  criadoDiasAtras: number;
+  variantes: VarianteSeed[];
+}
+
+const SEEDS: ProdutoSeed[] = [
+  {
+    cod: "PRD-0001",
+    nome: "Vestido Midi Amalfi",
+    descricao: "Vestido midi em viscose com decote V e amarração na cintura.",
+    categoria: "Vestidos",
+    custo: 89.9,
+    venda: 259.9,
+    novidade: true,
+    colecaoId: "col_001",
+    campanhaId: "cam_001",
+    fornecedorId: "for_001",
+    criadoDiasAtras: 4,
+    variantes: [
+      { cor: "Preto", tamanhos: [["P", 4], ["M", 6], ["G", 3]] },
+      { cor: "Terracota", tamanhos: [["P", 2], ["M", 5]] },
+      { cor: "Off White", tamanhos: [["M", 3], ["G", 1]] },
+    ],
+  },
+  {
+    cod: "PRD-0002",
+    nome: "Blusa Cropped Nice",
+    descricao: "Blusa cropped canelada de manga curta.",
+    categoria: "Blusas",
+    custo: 32.5,
+    venda: 99.9,
+    promocao: true,
+    precoPromocional: 79.9,
+    colecaoId: "col_002",
+    fornecedorId: "for_002",
+    criadoDiasAtras: 20,
+    variantes: [
+      { cor: "Rosé", tamanhos: [["PP", 5], ["P", 8], ["M", 4]] },
+      { cor: "Preto", tamanhos: [["P", 6], ["M", 6], ["G", 2]] },
+    ],
+  },
+  {
+    cod: "PRD-0003",
+    nome: "Calça Pantalona Sorrento",
+    descricao: "Pantalona de alfaiataria com pregas frontais.",
+    categoria: "Calças",
+    custo: 74.0,
+    venda: 219.9,
+    colecaoId: "col_001",
+    fornecedorId: "for_003",
+    criadoDiasAtras: 35,
+    variantes: [
+      { cor: "Azul Marinho", tamanhos: [["36", 2], ["38", 3]] },
+      { cor: "Bege", tamanhos: [["36", 1], ["38", 2]] },
+    ],
+  },
+  {
+    cod: "PRD-0004",
+    nome: "Camisa Linho Positano",
+    descricao: "Camisa em linho leve com botões de madrepérola.",
+    categoria: "Camisas",
+    custo: 68.0,
+    venda: 199.9,
+    novidade: true,
+    fornecedorId: "for_001",
+    criadoDiasAtras: 7,
+    variantes: [{ cor: "Off White", tamanhos: [["P", 3], ["M", 4], ["G", 3], ["GG", 1]] }],
+  },
+  {
+    cod: "PRD-0005",
+    nome: "Saia Plissada Verona",
+    descricao: "Saia plissada midi com cós elástico.",
+    categoria: "Saias",
+    custo: 55.0,
+    venda: 169.9,
+    promocao: true,
+    precoPromocional: 129.9,
+    campanhaId: "cam_002",
+    fornecedorId: "for_004",
+    criadoDiasAtras: 60,
+    variantes: [
+      { cor: "Vinho", tamanhos: [["P", 2], ["M", 1]] },
+      { cor: "Preto", tamanhos: [["M", 2], ["G", 1]] },
+    ],
+  },
+  {
+    cod: "PRD-0006",
+    nome: "Macacão Capri",
+    descricao: "Macacão pantalona com alças finas.",
+    categoria: "Macacões",
+    custo: 96.0,
+    venda: 289.9,
+    colecaoId: "col_003",
+    fornecedorId: "for_002",
+    criadoDiasAtras: 15,
+    variantes: [{ cor: "Verde Oliva", tamanhos: [["P", 1], ["M", 2]] }],
+  },
+  {
+    cod: "PRD-0007",
+    nome: "Lenço de Seda Bellagio",
+    descricao: "Lenço quadrado em seda com estampa exclusiva.",
+    categoria: "Acessórios",
+    custo: 24.0,
+    venda: 89.9,
+    novidade: true,
+    fornecedorId: "for_005",
+    criadoDiasAtras: 3,
+    variantes: [
+      { cor: "Estampado Floral", tamanhos: [["U", 12]] },
+      { cor: "Nude", tamanhos: [["U", 8]] },
+    ],
+  },
+  {
+    cod: "PRD-0008",
+    nome: "Casaco Trench Milano",
+    descricao: "Trench coat com cinto e forro acetinado.",
+    categoria: "Casacos",
+    custo: 180.0,
+    venda: 529.9,
+    colecaoId: "col_002",
+    fornecedorId: "for_003",
+    criadoDiasAtras: 90,
+    variantes: [{ cor: "Bege", tamanhos: [["P", 1], ["M", 1]] }],
+  },
+  {
+    cod: "PRD-0009",
+    nome: "Short Alfaiataria Riviera",
+    descricao: "Short de alfaiataria com bolsos embutidos.",
+    categoria: "Shorts",
+    custo: 42.0,
+    venda: 139.9,
+    fornecedorId: "for_004",
+    criadoDiasAtras: 48,
+    variantes: [],
+  },
+  {
+    cod: "PRD-0010",
+    nome: "Vestido Longo Sicília",
+    descricao: "Vestido longo fluido com fenda lateral.",
+    categoria: "Vestidos",
+    custo: 128.0,
+    venda: 389.9,
+    promocao: true,
+    precoPromocional: 299.9,
+    colecaoId: "col_003",
+    campanhaId: "cam_001",
+    fornecedorId: "for_001",
+    criadoDiasAtras: 25,
+    variantes: [
+      { cor: "Vinho", tamanhos: [["P", 3], ["M", 3], ["G", 2]] },
+      { cor: "Preto", tamanhos: [["P", 4], ["M", 5], ["G", 4], ["GG", 2]] },
+      { cor: "Estampado Floral", tamanhos: [["M", 2]] },
+    ],
+  },
+  {
+    cod: "PRD-0011",
+    nome: "Biquíni Ipanema",
+    descricao: "Biquíni cortininha com bojo removível.",
+    categoria: "Praia",
+    custo: 38.0,
+    venda: 129.9,
+    novidade: true,
+    campanhaId: "cam_003",
+    fornecedorId: "for_005",
+    criadoDiasAtras: 2,
+    variantes: [
+      { cor: "Rosé", tamanhos: [["P", 4], ["M", 4]] },
+      { cor: "Preto", tamanhos: [["P", 0], ["M", 0]] },
+    ],
+  },
+  {
+    cod: "PRD-0012",
+    nome: "Blusa Tricot Como",
+    descricao: "Tricot leve de gola alta.",
+    categoria: "Blusas",
+    custo: 61.0,
+    venda: 189.9,
+    fornecedorId: "for_002",
+    criadoDiasAtras: 70,
+    variantes: [{ cor: "Nude", tamanhos: [["P", 0], ["M", 0], ["G", 0]] }],
+  },
+  {
+    cod: "PRD-0013",
+    nome: "Cinto Couro Firenze",
+    descricao: "Cinto de couro legítimo com fivela dourada.",
+    categoria: "Acessórios",
+    custo: 29.0,
+    venda: 109.9,
+    fornecedorId: "for_005",
+    criadoDiasAtras: 110,
+    variantes: [{ cor: "Preto", tamanhos: [["U", 1]] }],
+  },
+  {
+    cod: "PRD-0014",
+    nome: "Calça Wide Leg Genova",
+    descricao: "Calça wide leg em sarja com barra desfiada.",
+    categoria: "Calças",
+    custo: 79.9,
+    venda: 249.9,
+    colecaoId: "col_001",
+    fornecedorId: "for_003",
+    criadoDiasAtras: 12,
+    variantes: [
+      { cor: "Azul Marinho", tamanhos: [["36", 3], ["38", 4]] },
+      { cor: "Off White", tamanhos: [["36", 2], ["38", 2]] },
+    ],
+  },
+  {
+    cod: "PRD-0015",
+    nome: "Saída de Praia Búzios",
+    descricao: "Saída de praia em tecido vazado, tamanho único.",
+    categoria: "Praia",
+    custo: 45.0,
+    venda: 159.9,
+    promocao: true,
+    precoPromocional: 119.9,
+    campanhaId: "cam_003",
+    fornecedorId: "for_004",
+    criadoDiasAtras: 30,
+    variantes: [{ cor: "Off White", tamanhos: [["U", 10]] }],
+  },
+  {
+    cod: "PRD-0016",
+    nome: "Vestido Curto Portofino",
+    descricao: "Vestido curto com manga bufante.",
+    categoria: "Vestidos",
+    custo: 72.0,
+    venda: 229.9,
+    novidade: true,
+    colecaoId: "col_002",
+    fornecedorId: "for_001",
+    criadoDiasAtras: 5,
+    variantes: [
+      { cor: "Terracota", tamanhos: [["P", 2], ["M", 3], ["G", 1]] },
+      { cor: "Preto", tamanhos: [["P", 1], ["M", 2]] },
+    ],
+  },
+  {
+    cod: "PRD-0017",
+    nome: "Camisa Oversized Bolonha",
+    descricao: "Camisa oversized em tricoline.",
+    categoria: "Camisas",
+    custo: 58.0,
+    venda: 179.9,
+    fornecedorId: "for_002",
+    criadoDiasAtras: 55,
+    variantes: [],
+  },
+];
+
+export function seedProdutos(): Produto[] {
+  return SEEDS.map((seed, indexProduto) => {
+    const variantes: Variante[] = seed.variantes.map((variante, indexVariante) => {
+      const tamanhos = variante.tamanhos.map(([tamanho, quantidade], indexTamanho) => ({
+        id: `tam_${indexProduto + 1}_${indexVariante + 1}_${indexTamanho + 1}`,
+        tamanho,
+        quantidade,
+      }));
+      return {
+        id: `var_${indexProduto + 1}_${indexVariante + 1}`,
+        codVariante: `${seed.cod}-${String(indexVariante + 1).padStart(2, "0")}`,
+        cor: variante.cor,
+        quantidadeVariante: tamanhos.reduce((total, t) => total + t.quantidade, 0),
+        foto: null,
+        video: null,
+        tamanhos,
+      };
+    });
+
+    const quantidadeTotal = variantes.reduce((total, v) => total + v.quantidadeVariante, 0);
+    const precoVigente = seed.promocao && seed.precoPromocional ? seed.precoPromocional : seed.venda;
+
+    return {
+      id: `prd_${String(indexProduto + 1).padStart(3, "0")}`,
+      codProduto: seed.cod,
+      nome: seed.nome,
+      descricao: seed.descricao,
+      categoria: seed.categoria,
+      colecaoId: seed.colecaoId ?? null,
+      campanhaId: seed.campanhaId ?? null,
+      fornecedorId: seed.fornecedorId ?? null,
+      precoCusto: seed.custo,
+      margemLucro: margem(seed.custo, precoVigente),
+      precoVenda: seed.venda,
+      ehNovidade: seed.novidade ?? false,
+      ehPromocao: seed.promocao ?? false,
+      precoPromocional: seed.precoPromocional ?? null,
+      quantidadeTotal,
+      estoqueZeradoEm: quantidadeTotal === 0 ? iso(Math.min(seed.criadoDiasAtras, 10)) : null,
+      variantes,
+      criadoEm: iso(seed.criadoDiasAtras),
+      atualizadoEm: iso(Math.max(0, seed.criadoDiasAtras - 1)),
+    } satisfies Produto;
+  });
+}
+
+export function seedConfiguracoes(): Configuracoes {
+  return {
+    loja: {
+      nome: "Mariela Moda Feminina",
+      logo: "",
+      telefone: "(11) 3555-0110",
+      whatsapp: "(11) 99820-4477",
+      email: "contato@mariela.com.br",
+      endereco: {
+        cep: "01310-100",
+        logradouro: "Avenida Paulista",
+        numero: "1400",
+        complemento: "Loja 12",
+        bairro: "Bela Vista",
+        cidade: "São Paulo",
+        estado: "SP",
+      },
+    },
+    categorias: [...CATEGORIAS],
+    tamanhos: [...TAMANHOS],
+    cores: [...CORES],
+    formasPagamento: [...FORMAS_PAGAMENTO],
+    atualizadoEm: iso(1),
+  };
+}
+
+export function seedFornecedores(): Fornecedor[] {
+  return [
+    { id: "for_001", nome: "Ateliê Bella Vita", contato: "Renata Prado", telefone: "(11) 98123-0011", criadoEm: iso(200) },
+    { id: "for_002", nome: "Malharia Vittoria", contato: "Carlos Menezes", telefone: "(11) 97722-8090", criadoEm: iso(190) },
+    { id: "for_003", nome: "Alfaiataria Duarte", contato: "Marina Duarte", telefone: "(21) 98455-1200", criadoEm: iso(150) },
+    { id: "for_004", nome: "Confecções Lumière", contato: "Paula Ferraz", telefone: "(31) 99111-3322", criadoEm: iso(120) },
+    { id: "for_005", nome: "Acessórios Dolce", contato: "Iris Nakamura", telefone: "(11) 96555-7788", criadoEm: iso(80) },
+  ];
+}
+
+export function seedColecoes(): Colecao[] {
+  return [
+    { id: "col_001", nome: "Alta Estação", temporada: "Verão 2026", criadoEm: iso(120) },
+    { id: "col_002", nome: "Essenciais Mariela", temporada: "Atemporal", criadoEm: iso(300) },
+    { id: "col_003", nome: "Riviera", temporada: "Resort 2026", criadoEm: iso(60) },
+  ];
+}
+
+export function seedCampanhas(): Campanha[] {
+  return [
+    { id: "cam_001", nome: "Lançamento Verão", periodo: "Set – Dez 2026", criadoEm: iso(90) },
+    { id: "cam_002", nome: "Liquida Inverno", periodo: "Jul – Ago 2026", criadoEm: iso(150) },
+    { id: "cam_003", nome: "Semana da Praia", periodo: "Jan 2026", criadoEm: iso(40) },
+  ];
+}
+
+export function seedClientes(): Cliente[] {
+  return [
+    { id: "cli_001", nome: "Ana Beatriz Souza", telefone: "(11) 99811-2233", email: "ana.souza@email.com", criadoEm: iso(45) },
+    { id: "cli_002", nome: "Camila Ferreira", telefone: "(11) 98444-9090", email: "camila.f@email.com", criadoEm: iso(30) },
+    { id: "cli_003", nome: "Juliana Martins", telefone: "(21) 99700-1010", email: "juliana.m@email.com", criadoEm: iso(20) },
+    { id: "cli_004", nome: "Larissa Nogueira", telefone: "(31) 98222-3131", email: "larissa.n@email.com", criadoEm: iso(10) },
+    { id: "cli_005", nome: "Patrícia Lima", telefone: "(11) 97333-4545", email: "patricia.l@email.com", criadoEm: iso(5) },
+  ];
+}
