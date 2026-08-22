@@ -225,7 +225,7 @@ function ProdutosPage() {
             </div>
           </div>
 
-          <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-4">
             <Select value={categoria} onValueChange={setCategoria}>
               <SelectTrigger aria-label="Filtrar por categoria">
                 <SelectValue placeholder="Categoria" />
@@ -296,7 +296,6 @@ function ProdutosPage() {
               </SelectContent>
             </Select>
 
-            <div className="grid grid-cols-2 gap-2">
               <Select
                 value={promocao}
                 onValueChange={(valor) => setPromocao(valor as FiltroBooleano)}
@@ -323,8 +322,7 @@ function ProdutosPage() {
                   <SelectItem value="sim">Novidades</SelectItem>
                   <SelectItem value="nao">Não novidades</SelectItem>
                 </SelectContent>
-              </Select>
-            </div>
+            </Select>
           </div>
         </CardContent>
       </Card>
