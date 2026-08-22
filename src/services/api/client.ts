@@ -116,10 +116,16 @@ async function request<T>(
     token: getToken(),
   };
 
-  if (USE_MOCK_API) {
-    return handleMockRequest<T>(apiRequest);
+  try {
+    return USE_MOCK_API ? await handleMockRequest<T>(apiRequest) : await httpRequest<T>(apiRequest);
+  } catch (error) {
+    // Tratamento global de 401: encerra a sessão e volta para o login.
+    // O login em si não conta — ali o 401 é apenas credencial inválida.
+    if (error instanceof ApiError && error.statusCode === 401 && !path.startsWith("/auth/login")) {
+      handleUnauthorized();
+    }
+    throw error;
   }
-  return httpRequest<T>(apiRequest);
 }
 
 export const apiClient = {
