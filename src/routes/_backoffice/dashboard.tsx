@@ -286,7 +286,7 @@ function DashboardPage() {
             descricao="Base de clientes cadastradas e movimento do mês selecionado."
           >
             <div className="grid gap-6 xl:grid-cols-[3fr_2fr]">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid content-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 <Metrica
                   rotulo="Clientes cadastradas"
                   valor={data.clientes.cadastrados}
@@ -345,7 +345,7 @@ function DashboardPage() {
             descricao="Cadastro de fornecedores da coleção."
           >
             <div className="grid gap-6 xl:grid-cols-[3fr_2fr]">
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid content-start gap-4 sm:grid-cols-3">
                 <Metrica
                   rotulo="Fornecedores cadastrados"
                   valor={data.fornecedores.cadastrados}
@@ -383,7 +383,7 @@ function DashboardPage() {
             descricao="Equipe de vendas e desempenho gerencial no mês selecionado."
           >
             <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">
-              <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
+              <div className="grid content-start gap-4 sm:grid-cols-3 xl:grid-cols-1">
                 <Metrica
                   rotulo="Vendedores cadastrados"
                   valor={data.vendedores.cadastrados}
