@@ -90,18 +90,20 @@ export function registerVariantesMocks(): void {
       errors.push({ field: "quantidade", message: "Quantidade deve ser maior ou igual a zero." });
     if (errors.length) throw ApiError.validation("Dados inválidos.", errors);
 
-    const duplicado = variante.tamanhos.some(
-      (t) => t.tamanho.toLowerCase() === payload.tamanho.trim().toLowerCase(),
-    );
+    const tamanho = normalizarTamanho(payload.tamanho);
+
+    const duplicado = variante.tamanhos.some((t) => normalizarTamanho(t.tamanho) === tamanho);
     if (duplicado) {
       throw ApiError.validation("Dados inválidos.", [
         { field: "tamanho", message: "Este tamanho já está cadastrado nesta variante." },
       ]);
     }
 
+    validarRegraTamanhoUnico(variante, tamanho);
+
     variante.tamanhos.push({
       id: gerarId("tam"),
-      tamanho: payload.tamanho.trim(),
+      tamanho,
       quantidade: payload.quantidade,
     });
     recalcularProduto(produto);
