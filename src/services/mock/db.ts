@@ -6,6 +6,7 @@ import type { Fornecedor } from "@/types/fornecedor";
 import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
+import type { VendaResumo } from "@/types/venda";
 import { calcularMargem, precoFinal } from "@/utils/produto";
 import {
   seedCampanhas,
@@ -16,6 +17,7 @@ import {
   seedVendedores,
   seedProdutos,
 } from "./seed";
+import { seedVendas } from "./vendas.seed";
 
 export interface MockDatabase {
   produtos: Produto[];
@@ -27,6 +29,8 @@ export interface MockDatabase {
   vendedoresSenhas: Record<string, string>;
   colecoes: Colecao[];
   campanhas: Campanha[];
+  /** Vendas de leitura (fonte: MARIELA PDV) usadas pelos indicadores do Dashboard. */
+  vendas: VendaResumo[];
 }
 
 export const db: MockDatabase = {
@@ -38,7 +42,10 @@ export const db: MockDatabase = {
   vendedoresSenhas: {},
   colecoes: seedColecoes(),
   campanhas: seedCampanhas(),
+  vendas: [],
 };
+
+db.vendas = seedVendas(db.produtos, db.clientes, db.vendedores);
 
 export function agora(): string {
   return new Date().toISOString();
