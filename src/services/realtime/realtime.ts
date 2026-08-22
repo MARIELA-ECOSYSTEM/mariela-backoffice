@@ -11,7 +11,6 @@ import type { QueryClient } from "@tanstack/react-query";
 import { produtosKeys } from "@/hooks/use-produtos";
 import { estoqueKeys } from "@/hooks/use-estoque";
 import { configuracoesKeys } from "@/hooks/use-configuracoes";
-import { cadastrosKeys } from "@/hooks/use-cadastros";
 
 /** Eventos que o backend poderá emitir. Mantidos alinhados às mutations atuais. */
 export type RealtimeEventType =
@@ -42,7 +41,7 @@ export function setRealtimeTransport(next: RealtimeTransport | null): void {
 }
 
 /** Chaves de cache invalidadas por cada evento remoto (sempre via factories). */
-function chavesAfetadas(event: RealtimeEvent): readonly unknown[][] {
+function chavesAfetadas(event: RealtimeEvent): readonly (readonly unknown[])[] {
   switch (event.type) {
     case "produto.criado":
     case "produto.atualizado":
@@ -54,7 +53,7 @@ function chavesAfetadas(event: RealtimeEvent): readonly unknown[][] {
     case "estoque.movimentado":
       return [estoqueKeys.todos, produtosKeys.todos];
     case "configuracao.alterada":
-      return [configuracoesKeys.todos, cadastrosKeys.todos];
+      return [configuracoesKeys.todos];
     default:
       return [];
   }
