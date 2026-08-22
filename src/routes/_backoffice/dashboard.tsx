@@ -1,14 +1,43 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, PackageX, Sparkles, Tag, TrendingUp } from "lucide-react";
+import {
+  BadgeDollarSign,
+  Boxes,
+  CalendarDays,
+  CircleSlash,
+  Coins,
+  Gem,
+  Layers,
+  Percent,
+  ReceiptText,
+  ShoppingBag,
+  Sparkles,
+  Store,
+  Tag,
+  Target,
+  TrendingUp,
+  UserRound,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { Page } from "@/components/layout/page";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ErrorState, TableSkeleton } from "@/components/common/states";
-import { StatusEstoqueBadge } from "@/components/common/status-badge";
-import { useProdutos } from "@/hooks/use-produtos";
-import { formatarMoeda } from "@/utils/format";
-import { ESTOQUE_BAIXO, precoFinal } from "@/utils/produto";
+import { NotaDemonstracao } from "@/components/common/data-toolbar";
+import { SecaoDashboard } from "@/components/dashboard/secao";
+import { Metrica } from "@/components/dashboard/metrica";
+import { GraficoVendas } from "@/components/dashboard/grafico-vendas";
+import { UltimasVendas } from "@/components/dashboard/ultimas-vendas";
+import { RankingVendedores } from "@/components/dashboard/ranking-vendedores";
+import { ListaPessoas } from "@/components/dashboard/lista-pessoas";
+import { useResumoDashboard } from "@/hooks/use-dashboard";
 
 export const Route = createFileRoute("/_backoffice/dashboard")({
   ssr: false,
@@ -17,203 +46,372 @@ export const Route = createFileRoute("/_backoffice/dashboard")({
       { title: "Dashboard — MARIELA Backoffice" },
       {
         name: "description",
-        content: "Visão geral do catálogo, estoque e promoções da loja Mariela.",
+        content:
+          "Painel de gestão da loja Mariela: vendas, estoque, clientes, fornecedores e vendedoras.",
       },
       { property: "og:title", content: "Dashboard — MARIELA Backoffice" },
       {
         property: "og:description",
-        content: "Visão geral do catálogo, estoque e promoções da loja Mariela.",
+        content:
+          "Painel de gestão da loja Mariela: vendas, estoque, clientes, fornecedores e vendedoras.",
       },
     ],
   }),
   component: DashboardPage,
 });
 
-function Indicador({
-  titulo,
-  valor,
-  detalhe,
-  icone: Icone,
-  destaque,
-}: {
-  titulo: string;
-  valor: string;
-  detalhe: string;
-  icone: typeof Tag;
-  destaque?: boolean;
-}) {
-  return (
-    <Card
-      className={
-        destaque
-          ? "relative overflow-hidden border-primary/20 bg-primary-soft/45 shadow-raised"
-          : "transition-shadow duration-200 hover:shadow-raised"
-      }
-    >
-      {destaque ? (
-        <span aria-hidden className="rule-gold absolute inset-x-0 top-0 h-px opacity-80" />
-      ) : null}
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <p className="text-eyebrow">{titulo}</p>
-        <Icone
-          aria-hidden
-          className={destaque ? "size-4 text-primary/70" : "size-4 text-muted-foreground/70"}
-        />
-      </CardHeader>
-      <CardContent>
-        <p className={destaque ? "text-metric text-primary" : "text-metric"}>{valor}</p>
-        <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">{detalhe}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
 function DashboardPage() {
-  const { data, isPending, isError, error, refetch } = useProdutos({
-    ordenarPor: "criadoEm",
-    ordem: "desc",
-  });
-  const produtos = data?.produtos ?? [];
-
-  const totalPecas = produtos.reduce((total, p) => total + p.quantidadeTotal, 0);
-  const semEstoque = produtos.filter((p) => p.quantidadeTotal === 0);
-  const estoqueBaixo = produtos.filter(
-    (p) => p.quantidadeTotal > 0 && p.quantidadeTotal <= ESTOQUE_BAIXO,
-  );
-  const emPromocao = produtos.filter((p) => p.ehPromocao);
-  const valorEstoque = produtos.reduce((total, p) => total + precoFinal(p) * p.quantidadeTotal, 0);
-  const novidades = produtos.filter((p) => p.ehNovidade).slice(0, 5);
+  const [mes, setMes] = useState("");
+  const { data, isPending, isError, error, refetch } = useResumoDashboard(mes);
 
   return (
     <Page
       titulo="Dashboard"
-      descricao="Panorama do catálogo Mariela: disponibilidade, promoções e novidades da coleção."
+      descricao="Panorama de gestão da loja Mariela: desempenho comercial, valor do estoque e cadastros."
       acoes={
-        <Button asChild>
-          <Link to="/produtos/novo">Novo produto</Link>
-        </Button>
+        <>
+          {data ? (
+            <Select value={data.vendas.mesReferencia} onValueChange={setMes}>
+              <SelectTrigger className="w-[190px]" aria-label="Mês de referência">
+                <CalendarDays aria-hidden className="size-4 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {data.vendas.mesesDisponiveis.map((opcao) => (
+                  <SelectItem key={opcao.valor} value={opcao.valor} className="capitalize">
+                    {opcao.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+          <Button asChild>
+            <Link to="/produtos/novo">Novo produto</Link>
+          </Button>
+        </>
       }
     >
       {isPending ? (
-        <TableSkeleton linhas={5} colunas={4} />
+        <TableSkeleton linhas={6} colunas={4} />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : (
-        <div className="space-y-7">
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            <Indicador
-              titulo="Produtos cadastrados"
-              valor={String(produtos.length)}
-              detalhe={`${produtos.length - semEstoque.length} com estoque disponível`}
-              icone={Tag}
-            />
-            <Indicador
+        <div className="space-y-10">
+          {data.demonstracao ? (
+            <NotaDemonstracao>
+              Indicadores calculados sobre os dados de demonstração da camada mock. As vendas são
+              originadas no <strong>MARIELA PDV</strong> e consumidas aqui apenas em leitura.
+            </NotaDemonstracao>
+          ) : null}
+
+          <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <Metrica
               destaque
-              titulo="Peças em estoque"
-              valor={String(totalPecas)}
-              detalhe={`Valor estimado ${formatarMoeda(valorEstoque)}`}
-              icone={TrendingUp}
+              rotulo={`Faturamento · ${data.vendas.mesLabel}`}
+              valor={data.vendas.faturamentoMes}
+              tipo="valor"
+              icone={BadgeDollarSign}
+              variacao={data.vendas.crescimentoMensalPercentual}
+              detalhe="vs. mês anterior"
             />
-            <Indicador
-              titulo="Sem estoque"
-              valor={String(semEstoque.length)}
-              detalhe={`${estoqueBaixo.length} produtos com estoque baixo`}
-              icone={PackageX}
+            <Metrica
+              rotulo="Vendas no mês"
+              valor={data.vendas.vendasMes}
+              tipo="quantidade"
+              unidade="vendas"
+              icone={ShoppingBag}
+              detalhe={`Ticket médio ${data.vendas.ticketMedioMes.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}
             />
-            <Indicador
-              titulo="Em promoção"
-              valor={String(emPromocao.length)}
-              detalhe={`${produtos.filter((p) => p.ehNovidade).length} marcados como novidade`}
-              icone={Sparkles}
+            <Metrica
+              rotulo="Venda em potencial (estoque)"
+              valor={data.estoque.vendaPotencial}
+              tipo="valor"
+              icone={Gem}
+              detalhe={`${data.estoque.pecasEmEstoque.toLocaleString("pt-BR")} peças disponíveis`}
             />
-          </div>
+            <Metrica
+              rotulo="Clientes ativas"
+              valor={data.clientes.ativos}
+              tipo="quantidade"
+              unidade="clientes"
+              icone={Users}
+              detalhe={`${data.clientes.compraramNoMes} compraram no mês`}
+            />
+          </section>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/70 pb-4">
-                <div>
-                  <CardTitle className="text-xl">Atenção no estoque</CardTitle>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Peças esgotadas ou próximas do fim
-                  </p>
-                </div>
-                <AlertTriangle aria-hidden className="size-4 text-warning" />
-              </CardHeader>
-              <CardContent className="pt-4">
-                {[...semEstoque, ...estoqueBaixo].slice(0, 6).length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    Nenhum produto exige atenção no momento.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-border/60">
-                    {[...semEstoque, ...estoqueBaixo].slice(0, 6).map((produto) => (
-                      <li key={produto.id}>
-                        <Link
-                          to="/produtos/$id"
-                          params={{ id: produto.id }}
-                          className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-3 transition-colors hover:bg-primary-soft/30"
-                        >
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm">{produto.nome}</span>
-                            <span className="block font-brand text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
-                              {produto.codProduto}
-                            </span>
-                          </span>
-                          <span className="flex shrink-0 items-center gap-3">
-                            <span className="text-sm tabular-nums text-muted-foreground">
-                              {produto.quantidadeTotal} un.
-                            </span>
-                            <StatusEstoqueBadge quantidadeTotal={produto.quantidadeTotal} />
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
+          <SecaoDashboard
+            titulo="Vendas"
+            icone={TrendingUp}
+            descricao="Quantidade de vendas e faturamento apresentados separadamente."
+          >
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <Metrica
+                rotulo="Vendas hoje"
+                valor={data.vendas.vendasHoje}
+                tipo="quantidade"
+                unidade="vendas"
+                icone={ShoppingBag}
+              />
+              <Metrica
+                rotulo="Vendas na semana"
+                valor={data.vendas.vendasSemana}
+                tipo="quantidade"
+                unidade="vendas"
+                icone={ShoppingBag}
+              />
+              <Metrica
+                rotulo="Vendas no mês"
+                valor={data.vendas.vendasMes}
+                tipo="quantidade"
+                unidade="vendas"
+                icone={ShoppingBag}
+              />
+              <Metrica
+                rotulo="Ticket médio mensal (vendas)"
+                valor={data.vendas.ticketMedioMes}
+                tipo="valor"
+                icone={ReceiptText}
+                detalhe="Faturamento do mês ÷ vendas do mês"
+              />
+              <Metrica
+                rotulo="Faturamento diário"
+                valor={data.vendas.faturamentoHoje}
+                tipo="valor"
+                icone={Wallet}
+              />
+              <Metrica
+                rotulo="Faturamento semanal"
+                valor={data.vendas.faturamentoSemana}
+                tipo="valor"
+                icone={Wallet}
+              />
+              <Metrica
+                rotulo="Faturamento mensal"
+                valor={data.vendas.faturamentoMes}
+                tipo="valor"
+                icone={Wallet}
+              />
+              <Metrica
+                rotulo="Crescimento mensal"
+                valor={data.vendas.crescimentoMensalPercentual}
+                tipo="percentual"
+                icone={Target}
+                detalhe={`Mês anterior: ${data.vendas.faturamentoMesAnterior.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}
+              />
+            </div>
 
-            <Card>
-              <CardHeader className="border-b border-border/70 pb-4">
-                <CardTitle className="text-xl">Novidades recentes</CardTitle>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Últimas peças marcadas como novidade
-                </p>
-              </CardHeader>
-              <CardContent className="pt-4">
-                {novidades.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    Nenhuma novidade cadastrada.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-border/60">
-                    {novidades.map((produto) => (
-                      <li key={produto.id}>
-                        <Link
-                          to="/produtos/$id"
-                          params={{ id: produto.id }}
-                          className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-3 transition-colors hover:bg-primary-soft/30"
-                        >
-                          <span className="min-w-0">
-                            <span className="block truncate text-sm">{produto.nome}</span>
-                            <span className="block font-brand text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
-                              {produto.categoria}
-                            </span>
-                          </span>
-                          <span className="flex shrink-0 items-center gap-3">
-                            <span className="text-sm tabular-nums">
-                              {formatarMoeda(precoFinal(produto))}
-                            </span>
-                            {produto.ehPromocao ? <Badge variant="gold">Promoção</Badge> : null}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+            <GraficoVendas serie={data.vendas.evolucao} mesLabel={data.vendas.mesLabel} />
+
+            <UltimasVendas
+              vendas={data.vendas.ultimasVendas}
+              acao={
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/vendas">Ver todas</Link>
+                </Button>
+              }
+            />
+          </SecaoDashboard>
+
+          <SecaoDashboard
+            titulo="Produtos | Estoque"
+            icone={Boxes}
+            descricao="Fotografia administrativa do estoque existente, sem alertas de reposição."
+          >
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <Metrica
+                rotulo="Produtos cadastrados"
+                valor={data.estoque.produtosCadastrados}
+                tipo="quantidade"
+                unidade="produtos"
+                icone={Tag}
+                detalhe={`${data.estoque.variantesCadastradas} variantes cadastradas`}
+              />
+              <Metrica
+                rotulo="Peças em estoque"
+                valor={data.estoque.pecasEmEstoque}
+                tipo="quantidade"
+                unidade="peças"
+                icone={Layers}
+                detalhe="Soma das quantidades por tamanho"
+              />
+              <Metrica
+                rotulo="Produtos sem estoque"
+                valor={data.estoque.produtosSemEstoque}
+                tipo="quantidade"
+                unidade="produtos"
+                icone={CircleSlash}
+                detalhe="Informação administrativa"
+              />
+              <Metrica
+                rotulo="Custo de estoque"
+                valor={data.estoque.custoEstoque}
+                tipo="valor"
+                icone={Coins}
+                detalhe="Investido: Σ quantidade × preço de custo"
+              />
+              <Metrica
+                rotulo="Venda em potencial"
+                valor={data.estoque.vendaPotencial}
+                tipo="valor"
+                icone={Gem}
+                detalhe="Valor das peças em estoque pelo preço vigente"
+              />
+              <Metrica
+                rotulo="Lucro potencial"
+                valor={data.estoque.lucroPotencial}
+                tipo="valor"
+                icone={Sparkles}
+                detalhe="Venda em potencial − custo de estoque"
+              />
+              <Metrica
+                rotulo="Margem média do estoque"
+                valor={data.estoque.margemMediaPercentual}
+                tipo="percentual"
+                icone={Percent}
+                detalhe="Ponderada: (potencial − custo) ÷ potencial"
+              />
+              <Metrica
+                rotulo="Ticket médio do estoque"
+                valor={data.estoque.ticketMedioEstoque}
+                tipo="valor"
+                icone={ReceiptText}
+                detalhe="Venda em potencial ÷ peças em estoque"
+              />
+            </div>
+          </SecaoDashboard>
+
+          <SecaoDashboard
+            titulo="Clientes"
+            icone={Users}
+            descricao="Base de clientes cadastradas e movimento do mês selecionado."
+          >
+            <div className="grid gap-6 xl:grid-cols-[3fr_2fr]">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <Metrica
+                  rotulo="Clientes cadastradas"
+                  valor={data.clientes.cadastrados}
+                  tipo="quantidade"
+                  unidade="clientes"
+                  icone={Users}
+                />
+                <Metrica
+                  rotulo="Clientes ativas"
+                  valor={data.clientes.ativos}
+                  tipo="quantidade"
+                  unidade="clientes"
+                  icone={UserRound}
+                />
+                <Metrica
+                  rotulo="Clientes inativas"
+                  valor={data.clientes.inativos}
+                  tipo="quantidade"
+                  unidade="clientes"
+                  icone={CircleSlash}
+                />
+                <Metrica
+                  rotulo="Novas no mês"
+                  valor={data.clientes.novosNoMes}
+                  tipo="quantidade"
+                  unidade="clientes"
+                  icone={Sparkles}
+                />
+                <Metrica
+                  rotulo="Compraram no mês"
+                  valor={data.clientes.compraramNoMes}
+                  tipo="quantidade"
+                  unidade="clientes"
+                  icone={ShoppingBag}
+                />
+                <Metrica
+                  rotulo="Ticket médio por cliente"
+                  valor={data.clientes.ticketMedioPorCliente}
+                  tipo="valor"
+                  icone={ReceiptText}
+                  detalhe="Vendas identificadas no mês"
+                />
+              </div>
+              <ListaPessoas
+                titulo="Clientes recentes"
+                descricao="Últimos cadastros da base"
+                pessoas={data.clientes.recentes}
+                vazio="Nenhuma cliente cadastrada."
+              />
+            </div>
+          </SecaoDashboard>
+
+          <SecaoDashboard
+            titulo="Fornecedores"
+            icone={Store}
+            descricao="Cadastro de fornecedores da coleção."
+          >
+            <div className="grid gap-6 xl:grid-cols-[3fr_2fr]">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Metrica
+                  rotulo="Fornecedores cadastrados"
+                  valor={data.fornecedores.cadastrados}
+                  tipo="quantidade"
+                  unidade="fornecedores"
+                  icone={Store}
+                />
+                <Metrica
+                  rotulo="Fornecedores ativos"
+                  valor={data.fornecedores.ativos}
+                  tipo="quantidade"
+                  unidade="ativos"
+                  icone={Store}
+                />
+                <Metrica
+                  rotulo="Fornecedores inativos"
+                  valor={data.fornecedores.inativos}
+                  tipo="quantidade"
+                  unidade="inativos"
+                  icone={CircleSlash}
+                />
+              </div>
+              <ListaPessoas
+                titulo="Fornecedores recentes"
+                descricao="Cadastros mais recentes e produtos vinculados"
+                pessoas={data.fornecedores.recentes}
+                vazio="Nenhum fornecedor cadastrado."
+              />
+            </div>
+          </SecaoDashboard>
+
+          <SecaoDashboard
+            titulo="Vendedores"
+            icone={UserRound}
+            descricao="Equipe de vendas e desempenho gerencial no mês selecionado."
+          >
+            <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">
+              <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
+                <Metrica
+                  rotulo="Vendedores cadastrados"
+                  valor={data.vendedores.cadastrados}
+                  tipo="quantidade"
+                  unidade="vendedores"
+                  icone={UserRound}
+                />
+                <Metrica
+                  rotulo="Vendedores ativos"
+                  valor={data.vendedores.ativos}
+                  tipo="quantidade"
+                  unidade="ativos"
+                  icone={UserRound}
+                />
+                <Metrica
+                  rotulo="Vendedores inativos"
+                  valor={data.vendedores.inativos}
+                  tipo="quantidade"
+                  unidade="inativos"
+                  icone={CircleSlash}
+                />
+              </div>
+              <RankingVendedores
+                ranking={data.vendedores.ranking}
+                mesLabel={data.vendas.mesLabel}
+              />
+            </div>
+          </SecaoDashboard>
         </div>
       )}
     </Page>
