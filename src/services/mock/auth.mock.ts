@@ -4,7 +4,16 @@ import type { ApiFieldError } from "@/types/api";
 import type { LoginRequest, LoginResponse, Usuario } from "@/types/auth";
 
 const USUARIO_ADMIN: Usuario = { id: "usr_001", nome: "Administrador", tipo: "ADMIN" };
-const CREDENCIAIS = { usuario: "admin", senha: "123456" };
+
+/**
+ * Credenciais do ambiente MOCK vêm exclusivamente de variáveis de ambiente
+ * (`VITE_MOCK_LOGIN` / `VITE_MOCK_SENHA`) — nunca de componentes React.
+ * O fallback mantém o acesso local de desenvolvimento.
+ */
+const CREDENCIAIS = {
+  usuario: ((import.meta.env["VITE_MOCK_LOGIN"] as string | undefined) ?? "admin").trim(),
+  senha: ((import.meta.env["VITE_MOCK_SENHA"] as string | undefined) ?? "123456").trim(),
+};
 const TOKEN = "mock-token";
 
 export function registerAuthMocks(): void {
