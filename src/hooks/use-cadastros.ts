@@ -49,6 +49,15 @@ export function useRemoverCliente() {
   });
 }
 
+export function useAlterarStatusCliente() {
+  const invalidar = useInvalidar(clientesKeys.todos);
+  return useMutation({
+    mutationFn: (vars: { id: string; ativo: boolean }) =>
+      clientesApi.alterarStatus(vars.id, vars.ativo),
+    onSuccess: () => void invalidar(),
+  });
+}
+
 export function useFornecedores() {
   return useQuery({
     queryKey: fornecedoresKeys.todos,
@@ -78,6 +87,15 @@ export function useRemoverFornecedor() {
   const invalidar = useInvalidar(fornecedoresKeys.todos);
   return useMutation({
     mutationFn: (id: string) => fornecedoresApi.remover(id),
+    onSuccess: () => void invalidar(),
+  });
+}
+
+export function useAlterarStatusFornecedor() {
+  const invalidar = useInvalidar(fornecedoresKeys.todos);
+  return useMutation({
+    mutationFn: (vars: { id: string; ativo: boolean }) =>
+      fornecedoresApi.alterarStatus(vars.id, vars.ativo),
     onSuccess: () => void invalidar(),
   });
 }

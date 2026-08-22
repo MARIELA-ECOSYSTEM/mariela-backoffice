@@ -3,6 +3,7 @@ import type { Variante } from "@/types/variante";
 import type { Configuracoes } from "@/types/configuracoes";
 import type { Cliente } from "@/types/cliente";
 import type { Fornecedor } from "@/types/fornecedor";
+import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
 import { calcularMargem, precoFinal } from "@/utils/produto";
@@ -12,6 +13,7 @@ import {
   seedColecoes,
   seedConfiguracoes,
   seedFornecedores,
+  seedVendedores,
   seedProdutos,
 } from "./seed";
 
@@ -20,6 +22,9 @@ export interface MockDatabase {
   configuracoes: Configuracoes;
   clientes: Cliente[];
   fornecedores: Fornecedor[];
+  vendedores: Vendedor[];
+  /** Hashes de senha dos vendedores — nunca expostos pela API mockada. */
+  vendedoresSenhas: Record<string, string>;
   colecoes: Colecao[];
   campanhas: Campanha[];
 }
@@ -29,6 +34,8 @@ export const db: MockDatabase = {
   configuracoes: seedConfiguracoes(),
   clientes: seedClientes(),
   fornecedores: seedFornecedores(),
+  vendedores: seedVendedores(),
+  vendedoresSenhas: {},
   colecoes: seedColecoes(),
   campanhas: seedCampanhas(),
 };

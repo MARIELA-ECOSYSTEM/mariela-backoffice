@@ -1,4 +1,5 @@
 import {
+  BadgeCheck,
   BarChart3,
   Boxes,
   Building2,
@@ -45,6 +46,7 @@ export const NAV_GRUPOS: NavGrupo[] = [
     itens: [
       { label: "Clientes", to: "/clientes", icon: Users },
       { label: "Fornecedores", to: "/fornecedores", icon: Building2 },
+      { label: "Vendedores", to: "/vendedores", icon: BadgeCheck },
     ],
   },
   {

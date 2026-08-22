@@ -1,18 +1,27 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Pencil, Phone, Plus, Trash2, User } from "lucide-react";
+import {
+  AtSign,
+  Building2,
+  Instagram,
+  Pencil,
+  Phone,
+  Plus,
+  Power,
+  Trash2,
+  User,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -20,8 +29,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { DataToolbar, Paginacao } from "@/components/common/data-toolbar";
-import { EmptyState, ErrorState, TableSkeleton } from "@/components/common/states";
+import { AtivoBadge, DataToolbar, Paginacao } from "@/components/common/data-toolbar";
+import { EmptyState, ErrorState } from "@/components/common/states";
+import {
+  AvatarPessoa,
+  GridSkeleton,
+  PessoaCard,
+  PessoaGrid,
+} from "@/components/common/pessoa-card";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
   FORNECEDOR_VALORES_PADRAO,
@@ -29,6 +44,7 @@ import {
   type FornecedorFormValues,
 } from "@/components/cadastros/fornecedor-dialog";
 import {
+  useAlterarStatusFornecedor,
   useAtualizarFornecedor,
   useCriarFornecedor,
   useFornecedores,
@@ -53,16 +69,21 @@ export const Route = createFileRoute("/_backoffice/fornecedores")({
   component: FornecedoresPage,
 });
 
-const POR_PAGINA = 10;
+const POR_PAGINA = 12;
+
+type Ordenacao = "nome" | "recentes" | "produtos";
 
 function FornecedoresPage() {
   const { data: fornecedores, isPending, isError, error, refetch } = useFornecedores();
   const { data: listaProdutos } = useProdutos({});
   const criar = useCriarFornecedor();
   const atualizar = useAtualizarFornecedor();
+  const alterarStatus = useAlterarStatusFornecedor();
   const remover = useRemoverFornecedor();
 
   const [busca, setBusca] = useState("");
+  const [status, setStatus] = useState("todos");
+  const [ordem, setOrdem] = useState<Ordenacao>("nome");
   const [pagina, setPagina] = useState(1);
   const [dialogAberto, setDialogAberto] = useState(false);
   const [emEdicao, setEmEdicao] = useState<Fornecedor | null>(null);
@@ -71,28 +92,47 @@ function FornecedoresPage() {
 
   const produtos = listaProdutos?.produtos ?? [];
 
+  function produtosDo(fornecedorId: string) {
+    return produtos.filter((produto) => produto.fornecedorId === fornecedorId);
+  }
+
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    if (!termo) return fornecedores ?? [];
-    return (fornecedores ?? []).filter(
-      (fornecedor) =>
+    const lista = (fornecedores ?? []).filter((fornecedor) => {
+      const casaTermo =
+        !termo ||
         fornecedor.nome.toLowerCase().includes(termo) ||
         fornecedor.contato.toLowerCase().includes(termo) ||
-        fornecedor.telefone.toLowerCase().includes(termo),
-    );
-  }, [fornecedores, busca]);
+        fornecedor.telefone.toLowerCase().includes(termo) ||
+        fornecedor.email.toLowerCase().includes(termo) ||
+        fornecedor.cnpj.toLowerCase().includes(termo);
+      const casaStatus =
+        status === "todos" || (status === "ativos" ? fornecedor.ativo : !fornecedor.ativo);
+      return casaTermo && casaStatus;
+    });
+    const copia = [...lista];
+    if (ordem === "nome") return copia.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    if (ordem === "recentes") return copia.sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
+    return copia.sort((a, b) => produtosDo(b.id).length - produtosDo(a.id).length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fornecedores, busca, status, ordem, produtos]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
   const visiveis = filtrados.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
 
   const valoresIniciais: FornecedorFormValues = emEdicao
-    ? { nome: emEdicao.nome, contato: emEdicao.contato, telefone: emEdicao.telefone }
+    ? {
+        nome: emEdicao.nome,
+        foto: emEdicao.foto ?? "",
+        contato: emEdicao.contato,
+        telefone: emEdicao.telefone,
+        email: emEdicao.email,
+        cnpj: emEdicao.cnpj,
+        instagram: emEdicao.instagram,
+        ativo: emEdicao.ativo,
+      }
     : FORNECEDOR_VALORES_PADRAO;
-
-  function produtosDo(fornecedorId: string) {
-    return produtos.filter((produto) => produto.fornecedorId === fornecedorId);
-  }
 
   function abrirNovo() {
     setEmEdicao(null);
@@ -100,14 +140,24 @@ function FornecedoresPage() {
   }
 
   async function salvar(valores: FornecedorFormValues) {
+    const payload = { ...valores, foto: valores.foto || null };
     try {
-      if (emEdicao) await atualizar.mutateAsync({ id: emEdicao.id, payload: valores });
-      else await criar.mutateAsync(valores);
+      if (emEdicao) await atualizar.mutateAsync({ id: emEdicao.id, payload });
+      else await criar.mutateAsync(payload);
       toast.success(emEdicao ? "Fornecedor atualizado." : "Fornecedor cadastrado.");
       setDialogAberto(false);
       setEmEdicao(null);
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível salvar o fornecedor."));
+    }
+  }
+
+  async function alternarStatus(fornecedor: Fornecedor) {
+    try {
+      await alterarStatus.mutateAsync({ id: fornecedor.id, ativo: !fornecedor.ativo });
+      toast.success(fornecedor.ativo ? "Fornecedor inativado." : "Fornecedor ativado.");
+    } catch (err) {
+      toast.error(mensagemDeErro(err, "Não foi possível alterar o status."));
     }
   }
 
@@ -140,17 +190,44 @@ function FornecedoresPage() {
           setBusca(valor);
           setPagina(1);
         }}
-        placeholder="Buscar por nome, contato ou telefone…"
-      />
+        placeholder="Buscar por nome, contato, telefone, e-mail ou CNPJ…"
+      >
+        <Select
+          value={status}
+          onValueChange={(valor) => {
+            setStatus(valor);
+            setPagina(1);
+          }}
+        >
+          <SelectTrigger className="w-44" aria-label="Filtrar por status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os status</SelectItem>
+            <SelectItem value="ativos">Somente ativos</SelectItem>
+            <SelectItem value="inativos">Somente inativos</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={ordem} onValueChange={(valor) => setOrdem(valor as Ordenacao)}>
+          <SelectTrigger className="w-52" aria-label="Ordenar fornecedores">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="nome">Nome (A–Z)</SelectItem>
+            <SelectItem value="recentes">Cadastro mais recente</SelectItem>
+            <SelectItem value="produtos">Mais produtos vinculados</SelectItem>
+          </SelectContent>
+        </Select>
+      </DataToolbar>
 
       {isPending ? (
-        <TableSkeleton linhas={6} colunas={5} />
+        <GridSkeleton itens={8} />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : filtrados.length === 0 ? (
         <EmptyState
           titulo="Nenhum fornecedor encontrado"
-          descricao="Ajuste a busca ou cadastre um novo parceiro de produção."
+          descricao="Ajuste a busca e os filtros ou cadastre um novo parceiro de produção."
           acao={
             <Button onClick={abrirNovo}>
               <Plus aria-hidden className="size-4" />
@@ -159,65 +236,54 @@ function FornecedoresPage() {
           }
         />
       ) : (
-        <Card className="shadow-card">
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fornecedor</TableHead>
-                  <TableHead>Contato</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  <TableHead className="text-right">Produtos</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visiveis.map((fornecedor) => (
-                  <TableRow key={fornecedor.id}>
-                    <TableCell>
-                      <button
-                        type="button"
-                        onClick={() => setDetalhe(fornecedor)}
-                        className="text-left font-medium text-foreground underline-offset-4 hover:underline"
-                      >
-                        {fornecedor.nome}
-                      </button>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        Desde {formatarData(fornecedor.criadoEm)}
-                      </p>
-                    </TableCell>
-                    <TableCell>{fornecedor.contato || "—"}</TableCell>
-                    <TableCell>{fornecedor.telefone || "—"}</TableCell>
-                    <TableCell className="text-right">{produtosDo(fornecedor.id).length}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Editar ${fornecedor.nome}`}
-                          onClick={() => {
-                            setEmEdicao(fornecedor);
-                            setDialogAberto(true);
-                          }}
-                        >
-                          <Pencil aria-hidden className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Excluir ${fornecedor.nome}`}
-                          onClick={() => setParaExcluir(fornecedor)}
-                        >
-                          <Trash2 aria-hidden className="size-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <PessoaGrid>
+          {visiveis.map((fornecedor) => (
+            <PessoaCard
+              key={fornecedor.id}
+              nome={fornecedor.nome}
+              foto={fornecedor.foto}
+              ativo={fornecedor.ativo}
+              subtitulo={`Parceiro desde ${formatarData(fornecedor.criadoEm)}`}
+              badgeExtra={
+                <Badge variant="outline">{produtosDo(fornecedor.id).length} produto(s)</Badge>
+              }
+              campos={[
+                { icon: User, label: "Contato", valor: fornecedor.contato },
+                { icon: Phone, label: "Telefone", valor: fornecedor.telefone },
+                { icon: AtSign, label: "E-mail", valor: fornecedor.email },
+                ...(fornecedor.cnpj
+                  ? [{ icon: Building2, label: "CNPJ", valor: fornecedor.cnpj }]
+                  : []),
+                ...(fornecedor.instagram
+                  ? [{ icon: Instagram, label: "Instagram", valor: fornecedor.instagram }]
+                  : []),
+              ]}
+              onVisualizar={() => setDetalhe(fornecedor)}
+              acoes={[
+                {
+                  label: "Editar",
+                  icon: Pencil,
+                  onClick: () => {
+                    setEmEdicao(fornecedor);
+                    setDialogAberto(true);
+                  },
+                },
+                {
+                  label: fornecedor.ativo ? "Inativar" : "Ativar",
+                  icon: Power,
+                  onClick: () => void alternarStatus(fornecedor),
+                },
+                {
+                  label: "Excluir",
+                  icon: Trash2,
+                  destrutivo: true,
+                  separarAntes: true,
+                  onClick: () => setParaExcluir(fornecedor),
+                },
+              ]}
+            />
+          ))}
+        </PessoaGrid>
       )}
 
       <Paginacao
@@ -271,20 +337,31 @@ function FornecedoresPage() {
 
           {detalhe ? (
             <div className="space-y-6 px-4 pb-6">
+              <div className="flex items-center gap-4">
+                <AvatarPessoa nome={detalhe.nome} foto={detalhe.foto} className="size-16" />
+                <AtivoBadge ativo={detalhe.ativo} />
+              </div>
+
               <dl className="space-y-3 text-sm">
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted-foreground">Contato</dt>
-                  <dd className="flex items-center gap-2">
-                    <User aria-hidden className="size-4 text-primary/70" />
-                    {detalhe.contato || "—"}
-                  </dd>
+                  <dd>{detalhe.contato || "—"}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted-foreground">Telefone</dt>
-                  <dd className="flex items-center gap-2">
-                    <Phone aria-hidden className="size-4 text-primary/70" />
-                    {detalhe.telefone || "—"}
-                  </dd>
+                  <dd>{detalhe.telefone || "—"}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">E-mail</dt>
+                  <dd>{detalhe.email || "—"}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">CNPJ</dt>
+                  <dd>{detalhe.cnpj || "—"}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Instagram</dt>
+                  <dd>{detalhe.instagram || "—"}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted-foreground">Cadastro</dt>

@@ -17,6 +17,10 @@ export const clientesApi = {
     const { data } = await apiClient.put<Cliente>(`/clientes/${id}`, payload);
     return data;
   },
+  async alterarStatus(id: string, ativo: boolean): Promise<Cliente> {
+    const { data } = await apiClient.patch<Cliente>(`/clientes/${id}/status`, { ativo });
+    return data;
+  },
   async remover(id: string): Promise<void> {
     await apiClient.delete(`/clientes/${id}`);
   },
@@ -33,6 +37,10 @@ export const fornecedoresApi = {
   },
   async atualizar(id: string, payload: FornecedorPayload): Promise<Fornecedor> {
     const { data } = await apiClient.put<Fornecedor>(`/fornecedores/${id}`, payload);
+    return data;
+  },
+  async alterarStatus(id: string, ativo: boolean): Promise<Fornecedor> {
+    const { data } = await apiClient.patch<Fornecedor>(`/fornecedores/${id}/status`, { ativo });
     return data;
   },
   async remover(id: string): Promise<void> {
