@@ -1,38 +1,12 @@
-import { useMemo, useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import {
-  ArrowUpDown,
-  Boxes,
-  Eye,
-  Image as ImageIcon,
-  MoreHorizontal,
-  Pencil,
-  Percent,
-  Plus,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -40,15 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EmptyState, ErrorState, TableSkeleton } from "@/components/common/states";
-import { StatusEstoqueBadge, TagBadge } from "@/components/common/status-badge";
+import { EmptyState, ErrorState } from "@/components/common/states";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PromocaoDialog } from "@/components/produtos/promocao-dialog";
-import { useExcluirProduto, useDefinirPromocao, useProdutos } from "@/hooks/use-produtos";
+import { ProdutoCard, ProdutoCardSkeleton } from "@/components/produtos/produto-card";
+import { useExcluirProduto, useProdutos } from "@/hooks/use-produtos";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useCampanhas, useColecoes, useFornecedores } from "@/hooks/use-cadastros";
-import { formatarMoeda } from "@/utils/format";
-import { precoFinal } from "@/utils/produto";
 import { mensagemDeErro } from "@/services/api/client";
 import type {
   FiltroBooleano,
@@ -66,12 +38,12 @@ export const Route = createFileRoute("/_backoffice/produtos/")({
       { title: "Produtos — MARIELA Backoffice" },
       {
         name: "description",
-        content: "Catálogo completo de produtos, variantes, preços e estoque.",
+        content: "Catálogo visual de produtos com fotos, preços, promoções e estoque.",
       },
       { property: "og:title", content: "Produtos — MARIELA Backoffice" },
       {
         property: "og:description",
-        content: "Catálogo completo de produtos, variantes, preços e estoque.",
+        content: "Catálogo visual de produtos com fotos, preços, promoções e estoque.",
       },
     ],
   }),
@@ -79,154 +51,31 @@ export const Route = createFileRoute("/_backoffice/produtos/")({
 });
 
 const TODOS = "todos";
+const POR_PAGINA = 12;
 
-const ORDENACOES: { valor: OrdenarProdutoPor; label: string }[] = [
-  { valor: "nome", label: "Nome" },
-  { valor: "codProduto", label: "Código" },
-  { valor: "precoVenda", label: "Preço" },
-  { valor: "quantidadeTotal", label: "Estoque" },
-  { valor: "criadoEm", label: "Data de criação" },
+type OrdenacaoValor =
+  | "nome-asc"
+  | "nome-desc"
+  | "recentes"
+  | "preco-desc"
+  | "preco-asc"
+  | "estoque-desc"
+  | "estoque-asc";
+
+const ORDENACOES: {
+  valor: OrdenacaoValor;
+  label: string;
+  campo: OrdenarProdutoPor;
+  ordem: Ordem;
+}[] = [
+  { valor: "nome-asc", label: "Nome A-Z", campo: "nome", ordem: "asc" },
+  { valor: "nome-desc", label: "Nome Z-A", campo: "nome", ordem: "desc" },
+  { valor: "recentes", label: "Mais recentes", campo: "criadoEm", ordem: "desc" },
+  { valor: "preco-desc", label: "Maior preço", campo: "precoVenda", ordem: "desc" },
+  { valor: "preco-asc", label: "Menor preço", campo: "precoVenda", ordem: "asc" },
+  { valor: "estoque-desc", label: "Maior estoque", campo: "quantidadeTotal", ordem: "desc" },
+  { valor: "estoque-asc", label: "Menor estoque", campo: "quantidadeTotal", ordem: "asc" },
 ];
-
-function LinhaProduto({
-  produto,
-  onExcluir,
-  onPromocao,
-}: {
-  produto: Produto;
-  onExcluir: (produto: Produto) => void;
-  onPromocao: (produto: Produto) => void;
-}) {
-  const desativarPromocao = useDefinirPromocao(produto.id);
-
-  async function desativar() {
-    try {
-      await desativarPromocao.mutateAsync({ ehPromocao: false });
-      toast.success("Promoção desativada com sucesso.");
-    } catch (error) {
-      toast.error(mensagemDeErro(error, "Não foi possível desativar a promoção."));
-    }
-  }
-
-  const foto = produto.variantes.find((v) => v.foto)?.foto ?? null;
-
-  return (
-    <TableRow className="group">
-      <TableCell>
-        {foto ? (
-          <img
-            src={foto}
-            alt={produto.nome}
-            className="h-14 w-11 rounded-sm border border-border object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            loading="lazy"
-          />
-        ) : (
-          <span
-            aria-label="Sem foto"
-            className="flex h-14 w-11 items-center justify-center rounded-sm border border-dashed border-border-strong bg-surface text-muted-foreground/60"
-          >
-            <ImageIcon aria-hidden className="size-4" />
-          </span>
-        )}
-      </TableCell>
-      <TableCell className="font-brand text-[0.7rem] uppercase tracking-[0.12em] text-muted-foreground">
-        {produto.codProduto}
-      </TableCell>
-      <TableCell className="max-w-[18rem]">
-        <Link
-          to="/produtos/$id"
-          params={{ id: produto.id }}
-          className="block truncate font-display text-base transition-colors hover:text-primary"
-        >
-          {produto.nome}
-        </Link>
-        <span className="block text-xs text-muted-foreground">
-          {produto.variantes.length} variante(s)
-        </span>
-      </TableCell>
-      <TableCell className="text-sm text-muted-foreground">{produto.categoria}</TableCell>
-      <TableCell className="text-sm tabular-nums">
-        {produto.ehPromocao ? (
-          <span className="flex flex-col leading-tight">
-            <span className="text-xs text-muted-foreground line-through">
-              {formatarMoeda(produto.precoVenda)}
-            </span>
-            <span className="text-primary">{formatarMoeda(precoFinal(produto))}</span>
-          </span>
-        ) : (
-          formatarMoeda(produto.precoVenda)
-        )}
-      </TableCell>
-      <TableCell className="tabular-nums">{produto.quantidadeTotal}</TableCell>
-      <TableCell>
-        <StatusEstoqueBadge quantidadeTotal={produto.quantidadeTotal} />
-      </TableCell>
-      <TableCell>
-        {produto.ehNovidade ? (
-          <TagBadge tom="primary">Novidade</TagBadge>
-        ) : (
-          <span className="text-muted-foreground/50">—</span>
-        )}
-      </TableCell>
-      <TableCell>
-        {produto.ehPromocao ? (
-          <TagBadge tom="gold">Promoção</TagBadge>
-        ) : (
-          <span className="text-muted-foreground/50">—</span>
-        )}
-      </TableCell>
-
-      <TableCell className="text-right">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label={`Ações de ${produto.nome}`}>
-              <MoreHorizontal aria-hidden className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem asChild>
-              <Link to="/produtos/$id" params={{ id: produto.id }}>
-                <Eye aria-hidden className="size-4" /> Visualizar
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/produtos/$id/editar" params={{ id: produto.id }}>
-                <Pencil aria-hidden className="size-4" /> Editar
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/produtos/$id/variantes" params={{ id: produto.id }}>
-                <Boxes aria-hidden className="size-4" /> Gerenciar variantes
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/estoque/$produtoId" params={{ produtoId: produto.id }}>
-                <Plus aria-hidden className="size-4" /> Adicionar estoque
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {produto.ehPromocao ? (
-              <DropdownMenuItem onSelect={() => void desativar()}>
-                <Percent aria-hidden className="size-4" /> Desativar promoção
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem onSelect={() => onPromocao(produto)}>
-                <Percent aria-hidden className="size-4" /> Ativar promoção
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => onExcluir(produto)}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2 aria-hidden className="size-4" /> Excluir
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </TableCell>
-    </TableRow>
-  );
-}
 
 function ProdutosPage() {
   const navigate = useNavigate();
@@ -238,8 +87,8 @@ function ProdutosPage() {
   const [disponibilidade, setDisponibilidade] = useState<FiltroDisponibilidade>("todos");
   const [promocao, setPromocao] = useState<FiltroBooleano>("todos");
   const [novidade, setNovidade] = useState<FiltroBooleano>("todos");
-  const [ordenarPor, setOrdenarPor] = useState<OrdenarProdutoPor>("nome");
-  const [ordem, setOrdem] = useState<Ordem>("asc");
+  const [ordenacao, setOrdenacao] = useState<OrdenacaoValor>("nome-asc");
+  const [pagina, setPagina] = useState(1);
 
   const [produtoPromocao, setProdutoPromocao] = useState<Produto | null>(null);
   const [produtoExclusao, setProdutoExclusao] = useState<Produto | null>(null);
@@ -250,8 +99,9 @@ function ProdutosPage() {
   const { data: fornecedores } = useFornecedores();
   const excluir = useExcluirProduto();
 
-  const filtros = useMemo<ProdutoFiltros>(
-    () => ({
+  const filtros = useMemo<ProdutoFiltros>(() => {
+    const opcao = ORDENACOES.find((item) => item.valor === ordenacao) ?? ORDENACOES[0]!;
+    return {
       busca: busca || undefined,
       categoria: categoria === TODOS ? undefined : categoria,
       colecaoId: colecaoId === TODOS ? undefined : colecaoId,
@@ -260,25 +110,35 @@ function ProdutosPage() {
       disponibilidade,
       promocao,
       novidade,
-      ordenarPor,
-      ordem,
-    }),
-    [
-      busca,
-      categoria,
-      colecaoId,
-      campanhaId,
-      fornecedorId,
-      disponibilidade,
-      promocao,
-      novidade,
-      ordenarPor,
-      ordem,
-    ],
-  );
+      ordenarPor: opcao.campo,
+      ordem: opcao.ordem,
+    };
+  }, [
+    busca,
+    categoria,
+    colecaoId,
+    campanhaId,
+    fornecedorId,
+    disponibilidade,
+    promocao,
+    novidade,
+    ordenacao,
+  ]);
+
+  // Filtros/ordenação mudaram: volta para a primeira página.
+  useEffect(() => {
+    setPagina(1);
+  }, [filtros]);
 
   const { data, isPending, isError, error, refetch, isFetching } = useProdutos(filtros);
   const produtos = data?.produtos ?? [];
+
+  const total = produtos.length;
+  const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const inicio = (paginaAtual - 1) * POR_PAGINA;
+  // Recorte local por página; ao conectar a API real basta enviar page/limit.
+  const visiveis = produtos.slice(inicio, inicio + POR_PAGINA);
 
   const temFiltros =
     Boolean(busca) ||
@@ -317,7 +177,7 @@ function ProdutosPage() {
     <Page
       titulo="Produtos"
       breadcrumbs={[{ label: "Catálogo" }, { label: "Produtos" }]}
-      descricao="Cadastro completo do catálogo: preços, variantes por cor, tamanhos e disponibilidade."
+      descricao="Catálogo visual do acervo: fotos, preços vigentes, promoções e disponibilidade."
       acoes={
         <Button onClick={() => void navigate({ to: "/produtos/novo" })}>
           <Plus aria-hidden className="size-4" /> Novo produto
@@ -325,152 +185,159 @@ function ProdutosPage() {
       }
     >
       <Card className="mb-6 border-border bg-surface/60">
-        <CardContent className="grid gap-3 py-5 lg:grid-cols-4 xl:grid-cols-5">
-          <div className="relative lg:col-span-2">
-            <Search
-              aria-hidden
-              className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              aria-label="Buscar por nome ou código"
-              placeholder="Buscar por nome ou código…"
-              className="pl-9"
-              value={busca}
-              onChange={(event) => setBusca(event.target.value)}
-            />
+        <CardContent className="space-y-3 py-5">
+          <div className="flex flex-col gap-3 lg:flex-row">
+            <div className="relative lg:max-w-sm lg:flex-1">
+              <Search
+                aria-hidden
+                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                aria-label="Buscar por nome ou código"
+                placeholder="Buscar por nome ou código…"
+                className="pl-9"
+                value={busca}
+                onChange={(event) => setBusca(event.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-1 items-center justify-end gap-2">
+              <Select
+                value={ordenacao}
+                onValueChange={(valor) => setOrdenacao(valor as OrdenacaoValor)}
+              >
+                <SelectTrigger aria-label="Ordenar por" className="w-52">
+                  <SelectValue placeholder="Ordenar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ORDENACOES.map((opcao) => (
+                    <SelectItem key={opcao.valor} value={opcao.valor}>
+                      {opcao.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {temFiltros ? (
+                <Button variant="ghost" onClick={limparFiltros}>
+                  Limpar filtros
+                </Button>
+              ) : null}
+            </div>
           </div>
 
-          <Select value={categoria} onValueChange={setCategoria}>
-            <SelectTrigger aria-label="Filtrar por categoria">
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todas as categorias</SelectItem>
-              {(configuracoes?.categorias ?? []).map((item) => (
-                <SelectItem key={item} value={item}>
-                  {item}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={colecaoId} onValueChange={setColecaoId}>
-            <SelectTrigger aria-label="Filtrar por coleção">
-              <SelectValue placeholder="Coleção" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todas as coleções</SelectItem>
-              {(colecoes ?? []).map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={campanhaId} onValueChange={setCampanhaId}>
-            <SelectTrigger aria-label="Filtrar por campanha">
-              <SelectValue placeholder="Campanha" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todas as campanhas</SelectItem>
-              {(campanhas ?? []).map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={fornecedorId} onValueChange={setFornecedorId}>
-            <SelectTrigger aria-label="Filtrar por fornecedor">
-              <SelectValue placeholder="Fornecedor" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS}>Todos os fornecedores</SelectItem>
-              {(fornecedores ?? []).map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={disponibilidade}
-            onValueChange={(valor) => setDisponibilidade(valor as FiltroDisponibilidade)}
-          >
-            <SelectTrigger aria-label="Filtrar por disponibilidade">
-              <SelectValue placeholder="Disponibilidade" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Disponibilidade: todas</SelectItem>
-              <SelectItem value="disponivel">Disponível</SelectItem>
-              <SelectItem value="sem-estoque">Sem estoque</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={promocao} onValueChange={(valor) => setPromocao(valor as FiltroBooleano)}>
-            <SelectTrigger aria-label="Filtrar por promoção">
-              <SelectValue placeholder="Promoção" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Promoção: todas</SelectItem>
-              <SelectItem value="sim">Em promoção</SelectItem>
-              <SelectItem value="nao">Sem promoção</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={novidade} onValueChange={(valor) => setNovidade(valor as FiltroBooleano)}>
-            <SelectTrigger aria-label="Filtrar por novidade">
-              <SelectValue placeholder="Novidade" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Novidade: todas</SelectItem>
-              <SelectItem value="sim">Novidades</SelectItem>
-              <SelectItem value="nao">Não novidades</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <div className="flex items-center gap-2">
-            <Select
-              value={ordenarPor}
-              onValueChange={(valor) => setOrdenarPor(valor as OrdenarProdutoPor)}
-            >
-              <SelectTrigger aria-label="Ordenar por">
-                <SelectValue placeholder="Ordenar" />
+          <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+            <Select value={categoria} onValueChange={setCategoria}>
+              <SelectTrigger aria-label="Filtrar por categoria">
+                <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
-                {ORDENACOES.map((opcao) => (
-                  <SelectItem key={opcao.valor} value={opcao.valor}>
-                    Ordenar: {opcao.label}
+                <SelectItem value={TODOS}>Todas as categorias</SelectItem>
+                {(configuracoes?.categorias ?? []).map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={ordem === "asc" ? "Ordem crescente" : "Ordem decrescente"}
-              onClick={() => setOrdem(ordem === "asc" ? "desc" : "asc")}
-            >
-              <ArrowUpDown aria-hidden className="size-4" />
-            </Button>
-          </div>
 
-          {temFiltros ? (
-            <Button variant="ghost" onClick={limparFiltros}>
-              Limpar filtros
-            </Button>
-          ) : null}
+            <Select value={colecaoId} onValueChange={setColecaoId}>
+              <SelectTrigger aria-label="Filtrar por coleção">
+                <SelectValue placeholder="Coleção" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>Todas as coleções</SelectItem>
+                {(colecoes ?? []).map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={campanhaId} onValueChange={setCampanhaId}>
+              <SelectTrigger aria-label="Filtrar por campanha">
+                <SelectValue placeholder="Campanha" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>Todas as campanhas</SelectItem>
+                {(campanhas ?? []).map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={fornecedorId} onValueChange={setFornecedorId}>
+              <SelectTrigger aria-label="Filtrar por fornecedor">
+                <SelectValue placeholder="Fornecedor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TODOS}>Todos os fornecedores</SelectItem>
+                {(fornecedores ?? []).map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={disponibilidade}
+              onValueChange={(valor) => setDisponibilidade(valor as FiltroDisponibilidade)}
+            >
+              <SelectTrigger aria-label="Filtrar por estoque">
+                <SelectValue placeholder="Estoque" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Estoque: todos</SelectItem>
+                <SelectItem value="disponivel">Em estoque</SelectItem>
+                <SelectItem value="sem-estoque">Sem estoque</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Select
+                value={promocao}
+                onValueChange={(valor) => setPromocao(valor as FiltroBooleano)}
+              >
+                <SelectTrigger aria-label="Filtrar por promoção">
+                  <SelectValue placeholder="Promoção" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Promoção: todas</SelectItem>
+                  <SelectItem value="sim">Em promoção</SelectItem>
+                  <SelectItem value="nao">Sem promoção</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={novidade}
+                onValueChange={(valor) => setNovidade(valor as FiltroBooleano)}
+              >
+                <SelectTrigger aria-label="Filtrar por novidade">
+                  <SelectValue placeholder="Novidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Novidade: todas</SelectItem>
+                  <SelectItem value="sim">Novidades</SelectItem>
+                  <SelectItem value="nao">Não novidades</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
       {isPending ? (
-        <TableSkeleton linhas={8} colunas={7} />
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, indice) => (
+            <ProdutoCardSkeleton key={indice} />
+          ))}
+        </div>
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
-      ) : produtos.length === 0 ? (
+      ) : total === 0 ? (
         <EmptyState
           titulo="Nenhum produto encontrado"
           descricao={
@@ -489,38 +356,45 @@ function ProdutosPage() {
           }
         />
       ) : (
-        <Card className="overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-16">Foto</TableHead>
-                <TableHead>Código</TableHead>
-                <TableHead>Produto</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Preço</TableHead>
-                <TableHead>Estoque</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Novidade</TableHead>
-                <TableHead>Promoção</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {produtos.map((produto) => (
-                <LinhaProduto
-                  key={produto.id}
-                  produto={produto}
-                  onExcluir={setProdutoExclusao}
-                  onPromocao={setProdutoPromocao}
-                />
-              ))}
-            </TableBody>
-          </Table>
-          <div className="flex items-center justify-between border-t border-border bg-surface/60 px-4 py-3 font-brand text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-            <span>{produtos.length} produto(s)</span>
-            {isFetching ? <Badge variant="outline">Atualizando…</Badge> : null}
+        <div className="space-y-5">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {visiveis.map((produto) => (
+              <ProdutoCard
+                key={produto.id}
+                produto={produto}
+                onExcluir={setProdutoExclusao}
+                onPromocao={setProdutoPromocao}
+              />
+            ))}
           </div>
-        </Card>
+
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface/60 px-4 py-3">
+            <span className="font-brand text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+              {total} produto(s) · página {paginaAtual} de {totalPaginas}
+            </span>
+            <div className="flex items-center gap-2">
+              {isFetching ? <Badge variant="outline">Atualizando…</Badge> : null}
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Página anterior"
+                disabled={paginaAtual <= 1}
+                onClick={() => setPagina(paginaAtual - 1)}
+              >
+                <ChevronLeft aria-hidden className="size-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Próxima página"
+                disabled={paginaAtual >= totalPaginas}
+                onClick={() => setPagina(paginaAtual + 1)}
+              >
+                <ChevronRight aria-hidden className="size-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {produtoPromocao ? (
