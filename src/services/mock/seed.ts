@@ -575,58 +575,90 @@ export function seedFornecedores(): Fornecedor[] {
   ];
 }
 
+function dia(diasAtras: number): string {
+  return new Date(Date.now() - diasAtras * 86_400_000).toISOString().slice(0, 10);
+}
+
 export function seedColecoes(): Colecao[] {
   return [
-    { id: "col_001", nome: "Alta Estação", temporada: "Verão 2026", criadoEm: iso(120) },
-    { id: "col_002", nome: "Essenciais Mariela", temporada: "Atemporal", criadoEm: iso(300) },
-    { id: "col_003", nome: "Riviera", temporada: "Resort 2026", criadoEm: iso(60) },
+    {
+      id: "col_001",
+      nome: "Alta Estação",
+      descricao: "Peças-chave do verão com cartela clara e tecidos fluidos.",
+      inicio: dia(120),
+      fim: dia(-40),
+      ativo: true,
+      criadoEm: iso(120),
+    },
+    {
+      id: "col_002",
+      nome: "Essenciais Mariela",
+      descricao: "Coleção atemporal de básicos sofisticados de reposição contínua.",
+      inicio: dia(300),
+      fim: dia(-200),
+      ativo: true,
+      criadoEm: iso(300),
+    },
+    {
+      id: "col_003",
+      nome: "Riviera",
+      descricao: "Cápsula resort com alfaiataria leve e praia.",
+      inicio: dia(60),
+      fim: dia(-15),
+      ativo: false,
+      criadoEm: iso(60),
+    },
   ];
 }
 
 export function seedCampanhas(): Campanha[] {
   return [
-    { id: "cam_001", nome: "Lançamento Verão", periodo: "Set – Dez 2026", criadoEm: iso(90) },
-    { id: "cam_002", nome: "Liquida Inverno", periodo: "Jul – Ago 2026", criadoEm: iso(150) },
-    { id: "cam_003", nome: "Semana da Praia", periodo: "Jan 2026", criadoEm: iso(40) },
+    {
+      id: "cam_001",
+      nome: "Lançamento Verão",
+      descricao: "Divulgação das novidades de verão nas redes e vitrine.",
+      inicio: dia(90),
+      fim: dia(-30),
+      ativo: true,
+      criadoEm: iso(90),
+    },
+    {
+      id: "cam_002",
+      nome: "Liquida Inverno",
+      descricao: "Queima de estoque das peças de inverno.",
+      inicio: dia(150),
+      fim: dia(110),
+      ativo: false,
+      criadoEm: iso(150),
+    },
+    {
+      id: "cam_003",
+      nome: "Semana da Praia",
+      descricao: "Ação focada em praia e saídas de praia.",
+      inicio: dia(40),
+      fim: dia(-5),
+      ativo: true,
+      criadoEm: iso(40),
+    },
   ];
 }
 
 export function seedClientes(): Cliente[] {
-  return [
-    {
-      id: "cli_001",
-      nome: "Ana Beatriz Souza",
-      telefone: "(11) 99811-2233",
-      email: "ana.souza@email.com",
-      criadoEm: iso(45),
-    },
-    {
-      id: "cli_002",
-      nome: "Camila Ferreira",
-      telefone: "(11) 98444-9090",
-      email: "camila.f@email.com",
-      criadoEm: iso(30),
-    },
-    {
-      id: "cli_003",
-      nome: "Juliana Martins",
-      telefone: "(21) 99700-1010",
-      email: "juliana.m@email.com",
-      criadoEm: iso(20),
-    },
-    {
-      id: "cli_004",
-      nome: "Larissa Nogueira",
-      telefone: "(31) 98222-3131",
-      email: "larissa.n@email.com",
-      criadoEm: iso(10),
-    },
-    {
-      id: "cli_005",
-      nome: "Patrícia Lima",
-      telefone: "(11) 97333-4545",
-      email: "patricia.l@email.com",
-      criadoEm: iso(5),
-    },
+  const base: [string, string, string, string, string, boolean, number][] = [
+    ["cli_001", "Ana Beatriz Souza", "(11) 99811-2233", "1992-04-18", "Prefere vestidos midi.", true, 45],
+    ["cli_002", "Camila Ferreira", "(11) 98444-9090", "1988-11-02", "Cliente de crediário.", true, 30],
+    ["cli_003", "Juliana Martins", "(21) 99700-1010", "1995-07-25", "", true, 20],
+    ["cli_004", "Larissa Nogueira", "(31) 98222-3131", "1990-01-09", "Sempre pede novidades de acessórios.", true, 10],
+    ["cli_005", "Patrícia Lima", "(11) 97333-4545", "", "Cadastro incompleto.", false, 5],
   ];
+  return base.map(([id, nome, telefone, dataNascimento, observacao, ativo, dias]) => ({
+    id,
+    nome,
+    telefone,
+    dataNascimento: dataNascimento || null,
+    observacao,
+    ativo,
+    criadoEm: iso(dias),
+    atualizadoEm: iso(Math.max(0, dias - 2)),
+  }));
 }
