@@ -1,5 +1,6 @@
 import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
+import type { ApiFieldError } from "@/types/api";
 import type { LoginRequest, LoginResponse, Usuario } from "@/types/auth";
 
 const USUARIO_ADMIN: Usuario = { id: "usr_001", nome: "Administrador", tipo: "ADMIN" };
@@ -12,7 +13,7 @@ export function registerAuthMocks(): void {
     "/auth/login",
     ({ body }) => {
       const payload = (body ?? {}) as Partial<LoginRequest>;
-      const errors = [];
+      const errors: ApiFieldError[] = [];
       if (!payload.usuario) errors.push({ field: "usuario", message: "Usuário é obrigatório." });
       if (!payload.senha) errors.push({ field: "senha", message: "Senha é obrigatória." });
       if (errors.length) throw ApiError.validation("Dados inválidos.", errors);

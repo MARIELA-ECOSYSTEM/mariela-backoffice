@@ -5,6 +5,7 @@ import type { Cliente } from "@/types/cliente";
 import type { Fornecedor } from "@/types/fornecedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
+import { calcularMargem, precoFinal } from "@/utils/produto";
 import { seedCampanhas, seedClientes, seedColecoes, seedConfiguracoes, seedFornecedores, seedProdutos } from "./seed";
 
 export interface MockDatabase {
@@ -58,12 +59,5 @@ export function recalcularProduto(produto: Produto): Produto {
   return produto;
 }
 
-export function precoFinal(produto: Pick<Produto, "ehPromocao" | "precoPromocional" | "precoVenda">): number {
-  if (produto.ehPromocao && produto.precoPromocional) return produto.precoPromocional;
-  return produto.precoVenda;
-}
-
-export function calcularMargem(precoCusto: number, precoFinalValor: number): number {
-  if (!precoCusto || precoCusto <= 0) return 0;
-  return Number((((precoFinalValor - precoCusto) / precoCusto) * 100).toFixed(2));
-}
+/** Regras de preço vivem em `@/utils/produto` — o mock apenas reutiliza. */
+export { calcularMargem, precoFinal };

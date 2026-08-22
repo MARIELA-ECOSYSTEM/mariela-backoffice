@@ -1,5 +1,6 @@
 import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
+import type { ApiFieldError } from "@/types/api";
 import { agora, clonar, db } from "./db";
 import type { Configuracoes, DadosLoja, ListaConfiguravel } from "@/types/configuracoes";
 
@@ -15,7 +16,7 @@ export function registerConfiguracoesMocks(): void {
 
   registerMock("PUT", "/configuracoes/loja", ({ body }) => {
     const payload = (body ?? {}) as DadosLoja;
-    const errors = [];
+    const errors: ApiFieldError[] = [];
     if (!payload.nome?.trim()) errors.push({ field: "nome", message: "Nome da loja é obrigatório." });
     if (!payload.email?.trim()) errors.push({ field: "email", message: "E-mail é obrigatório." });
     if (errors.length) throw ApiError.validation("Dados inválidos.", errors);

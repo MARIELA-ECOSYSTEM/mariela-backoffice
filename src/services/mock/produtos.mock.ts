@@ -1,5 +1,6 @@
 import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
+import type { ApiFieldError } from "@/types/api";
 import { agora, calcularMargem, clonar, db, gerarId, precoFinal, recalcularProduto } from "./db";
 import type { Produto, ProdutoPayload, PromocaoRequest } from "@/types/produto";
 
@@ -10,7 +11,7 @@ function encontrarProduto(id: string): Produto {
 }
 
 function validarPayload(payload: Partial<ProdutoPayload>, idAtual?: string): void {
-  const errors = [];
+  const errors: ApiFieldError[] = [];
   if (!payload.codProduto?.trim()) errors.push({ field: "codProduto", message: "Código é obrigatório." });
   if (!payload.nome?.trim()) errors.push({ field: "nome", message: "Nome é obrigatório." });
   if (!payload.categoria?.trim()) errors.push({ field: "categoria", message: "Categoria é obrigatória." });

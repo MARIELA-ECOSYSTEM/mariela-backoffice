@@ -1,5 +1,6 @@
 import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
+import type { ApiFieldError } from "@/types/api";
 import { clonar, db, gerarId, recalcularProduto } from "./db";
 import type { Produto } from "@/types/produto";
 import type { AdicionarTamanhoRequest, CriarVarianteRequest, Variante } from "@/types/variante";
@@ -17,7 +18,7 @@ function encontrarVariante(produto: Produto, varianteId: string): Variante {
 }
 
 function validarVariante(produto: Produto, payload: Partial<CriarVarianteRequest>, idAtual?: string): void {
-  const errors = [];
+  const errors: ApiFieldError[] = [];
   if (!payload.codVariante?.trim())
     errors.push({ field: "codVariante", message: "Código da variante é obrigatório." });
   if (!payload.cor?.trim()) errors.push({ field: "cor", message: "Cor é obrigatória." });
@@ -83,7 +84,7 @@ export function registerVariantesMocks(): void {
     const variante = encontrarVariante(produto, params["varianteId"]!);
     const payload = (body ?? {}) as AdicionarTamanhoRequest;
 
-    const errors = [];
+    const errors: ApiFieldError[] = [];
     if (!payload.tamanho?.trim()) errors.push({ field: "tamanho", message: "Tamanho é obrigatório." });
     if (payload.quantidade === undefined || payload.quantidade < 0)
       errors.push({ field: "quantidade", message: "Quantidade deve ser maior ou igual a zero." });

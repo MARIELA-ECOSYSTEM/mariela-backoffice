@@ -1,5 +1,6 @@
 import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
+import type { ApiFieldError } from "@/types/api";
 import { clonar, db, gerarId, recalcularProduto } from "./db";
 import type { Produto } from "@/types/produto";
 import type { EntradaEstoqueRequest, ResumoEstoqueProduto, SaidaEstoqueRequest } from "@/types/estoque";
@@ -74,7 +75,7 @@ export function registerEstoqueMocks(): void {
 
   registerMock("POST", "/estoque/saida", ({ body }) => {
     const payload = (body ?? {}) as SaidaEstoqueRequest;
-    const errors = [];
+    const errors: ApiFieldError[] = [];
     if (!payload.quantidade || payload.quantidade <= 0)
       errors.push({ field: "quantidade", message: "Quantidade deve ser maior que zero." });
     if (!payload.motivo?.trim()) errors.push({ field: "motivo", message: "Motivo é obrigatório." });
