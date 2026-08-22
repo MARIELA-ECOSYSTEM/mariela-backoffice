@@ -645,10 +645,34 @@ export function seedCampanhas(): Campanha[] {
 
 export function seedClientes(): Cliente[] {
   const base: [string, string, string, string, string, boolean, number][] = [
-    ["cli_001", "Ana Beatriz Souza", "(11) 99811-2233", "1992-04-18", "Prefere vestidos midi.", true, 45],
-    ["cli_002", "Camila Ferreira", "(11) 98444-9090", "1988-11-02", "Cliente de crediário.", true, 30],
+    [
+      "cli_001",
+      "Ana Beatriz Souza",
+      "(11) 99811-2233",
+      "1992-04-18",
+      "Prefere vestidos midi.",
+      true,
+      45,
+    ],
+    [
+      "cli_002",
+      "Camila Ferreira",
+      "(11) 98444-9090",
+      "1988-11-02",
+      "Cliente de crediário.",
+      true,
+      30,
+    ],
     ["cli_003", "Juliana Martins", "(21) 99700-1010", "1995-07-25", "", true, 20],
-    ["cli_004", "Larissa Nogueira", "(31) 98222-3131", "1990-01-09", "Sempre pede novidades de acessórios.", true, 10],
+    [
+      "cli_004",
+      "Larissa Nogueira",
+      "(31) 98222-3131",
+      "1990-01-09",
+      "Sempre pede novidades de acessórios.",
+      true,
+      10,
+    ],
     ["cli_005", "Patrícia Lima", "(11) 97333-4545", "", "Cadastro incompleto.", false, 5],
   ];
   return base.map(([id, nome, telefone, dataNascimento, observacao, ativo, dias]) => ({

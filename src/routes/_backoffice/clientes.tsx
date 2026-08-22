@@ -13,8 +13,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   AtivoBadge,
   DataToolbar,
@@ -331,8 +343,8 @@ function ClientesPage() {
               <div>
                 <p className="text-eyebrow mb-3">Histórico de vendas</p>
                 <NotaDemonstracao>
-                  O histórico de compras será alimentado pelo MARIELA PDV. Nenhuma venda é registrada
-                  ou simulada nesta etapa.
+                  O histórico de compras será alimentado pelo MARIELA PDV. Nenhuma venda é
+                  registrada ou simulada nesta etapa.
                 </NotaDemonstracao>
                 <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border-strong px-4 py-10 text-center">
                   <ShoppingBag aria-hidden className="size-6 text-muted-foreground/60" />

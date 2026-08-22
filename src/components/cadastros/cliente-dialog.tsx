@@ -67,7 +67,8 @@ export function ClienteDialog({
         <DialogHeader>
           <DialogTitle>{edicao ? "Editar cliente" : "Novo cliente"}</DialogTitle>
           <DialogDescription>
-            Cadastro conforme especificação: nome, telefone, data de nascimento, observação e status.
+            Cadastro conforme especificação: nome, telefone, data de nascimento, observação e
+            status.
           </DialogDescription>
         </DialogHeader>
         <form

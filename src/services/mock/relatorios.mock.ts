@@ -21,9 +21,7 @@ function cadastrosPorMes(): RelatorioSerie[] {
     const label = data.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
     const total = db.produtos.filter((produto) => {
       const criado = new Date(produto.criadoEm);
-      return (
-        criado.getMonth() === data.getMonth() && criado.getFullYear() === data.getFullYear()
-      );
+      return criado.getMonth() === data.getMonth() && criado.getFullYear() === data.getFullYear();
     }).length;
     meses.push({ label, valor: total });
   }

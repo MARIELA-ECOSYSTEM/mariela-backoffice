@@ -55,7 +55,7 @@ function registrarClientes(): void {
   }));
 
   registerMock("GET", "/clientes/:id", ({ params }) => ({
-    data: clonar(encontrar(db.clientes, params['id']!, "Cliente")),
+    data: clonar(encontrar(db.clientes, params["id"]!, "Cliente")),
   }));
 
   registerMock("POST", "/clientes", ({ body }) => {
@@ -82,7 +82,7 @@ function registrarClientes(): void {
   });
 
   registerMock("PUT", "/clientes/:id", ({ params, body }) => {
-    const cliente = encontrar(db.clientes, params['id']!, "Cliente");
+    const cliente = encontrar(db.clientes, params["id"]!, "Cliente");
     const payload = (body ?? {}) as Partial<ClientePayload>;
     const errors: ApiFieldError[] = [];
     const nome = texto(payload.nome);
@@ -101,7 +101,7 @@ function registrarClientes(): void {
   });
 
   registerMock("DELETE", "/clientes/:id", ({ params }) => {
-    const cliente = encontrar(db.clientes, params['id']!, "Cliente");
+    const cliente = encontrar(db.clientes, params["id"]!, "Cliente");
     db.clientes = db.clientes.filter((item) => item.id !== cliente.id);
     return { data: { id: cliente.id } };
   });
@@ -114,7 +114,7 @@ function registrarFornecedores(): void {
   }));
 
   registerMock("GET", "/fornecedores/:id", ({ params }) => ({
-    data: clonar(encontrar(db.fornecedores, params['id']!, "Fornecedor")),
+    data: clonar(encontrar(db.fornecedores, params["id"]!, "Fornecedor")),
   }));
 
   registerMock("POST", "/fornecedores", ({ body }) => {
@@ -136,7 +136,7 @@ function registrarFornecedores(): void {
   });
 
   registerMock("PUT", "/fornecedores/:id", ({ params, body }) => {
-    const fornecedor = encontrar(db.fornecedores, params['id']!, "Fornecedor");
+    const fornecedor = encontrar(db.fornecedores, params["id"]!, "Fornecedor");
     const payload = (body ?? {}) as Partial<FornecedorPayload>;
     const nome = texto(payload.nome);
     if (!nome) validar([{ field: "nome", message: "Nome é obrigatório." }]);
@@ -147,7 +147,7 @@ function registrarFornecedores(): void {
   });
 
   registerMock("DELETE", "/fornecedores/:id", ({ params }) => {
-    const fornecedor = encontrar(db.fornecedores, params['id']!, "Fornecedor");
+    const fornecedor = encontrar(db.fornecedores, params["id"]!, "Fornecedor");
     const vinculados = db.produtos.filter((p) => p.fornecedorId === fornecedor.id).length;
     if (vinculados > 0) {
       throw ApiError.validation("Fornecedor possui produtos vinculados.", [
@@ -166,7 +166,7 @@ function registrarColecoes(): void {
   }));
 
   registerMock("GET", "/colecoes/:id", ({ params }) => ({
-    data: clonar(encontrar(db.colecoes, params['id']!, "Coleção")),
+    data: clonar(encontrar(db.colecoes, params["id"]!, "Coleção")),
   }));
 
   registerMock("POST", "/colecoes", ({ body }) => {
@@ -176,13 +176,13 @@ function registrarColecoes(): void {
   });
 
   registerMock("PUT", "/colecoes/:id", ({ params, body }) => {
-    const colecao = encontrar(db.colecoes, params['id']!, "Coleção");
+    const colecao = encontrar(db.colecoes, params["id"]!, "Coleção");
     Object.assign(colecao, validarPeriodo(body));
     return { data: clonar(colecao) };
   });
 
   registerMock("DELETE", "/colecoes/:id", ({ params }) => {
-    const colecao = encontrar(db.colecoes, params['id']!, "Coleção");
+    const colecao = encontrar(db.colecoes, params["id"]!, "Coleção");
     const vinculados = db.produtos.filter((p) => p.colecaoId === colecao.id).length;
     if (vinculados > 0) {
       throw ApiError.validation("Coleção possui produtos vinculados.", [
@@ -201,7 +201,7 @@ function registrarCampanhas(): void {
   }));
 
   registerMock("GET", "/campanhas/:id", ({ params }) => ({
-    data: clonar(encontrar(db.campanhas, params['id']!, "Campanha")),
+    data: clonar(encontrar(db.campanhas, params["id"]!, "Campanha")),
   }));
 
   registerMock("POST", "/campanhas", ({ body }) => {
@@ -211,13 +211,13 @@ function registrarCampanhas(): void {
   });
 
   registerMock("PUT", "/campanhas/:id", ({ params, body }) => {
-    const campanha = encontrar(db.campanhas, params['id']!, "Campanha");
+    const campanha = encontrar(db.campanhas, params["id"]!, "Campanha");
     Object.assign(campanha, validarPeriodo(body as Partial<CampanhaPayload>));
     return { data: clonar(campanha) };
   });
 
   registerMock("DELETE", "/campanhas/:id", ({ params }) => {
-    const campanha = encontrar(db.campanhas, params['id']!, "Campanha");
+    const campanha = encontrar(db.campanhas, params["id"]!, "Campanha");
     const vinculados = db.produtos.filter((p) => p.campanhaId === campanha.id).length;
     if (vinculados > 0) {
       throw ApiError.validation("Campanha possui produtos vinculados.", [

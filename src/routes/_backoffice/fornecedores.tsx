@@ -13,7 +13,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { DataToolbar, Paginacao } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/common/states";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -182,9 +188,7 @@ function FornecedoresPage() {
                     </TableCell>
                     <TableCell>{fornecedor.contato || "—"}</TableCell>
                     <TableCell>{fornecedor.telefone || "—"}</TableCell>
-                    <TableCell className="text-right">
-                      {produtosDo(fornecedor.id).length}
-                    </TableCell>
+                    <TableCell className="text-right">{produtosDo(fornecedor.id).length}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button

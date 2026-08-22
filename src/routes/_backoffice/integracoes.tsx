@@ -26,12 +26,14 @@ export const Route = createFileRoute("/_backoffice/integracoes")({
   component: IntegracoesPage,
 });
 
-const STATUS: Record<StatusIntegracao, { label: string; variante: "success" | "outline" | "gold" }> =
-  {
-    conectada: { label: "Conectada", variante: "success" },
-    disponivel: { label: "Disponível", variante: "gold" },
-    planejada: { label: "Planejada", variante: "outline" },
-  };
+const STATUS: Record<
+  StatusIntegracao,
+  { label: string; variante: "success" | "outline" | "gold" }
+> = {
+  conectada: { label: "Conectada", variante: "success" },
+  disponivel: { label: "Disponível", variante: "gold" },
+  planejada: { label: "Planejada", variante: "outline" },
+};
 
 function IntegracoesPage() {
   const { data: integracoes, isPending, isError, error, refetch } = useIntegracoes();
