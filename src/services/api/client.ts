@@ -15,7 +15,7 @@ export const API_URL = (API_URL_ENV ?? "").replace(/\/+$/, "");
 /** Mock só é usado quando pedido explicitamente ou quando não há API configurada. */
 export const USE_MOCK_API = MOCK_ENV === "true" || (MOCK_ENV !== "false" && API_URL === "");
 export const REQUEST_TIMEOUT_MS = 15_000;
-export const TOKEN_STORAGE_KEY = "mariela.accessToken";
+export { TOKEN_STORAGE_KEY };
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
