@@ -164,7 +164,7 @@ function DashboardPage() {
                 rotulo="Vendas no mês"
                 valor={data.vendas.vendasMes}
                 tipo="quantidade"
-                unidade="vendas"
+                unidade={pluralizar(data.vendas.vendasMes, "venda", "vendas")}
                 icone={ShoppingBag}
               />
               <Metrica
