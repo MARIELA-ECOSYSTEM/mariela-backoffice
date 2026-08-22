@@ -6,11 +6,11 @@ import type { FiltroDisponibilidade } from "@/types/produto";
 
 export const estoqueKeys = {
   todos: ["estoque"] as const,
-  lista: (filtros: { busca?: string; disponibilidade?: FiltroDisponibilidade }) =>
+  lista: (filtros: { busca?: string | undefined; disponibilidade?: FiltroDisponibilidade | undefined }) =>
     ["estoque", "lista", filtros] as const,
 };
 
-export function useEstoque(filtros: { busca?: string; disponibilidade?: FiltroDisponibilidade }) {
+export function useEstoque(filtros: { busca?: string | undefined; disponibilidade?: FiltroDisponibilidade | undefined }) {
   return useQuery({
     queryKey: estoqueKeys.lista(filtros),
     queryFn: () => estoqueApi.listar(filtros),

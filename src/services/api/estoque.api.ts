@@ -4,7 +4,7 @@ import type { Produto } from "@/types/produto";
 import type { FiltroDisponibilidade } from "@/types/produto";
 
 export const estoqueApi = {
-  async listar(filtros: { busca?: string; disponibilidade?: FiltroDisponibilidade } = {}): Promise<
+  async listar(filtros: { busca?: string | undefined; disponibilidade?: FiltroDisponibilidade | undefined } = {}): Promise<
     ResumoEstoqueProduto[]
   > {
     const { data } = await apiClient.get<ResumoEstoqueProduto[]>("/estoque", {
