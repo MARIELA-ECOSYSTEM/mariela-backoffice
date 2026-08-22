@@ -78,7 +78,7 @@ function ProdutoDetalhePage() {
 
   async function confirmarExclusao() {
     try {
-      await excluir.mutateAsync(produto.id);
+      await excluir.mutateAsync(id);
       toast.success("Produto excluído com sucesso.");
       void navigate({ to: "/produtos" });
     } catch (err) {

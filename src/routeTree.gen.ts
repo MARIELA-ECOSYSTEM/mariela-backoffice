@@ -14,6 +14,10 @@ import { Route as BackofficeRouteImport } from './routes/_backoffice'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as BackofficeDashboardRouteImport } from './routes/_backoffice/dashboard'
 import { Route as BackofficeProdutosIndexRouteImport } from './routes/_backoffice/produtos/index'
+import { Route as BackofficeProdutosNovoRouteImport } from './routes/_backoffice/produtos/novo'
+import { Route as BackofficeProdutosIdIndexRouteImport } from './routes/_backoffice/produtos/$id/index'
+import { Route as BackofficeProdutosIdEditarRouteImport } from './routes/_backoffice/produtos/$id/editar'
+import { Route as BackofficeProdutosIdVariantesRouteImport } from './routes/_backoffice/produtos/$id/variantes'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -39,18 +43,49 @@ const BackofficeProdutosIndexRoute = BackofficeProdutosIndexRouteImport.update({
   path: '/produtos/',
   getParentRoute: () => BackofficeRoute,
 } as any)
+const BackofficeProdutosNovoRoute = BackofficeProdutosNovoRouteImport.update({
+  id: '/produtos/novo',
+  path: '/produtos/novo',
+  getParentRoute: () => BackofficeRoute,
+} as any)
+const BackofficeProdutosIdIndexRoute =
+  BackofficeProdutosIdIndexRouteImport.update({
+    id: '/produtos/$id/',
+    path: '/produtos/$id/',
+    getParentRoute: () => BackofficeRoute,
+  } as any)
+const BackofficeProdutosIdEditarRoute =
+  BackofficeProdutosIdEditarRouteImport.update({
+    id: '/produtos/$id/editar',
+    path: '/produtos/$id/editar',
+    getParentRoute: () => BackofficeRoute,
+  } as any)
+const BackofficeProdutosIdVariantesRoute =
+  BackofficeProdutosIdVariantesRouteImport.update({
+    id: '/produtos/$id/variantes',
+    path: '/produtos/$id/variantes',
+    getParentRoute: () => BackofficeRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof BackofficeDashboardRoute
+  '/produtos/novo': typeof BackofficeProdutosNovoRoute
   '/produtos/': typeof BackofficeProdutosIndexRoute
+  '/produtos/$id/editar': typeof BackofficeProdutosIdEditarRoute
+  '/produtos/$id/variantes': typeof BackofficeProdutosIdVariantesRoute
+  '/produtos/$id/': typeof BackofficeProdutosIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof BackofficeDashboardRoute
+  '/produtos/novo': typeof BackofficeProdutosNovoRoute
   '/produtos': typeof BackofficeProdutosIndexRoute
+  '/produtos/$id/editar': typeof BackofficeProdutosIdEditarRoute
+  '/produtos/$id/variantes': typeof BackofficeProdutosIdVariantesRoute
+  '/produtos/$id': typeof BackofficeProdutosIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -58,20 +93,44 @@ export interface FileRoutesById {
   '/_backoffice': typeof BackofficeRouteWithChildren
   '/login': typeof LoginRoute
   '/_backoffice/dashboard': typeof BackofficeDashboardRoute
+  '/_backoffice/produtos/novo': typeof BackofficeProdutosNovoRoute
   '/_backoffice/produtos/': typeof BackofficeProdutosIndexRoute
+  '/_backoffice/produtos/$id/editar': typeof BackofficeProdutosIdEditarRoute
+  '/_backoffice/produtos/$id/variantes': typeof BackofficeProdutosIdVariantesRoute
+  '/_backoffice/produtos/$id/': typeof BackofficeProdutosIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/dashboard' | '/produtos/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/dashboard'
+    | '/produtos/novo'
+    | '/produtos/'
+    | '/produtos/$id/editar'
+    | '/produtos/$id/variantes'
+    | '/produtos/$id/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/dashboard' | '/produtos'
+  to:
+    | '/'
+    | '/login'
+    | '/dashboard'
+    | '/produtos/novo'
+    | '/produtos'
+    | '/produtos/$id/editar'
+    | '/produtos/$id/variantes'
+    | '/produtos/$id'
   id:
     | '__root__'
     | '/'
     | '/_backoffice'
     | '/login'
     | '/_backoffice/dashboard'
+    | '/_backoffice/produtos/novo'
     | '/_backoffice/produtos/'
+    | '/_backoffice/produtos/$id/editar'
+    | '/_backoffice/produtos/$id/variantes'
+    | '/_backoffice/produtos/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -117,17 +176,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BackofficeProdutosIndexRouteImport
       parentRoute: typeof BackofficeRoute
     }
+    '/_backoffice/produtos/novo': {
+      id: '/_backoffice/produtos/novo'
+      path: '/produtos/novo'
+      fullPath: '/produtos/novo'
+      preLoaderRoute: typeof BackofficeProdutosNovoRouteImport
+      parentRoute: typeof BackofficeRoute
+    }
+    '/_backoffice/produtos/$id/': {
+      id: '/_backoffice/produtos/$id/'
+      path: '/produtos/$id'
+      fullPath: '/produtos/$id/'
+      preLoaderRoute: typeof BackofficeProdutosIdIndexRouteImport
+      parentRoute: typeof BackofficeRoute
+    }
+    '/_backoffice/produtos/$id/editar': {
+      id: '/_backoffice/produtos/$id/editar'
+      path: '/produtos/$id/editar'
+      fullPath: '/produtos/$id/editar'
+      preLoaderRoute: typeof BackofficeProdutosIdEditarRouteImport
+      parentRoute: typeof BackofficeRoute
+    }
+    '/_backoffice/produtos/$id/variantes': {
+      id: '/_backoffice/produtos/$id/variantes'
+      path: '/produtos/$id/variantes'
+      fullPath: '/produtos/$id/variantes'
+      preLoaderRoute: typeof BackofficeProdutosIdVariantesRouteImport
+      parentRoute: typeof BackofficeRoute
+    }
   }
 }
 
 interface BackofficeRouteChildren {
   BackofficeDashboardRoute: typeof BackofficeDashboardRoute
+  BackofficeProdutosNovoRoute: typeof BackofficeProdutosNovoRoute
   BackofficeProdutosIndexRoute: typeof BackofficeProdutosIndexRoute
+  BackofficeProdutosIdEditarRoute: typeof BackofficeProdutosIdEditarRoute
+  BackofficeProdutosIdVariantesRoute: typeof BackofficeProdutosIdVariantesRoute
+  BackofficeProdutosIdIndexRoute: typeof BackofficeProdutosIdIndexRoute
 }
 
 const BackofficeRouteChildren: BackofficeRouteChildren = {
   BackofficeDashboardRoute: BackofficeDashboardRoute,
+  BackofficeProdutosNovoRoute: BackofficeProdutosNovoRoute,
   BackofficeProdutosIndexRoute: BackofficeProdutosIndexRoute,
+  BackofficeProdutosIdEditarRoute: BackofficeProdutosIdEditarRoute,
+  BackofficeProdutosIdVariantesRoute: BackofficeProdutosIdVariantesRoute,
+  BackofficeProdutosIdIndexRoute: BackofficeProdutosIdIndexRoute,
 }
 
 const BackofficeRouteWithChildren = BackofficeRoute._addFileChildren(
