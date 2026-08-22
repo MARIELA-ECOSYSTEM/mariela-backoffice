@@ -20,13 +20,7 @@ function dataHora(iso: string): string {
 }
 
 /** As 6 vendas mais recentes (dataVenda DESC) em formato de lista gerencial. */
-export function UltimasVendas({
-  vendas,
-  acao,
-}: {
-  vendas: VendaResumo[];
-  acao?: React.ReactNode;
-}) {
+export function UltimasVendas({ vendas, acao }: { vendas: VendaResumo[]; acao?: React.ReactNode }) {
   return (
     <Card className="shadow-card">
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 border-b border-border/70 pb-4">

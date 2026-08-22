@@ -104,9 +104,7 @@ function resumoVendas(chaveSolicitada: string): DashboardVendas {
     faturamentoSemana: somar(daSemana),
     vendasMes: doMesAtual.length,
     faturamentoMes,
-    ticketMedioMes: doMesAtual.length
-      ? Number((faturamentoMes / doMesAtual.length).toFixed(2))
-      : 0,
+    ticketMedioMes: doMesAtual.length ? Number((faturamentoMes / doMesAtual.length).toFixed(2)) : 0,
     vendasMesAnterior: doMesAnterior.length,
     faturamentoMesAnterior,
     crescimentoMensalPercentual: faturamentoMesAnterior
@@ -144,9 +142,7 @@ function resumoEstoque(): DashboardEstoque {
     margemMediaPercentual: vendaPotencial
       ? Number((((vendaPotencial - custoEstoque) / vendaPotencial) * 100).toFixed(2))
       : 0,
-    ticketMedioEstoque: pecasEmEstoque
-      ? Number((vendaPotencial / pecasEmEstoque).toFixed(2))
-      : 0,
+    ticketMedioEstoque: pecasEmEstoque ? Number((vendaPotencial / pecasEmEstoque).toFixed(2)) : 0,
   };
 }
 

@@ -87,7 +87,5 @@ export function seedVendas(
     }
   }
 
-  return vendas.sort(
-    (a, b) => new Date(b.dataVenda).getTime() - new Date(a.dataVenda).getTime(),
-  );
+  return vendas.sort((a, b) => new Date(b.dataVenda).getTime() - new Date(a.dataVenda).getTime());
 }

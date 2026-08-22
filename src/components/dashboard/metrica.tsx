@@ -42,9 +42,7 @@ export function Metrica({
     <Card
       className={cn(
         "relative overflow-hidden transition-shadow duration-200",
-        destaque
-          ? "border-primary/25 bg-primary-soft/50 shadow-raised"
-          : "hover:shadow-raised",
+        destaque ? "border-primary/25 bg-primary-soft/50 shadow-raised" : "hover:shadow-raised",
       )}
     >
       {destaque ? (
