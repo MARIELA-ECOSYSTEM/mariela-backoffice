@@ -5,3 +5,9 @@ export interface Fornecedor {
   telefone: string;
   criadoEm: string;
 }
+
+export interface FornecedorPayload {
+  nome: string;
+  contato: string;
+  telefone: string;
+}

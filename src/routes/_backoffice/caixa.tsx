@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Page } from "@/components/layout/page";
+import { NotaDemonstracao } from "@/components/common/data-toolbar";
 import { EmDesenvolvimento } from "@/components/common/states";
 
 export const Route = createFileRoute("/_backoffice/caixa")({
@@ -17,7 +18,15 @@ export const Route = createFileRoute("/_backoffice/caixa")({
 
 function CaixaPage() {
   return (
-    <Page titulo="Caixa" breadcrumbs={[{ label: "Comercial" }, { label: "Caixa" }]}>
+    <Page
+      titulo="Caixa"
+      breadcrumbs={[{ label: "Operação" }, { label: "Caixa" }]}
+      descricao="Área reservada para a operação de caixa da loja física."
+    >
+      <NotaDemonstracao>
+        Abertura, fechamento e movimentações serão operados pelo <strong>MARIELA PDV</strong>. Esta
+        tela permanece preparada para a integração futura.
+      </NotaDemonstracao>
       <EmDesenvolvimento modulo="Caixa" />
     </Page>
   );

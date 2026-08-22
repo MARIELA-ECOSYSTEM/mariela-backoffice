@@ -7,7 +7,6 @@ import { encerrarSessao, registerSessionHandlers } from "@/services/auth/session
 import { AuthContext, type AuthContextValue } from "@/hooks/auth-context";
 import type { LoginRequest, Usuario } from "@/types/auth";
 
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [carregando, setCarregando] = useState(true);

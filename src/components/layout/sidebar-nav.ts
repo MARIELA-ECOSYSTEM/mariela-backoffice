@@ -36,15 +36,15 @@ export const NAV_GRUPOS: NavGrupo[] = [
     itens: [
       { label: "Produtos", to: "/produtos", icon: Tags },
       { label: "Estoque", to: "/estoque", icon: Boxes },
-      { label: "Coleções", to: "/colecoes", icon: Sparkles, emDesenvolvimento: true },
-      { label: "Campanhas", to: "/campanhas", icon: Megaphone, emDesenvolvimento: true },
+      { label: "Coleções", to: "/colecoes", icon: Sparkles },
+      { label: "Campanhas", to: "/campanhas", icon: Megaphone },
     ],
   },
   {
     titulo: "Cadastros",
     itens: [
-      { label: "Clientes", to: "/clientes", icon: Users, emDesenvolvimento: true },
-      { label: "Fornecedores", to: "/fornecedores", icon: Building2, emDesenvolvimento: true },
+      { label: "Clientes", to: "/clientes", icon: Users },
+      { label: "Fornecedores", to: "/fornecedores", icon: Building2 },
     ],
   },
   {
@@ -57,12 +57,12 @@ export const NAV_GRUPOS: NavGrupo[] = [
   {
     titulo: "Gestão",
     itens: [
-      { label: "Relatórios", to: "/relatorios", icon: BarChart3, emDesenvolvimento: true },
+      { label: "Relatórios", to: "/relatorios", icon: BarChart3 },
       { label: "Configurações", to: "/configuracoes", icon: Settings },
     ],
   },
   {
     titulo: "Integrações",
-    itens: [{ label: "Integrações", to: "/integracoes", icon: Plug, emDesenvolvimento: true }],
+    itens: [{ label: "Integrações", to: "/integracoes", icon: Plug }],
   },
 ];
