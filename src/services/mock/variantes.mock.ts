@@ -3,6 +3,7 @@ import { ApiError } from "@/types/api";
 import type { ApiFieldError } from "@/types/api";
 import { clonar, db, gerarId, recalcularProduto } from "./db";
 import type { Produto } from "@/types/produto";
+import { conflitoTamanhoUnico, normalizarTamanho, tamanhosDaVariante } from "@/utils/tamanho";
 import type { AdicionarTamanhoRequest, CriarVarianteRequest, Variante } from "@/types/variante";
 
 function encontrarProduto(id: string): Produto {
@@ -32,6 +33,12 @@ function validarVariante(produto: Produto, payload: Partial<CriarVarianteRequest
       { field: "cor", message: "Esta cor já está cadastrada neste produto." },
     ]);
   }
+}
+
+/** Aplica a regra do tamanho único (U) dentro da variante. */
+function validarRegraTamanhoUnico(variante: Variante, tamanho: string): void {
+  const conflito = conflitoTamanhoUnico(tamanhosDaVariante(variante), tamanho);
+  if (conflito) throw ApiError.validation("Dados inválidos.", [{ field: "tamanho", message: conflito }]);
 }
 
 export function registerVariantesMocks(): void {
