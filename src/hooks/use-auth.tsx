@@ -1,6 +1,17 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { authApi } from "@/services/api/auth.api";
 import { getToken } from "@/services/api/client";
+import { encerrarSessao, registerSessionHandlers } from "@/services/auth/session";
 import type { LoginRequest, Usuario } from "@/types/auth";
 
 interface AuthContextValue {
@@ -8,7 +19,7 @@ interface AuthContextValue {
   carregando: boolean;
   autenticado: boolean;
   login: (payload: LoginRequest) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -16,6 +27,23 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [carregando, setCarregando] = useState(true);
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const router = useRouter();
+
+  // Handlers globais de encerramento de sessão (logout manual e HTTP 401).
+  useEffect(() => {
+    registerSessionHandlers({
+      limparUsuario: () => setUsuario(null),
+      limparCache: async () => {
+        await queryClient.cancelQueries();
+        queryClient.clear();
+      },
+      irParaLogin: () => void navigate({ to: "/login", replace: true }),
+      rotaAtual: () => router.state.location.pathname,
+    });
+    return () => registerSessionHandlers(null);
+  }, [navigate, queryClient, router]);
 
   useEffect(() => {
     let ativo = true;
@@ -44,9 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(resultado.usuario);
   }, []);
 
-  const logout = useCallback(() => {
-    authApi.logout();
-    setUsuario(null);
+  const logout = useCallback(async () => {
+    await encerrarSessao({ redirecionar: true });
   }, []);
 
   const value = useMemo<AuthContextValue>(

@@ -13,7 +13,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Field } from "@/components/common/field";
 import { tamanhoSchema, type TamanhoFormValues } from "@/schemas/produto.schema";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
@@ -102,7 +108,13 @@ export function TamanhoDialog({
             erro={form.formState.errors.quantidade?.message}
             hint="Pode ser zero. O estoque também pode ser lançado depois por entrada."
           >
-            <Input id="quantidade" type="number" min="0" step="1" {...form.register("quantidade")} />
+            <Input
+              id="quantidade"
+              type="number"
+              min="0"
+              step="1"
+              {...form.register("quantidade")}
+            />
           </Field>
 
           <DialogFooter>

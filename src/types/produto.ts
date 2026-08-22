@@ -35,7 +35,8 @@ export interface ProdutoPayload {
   ehNovidade: boolean;
 }
 
-export type OrdenarProdutoPor = "nome" | "codProduto" | "precoVenda" | "quantidadeTotal" | "criadoEm";
+export type OrdenarProdutoPor =
+  "nome" | "codProduto" | "precoVenda" | "quantidadeTotal" | "criadoEm";
 export type Ordem = "asc" | "desc";
 export type FiltroDisponibilidade = "todos" | "disponivel" | "sem-estoque";
 export type FiltroBooleano = "todos" | "sim" | "nao";

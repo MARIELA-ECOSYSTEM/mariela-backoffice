@@ -7,7 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Field } from "@/components/common/field";
 import { produtoSchema, type ProdutoFormValues } from "@/schemas/produto.schema";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
@@ -78,7 +84,12 @@ export function ProdutoForm({
             <Input id="nome" placeholder="Vestido Midi Amalfi" {...form.register("nome")} />
           </Field>
 
-          <Field id="categoria" label="Categoria" erro={errors.categoria?.message} className="md:col-span-1">
+          <Field
+            id="categoria"
+            label="Categoria"
+            erro={errors.categoria?.message}
+            className="md:col-span-1"
+          >
             <Select
               value={form.watch("categoria")}
               onValueChange={(valor) => form.setValue("categoria", valor, { shouldValidate: true })}
@@ -170,17 +181,31 @@ export function ProdutoForm({
         </CardHeader>
         <CardContent className="grid gap-5 md:grid-cols-3">
           <Field id="precoCusto" label="Preço de custo (R$)" erro={errors.precoCusto?.message}>
-            <Input id="precoCusto" type="number" step="0.01" min="0" {...form.register("precoCusto")} />
+            <Input
+              id="precoCusto"
+              type="number"
+              step="0.01"
+              min="0"
+              {...form.register("precoCusto")}
+            />
           </Field>
           <Field id="precoVenda" label="Preço de venda (R$)" erro={errors.precoVenda?.message}>
-            <Input id="precoVenda" type="number" step="0.01" min="0" {...form.register("precoVenda")} />
+            <Input
+              id="precoVenda"
+              type="number"
+              step="0.01"
+              min="0"
+              {...form.register("precoVenda")}
+            />
           </Field>
           <div className="space-y-2">
             <Label>Margem calculada</Label>
             <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm">
               {formatarPercentual(calcularMargem(custo, venda))}
             </div>
-            <p className="text-xs text-muted-foreground">A promoção é ativada na tela do produto.</p>
+            <p className="text-xs text-muted-foreground">
+              A promoção é ativada na tela do produto.
+            </p>
           </div>
         </CardContent>
       </Card>

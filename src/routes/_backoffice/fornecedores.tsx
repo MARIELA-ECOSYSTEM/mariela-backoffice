@@ -17,10 +17,7 @@ export const Route = createFileRoute("/_backoffice/fornecedores")({
 
 function FornecedoresPage() {
   return (
-    <Page
-      titulo="Fornecedores"
-      breadcrumbs={[{ label: "Comercial" }, { label: "Fornecedores" }]}
-    >
+    <Page titulo="Fornecedores" breadcrumbs={[{ label: "Comercial" }, { label: "Fornecedores" }]}>
       <EmDesenvolvimento modulo="Fornecedores" />
     </Page>
   );

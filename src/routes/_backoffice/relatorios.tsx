@@ -9,7 +9,10 @@ export const Route = createFileRoute("/_backoffice/relatorios")({
       { title: "Relatórios — MARIELA Backoffice" },
       { name: "description", content: "Relatórios gerenciais de catálogo, estoque e vendas." },
       { property: "og:title", content: "Relatórios — MARIELA Backoffice" },
-      { property: "og:description", content: "Relatórios gerenciais de catálogo, estoque e vendas." },
+      {
+        property: "og:description",
+        content: "Relatórios gerenciais de catálogo, estoque e vendas.",
+      },
     ],
   }),
   component: RelatoriosPage,
@@ -17,10 +20,7 @@ export const Route = createFileRoute("/_backoffice/relatorios")({
 
 function RelatoriosPage() {
   return (
-    <Page
-      titulo="Relatórios"
-      breadcrumbs={[{ label: "Sistema" }, { label: "Relatórios" }]}
-    >
+    <Page titulo="Relatórios" breadcrumbs={[{ label: "Sistema" }, { label: "Relatórios" }]}>
       <EmDesenvolvimento modulo="Relatórios" />
     </Page>
   );

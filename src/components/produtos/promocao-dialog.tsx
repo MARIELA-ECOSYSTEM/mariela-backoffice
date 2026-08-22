@@ -63,8 +63,8 @@ export function PromocaoDialog({
         <DialogHeader>
           <DialogTitle className="font-display text-xl">Ativar promoção</DialogTitle>
           <DialogDescription>
-            Preço normal: {formatarMoeda(produto.precoVenda)}. O preço promocional passa a ser o preço
-            vigente.
+            Preço normal: {formatarMoeda(produto.precoVenda)}. O preço promocional passa a ser o
+            preço vigente.
           </DialogDescription>
         </DialogHeader>
 

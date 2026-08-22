@@ -13,7 +13,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Field } from "@/components/common/field";
 import { movimentacaoSchema, type MovimentacaoFormValues } from "@/schemas/produto.schema";
 import { useEntradaEstoque, useSaidaEstoque } from "@/hooks/use-estoque";
@@ -81,7 +87,11 @@ export function MovimentacaoDialog({
     } catch (error) {
       if (error instanceof ApiError) {
         error.errors.forEach((campo) => {
-          if (campo.field === "quantidade" || campo.field === "motivo" || campo.field === "tamanhoId") {
+          if (
+            campo.field === "quantidade" ||
+            campo.field === "motivo" ||
+            campo.field === "tamanhoId"
+          ) {
             form.setError(campo.field as keyof MovimentacaoFormValues, { message: campo.message });
           }
         });
@@ -100,8 +110,8 @@ export function MovimentacaoDialog({
             {ehSaida ? "Saída de estoque" : "Entrada de estoque"}
           </DialogTitle>
           <DialogDescription>
-            {produto.nome} · variante {variante?.cor ?? "—"}. A quantidade é alterada por operação, nunca
-            digitando um novo total.
+            {produto.nome} · variante {variante?.cor ?? "—"}. A quantidade é alterada por operação,
+            nunca digitando um novo total.
           </DialogDescription>
         </DialogHeader>
 
@@ -146,7 +156,11 @@ export function MovimentacaoDialog({
 
           {ehSaida ? (
             <Field id="motivo" label="Motivo" erro={form.formState.errors.motivo?.message}>
-              <Input id="motivo" placeholder="Peça avariada, ajuste de inventário…" {...form.register("motivo")} />
+              <Input
+                id="motivo"
+                placeholder="Peça avariada, ajuste de inventário…"
+                {...form.register("motivo")}
+              />
             </Field>
           ) : null}
 

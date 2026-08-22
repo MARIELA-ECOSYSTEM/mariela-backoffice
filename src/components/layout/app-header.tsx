@@ -1,5 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { ChevronRight, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,21 +19,15 @@ export interface Breadcrumb {
 
 export function AppHeader({ titulo, breadcrumbs }: { titulo: string; breadcrumbs?: Breadcrumb[] }) {
   const { usuario, logout } = useAuth();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-
-  async function sair() {
-    await queryClient.cancelQueries();
-    queryClient.clear();
-    logout();
-    void navigate({ to: "/login", replace: true });
-  }
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-card px-8">
       <div className="min-w-0">
         {breadcrumbs && breadcrumbs.length > 0 ? (
-          <nav aria-label="Trilha de navegação" className="flex items-center gap-1 text-xs text-muted-foreground">
+          <nav
+            aria-label="Trilha de navegação"
+            className="flex items-center gap-1 text-xs text-muted-foreground"
+          >
             {breadcrumbs.map((crumb, index) => (
               <span key={`${crumb.label}-${index}`} className="flex items-center gap-1">
                 {index > 0 ? <ChevronRight aria-hidden className="size-3" /> : null}
@@ -69,7 +62,7 @@ export function AppHeader({ titulo, breadcrumbs }: { titulo: string; breadcrumbs
             <User aria-hidden className="size-3.5" /> Sessão administrativa
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => void sair()}>
+          <DropdownMenuItem onSelect={() => void logout()}>
             <LogOut aria-hidden className="size-4" /> Sair
           </DropdownMenuItem>
         </DropdownMenuContent>

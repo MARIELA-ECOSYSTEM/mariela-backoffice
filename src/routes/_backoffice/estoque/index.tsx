@@ -5,8 +5,21 @@ import { Page } from "@/components/layout/page";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/common/states";
 import { StatusEstoqueBadge } from "@/components/common/status-badge";
 import { useEstoque } from "@/hooks/use-estoque";
@@ -20,7 +33,10 @@ export const Route = createFileRoute("/_backoffice/estoque/")({
       { title: "Estoque — MARIELA Backoffice" },
       { name: "description", content: "Controle de estoque por produto, variante e tamanho." },
       { property: "og:title", content: "Estoque — MARIELA Backoffice" },
-      { property: "og:description", content: "Controle de estoque por produto, variante e tamanho." },
+      {
+        property: "og:description",
+        content: "Controle de estoque por produto, variante e tamanho.",
+      },
     ],
   }),
   component: EstoquePage,
@@ -29,7 +45,10 @@ export const Route = createFileRoute("/_backoffice/estoque/")({
 function EstoquePage() {
   const [busca, setBusca] = useState("");
   const [disponibilidade, setDisponibilidade] = useState<FiltroDisponibilidade>("todos");
-  const { data, isPending, isError, error, refetch } = useEstoque({ busca: busca || undefined, disponibilidade });
+  const { data, isPending, isError, error, refetch } = useEstoque({
+    busca: busca || undefined,
+    disponibilidade,
+  });
   const itens = data ?? [];
   const temFiltros = Boolean(busca) || disponibilidade !== "todos";
 
@@ -47,7 +66,10 @@ function EstoquePage() {
       <Card className="mb-5 shadow-card">
         <CardContent className="flex flex-wrap gap-3 py-5">
           <div className="relative min-w-64 flex-1">
-            <Search aria-hidden className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search
+              aria-hidden
+              className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
             <Input
               aria-label="Buscar produto no estoque"
               placeholder="Buscar por nome ou código…"
@@ -111,7 +133,9 @@ function EstoquePage() {
             <TableBody>
               {itens.map((item) => (
                 <TableRow key={item.produtoId}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{item.codProduto}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {item.codProduto}
+                  </TableCell>
                   <TableCell className="font-medium">{item.nome}</TableCell>
                   <TableCell className="text-sm">{item.categoria}</TableCell>
                   <TableCell className="tabular-nums">{item.totalVariantes}</TableCell>

@@ -15,7 +15,10 @@ export const Route = createFileRoute("/_backoffice/estoque/$produtoId")({
       { title: "Estoque do produto — MARIELA Backoffice" },
       { name: "description", content: "Entradas, saídas e tamanhos de cada variante do produto." },
       { property: "og:title", content: "Estoque do produto — MARIELA Backoffice" },
-      { property: "og:description", content: "Entradas, saídas e tamanhos de cada variante do produto." },
+      {
+        property: "og:description",
+        content: "Entradas, saídas e tamanhos de cada variante do produto.",
+      },
     ],
   }),
   component: EstoqueProdutoPage,
@@ -28,7 +31,11 @@ function EstoqueProdutoPage() {
   return (
     <Page
       titulo={produto ? `Estoque · ${produto.nome}` : "Estoque do produto"}
-      breadcrumbs={[{ label: "Catálogo" }, { label: "Estoque", to: "/estoque" }, { label: "Produto" }]}
+      breadcrumbs={[
+        { label: "Catálogo" },
+        { label: "Estoque", to: "/estoque" },
+        { label: "Produto" },
+      ]}
       acoes={
         produto ? (
           <Button asChild variant="outline">
@@ -42,7 +49,11 @@ function EstoqueProdutoPage() {
       {isPending ? (
         <TableSkeleton linhas={5} colunas={3} />
       ) : isError || !produto ? (
-        <ErrorState error={error} onRetry={() => void refetch()} fallback="Produto não encontrado." />
+        <ErrorState
+          error={error}
+          onRetry={() => void refetch()}
+          fallback="Produto não encontrado."
+        />
       ) : (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-3">

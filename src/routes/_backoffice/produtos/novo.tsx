@@ -36,7 +36,11 @@ function NovoProdutoPage() {
   return (
     <Page
       titulo="Novo produto"
-      breadcrumbs={[{ label: "Catálogo" }, { label: "Produtos", to: "/produtos" }, { label: "Novo" }]}
+      breadcrumbs={[
+        { label: "Catálogo" },
+        { label: "Produtos", to: "/produtos" },
+        { label: "Novo" },
+      ]}
       descricao="O cadastro inicial não cria estoque. Depois de salvar, adicione as variantes por cor e os tamanhos."
     >
       <div className="max-w-4xl">

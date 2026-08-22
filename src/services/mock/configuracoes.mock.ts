@@ -1,5 +1,6 @@
 import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
+import type { ApiFieldError } from "@/types/api";
 import { agora, clonar, db } from "./db";
 import type { Configuracoes, DadosLoja, ListaConfiguravel } from "@/types/configuracoes";
 
@@ -15,8 +16,9 @@ export function registerConfiguracoesMocks(): void {
 
   registerMock("PUT", "/configuracoes/loja", ({ body }) => {
     const payload = (body ?? {}) as DadosLoja;
-    const errors = [];
-    if (!payload.nome?.trim()) errors.push({ field: "nome", message: "Nome da loja é obrigatório." });
+    const errors: ApiFieldError[] = [];
+    if (!payload.nome?.trim())
+      errors.push({ field: "nome", message: "Nome da loja é obrigatório." });
     if (!payload.email?.trim()) errors.push({ field: "email", message: "E-mail é obrigatório." });
     if (errors.length) throw ApiError.validation("Dados inválidos.", errors);
 
@@ -33,9 +35,13 @@ export function registerConfiguracoesMocks(): void {
     const lista = validarLista(params["lista"]!);
     const valor = String((body as { valor?: string } | undefined)?.valor ?? "").trim();
     if (!valor) {
-      throw ApiError.validation("Dados inválidos.", [{ field: "valor", message: "Informe um valor." }]);
+      throw ApiError.validation("Dados inválidos.", [
+        { field: "valor", message: "Informe um valor." },
+      ]);
     }
-    const existe = db.configuracoes[lista].some((item) => item.toLowerCase() === valor.toLowerCase());
+    const existe = db.configuracoes[lista].some(
+      (item) => item.toLowerCase() === valor.toLowerCase(),
+    );
     if (existe) {
       throw ApiError.validation("Dados inválidos.", [
         { field: "valor", message: "Este item já está cadastrado." },

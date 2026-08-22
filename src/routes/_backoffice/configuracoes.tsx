@@ -22,9 +22,15 @@ export const Route = createFileRoute("/_backoffice/configuracoes")({
   head: () => ({
     meta: [
       { title: "Configurações — MARIELA Backoffice" },
-      { name: "description", content: "Dados da loja, categorias, tamanhos, cores e formas de pagamento." },
+      {
+        name: "description",
+        content: "Dados da loja, categorias, tamanhos, cores e formas de pagamento.",
+      },
       { property: "og:title", content: "Configurações — MARIELA Backoffice" },
-      { property: "og:description", content: "Dados da loja, categorias, tamanhos, cores e formas de pagamento." },
+      {
+        property: "og:description",
+        content: "Dados da loja, categorias, tamanhos, cores e formas de pagamento.",
+      },
     ],
   }),
   component: ConfiguracoesPage,
@@ -35,7 +41,12 @@ const lojaSchema = z.object({
   logo: z.string().trim().max(500),
   telefone: z.string().trim().max(20),
   whatsapp: z.string().trim().max(20),
-  email: z.string().trim().min(1, "E-mail é obrigatório.").email("Informe um e-mail válido.").max(255),
+  email: z
+    .string()
+    .trim()
+    .min(1, "E-mail é obrigatório.")
+    .email("Informe um e-mail válido.")
+    .max(255),
   endereco: z.object({
     cep: z.string().trim().max(12),
     logradouro: z.string().trim().max(150),
@@ -61,7 +72,15 @@ function ConfiguracoesPage() {
       telefone: "",
       whatsapp: "",
       email: "",
-      endereco: { cep: "", logradouro: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "" },
+      endereco: {
+        cep: "",
+        logradouro: "",
+        numero: "",
+        complemento: "",
+        bairro: "",
+        cidade: "",
+        estado: "",
+      },
     },
   });
 
@@ -137,13 +156,22 @@ function ConfiguracoesPage() {
                   <Field id="cep" label="CEP" erro={errors.endereco?.cep?.message}>
                     <Input id="cep" {...form.register("endereco.cep")} />
                   </Field>
-                  <Field id="logradouro" label="Logradouro" erro={errors.endereco?.logradouro?.message} className="md:col-span-2">
+                  <Field
+                    id="logradouro"
+                    label="Logradouro"
+                    erro={errors.endereco?.logradouro?.message}
+                    className="md:col-span-2"
+                  >
                     <Input id="logradouro" {...form.register("endereco.logradouro")} />
                   </Field>
                   <Field id="numero" label="Número" erro={errors.endereco?.numero?.message}>
                     <Input id="numero" {...form.register("endereco.numero")} />
                   </Field>
-                  <Field id="complemento" label="Complemento" erro={errors.endereco?.complemento?.message}>
+                  <Field
+                    id="complemento"
+                    label="Complemento"
+                    erro={errors.endereco?.complemento?.message}
+                  >
                     <Input id="complemento" {...form.register("endereco.complemento")} />
                   </Field>
                   <Field id="bairro" label="Bairro" erro={errors.endereco?.bairro?.message}>
@@ -160,7 +188,9 @@ function ConfiguracoesPage() {
 
               <div className="flex justify-end">
                 <Button type="submit" disabled={atualizar.isPending}>
-                  {atualizar.isPending ? <Loader2 aria-hidden className="size-4 animate-spin" /> : null}
+                  {atualizar.isPending ? (
+                    <Loader2 aria-hidden className="size-4 animate-spin" />
+                  ) : null}
                   Salvar dados da loja
                 </Button>
               </div>

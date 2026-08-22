@@ -8,6 +8,9 @@
  * basta implementar `RealtimeTransport` e registrá-lo em `setRealtimeTransport`.
  */
 import type { QueryClient } from "@tanstack/react-query";
+import { produtosKeys } from "@/hooks/use-produtos";
+import { estoqueKeys } from "@/hooks/use-estoque";
+import { configuracoesKeys } from "@/hooks/use-configuracoes";
 
 /** Eventos que o backend poderá emitir. Mantidos alinhados às mutations atuais. */
 export type RealtimeEventType =
@@ -37,20 +40,20 @@ export function setRealtimeTransport(next: RealtimeTransport | null): void {
   transport = next;
 }
 
-/** Chaves de cache invalidadas por cada evento remoto. */
-function chavesAfetadas(event: RealtimeEvent): unknown[][] {
+/** Chaves de cache invalidadas por cada evento remoto (sempre via factories). */
+function chavesAfetadas(event: RealtimeEvent): readonly (readonly unknown[])[] {
   switch (event.type) {
     case "produto.criado":
     case "produto.atualizado":
     case "produto.excluido":
     case "variante.alterada":
       return event.produtoId
-        ? [["produtos"], ["estoque"], ["produtos", "detalhe", event.produtoId]]
-        : [["produtos"], ["estoque"]];
+        ? [produtosKeys.todos, estoqueKeys.todos, produtosKeys.detalhe(event.produtoId)]
+        : [produtosKeys.todos, estoqueKeys.todos];
     case "estoque.movimentado":
-      return [["estoque"], ["produtos"]];
+      return [estoqueKeys.todos, produtosKeys.todos];
     case "configuracao.alterada":
-      return [["configuracoes"], ["cadastros"]];
+      return [configuracoesKeys.todos];
     default:
       return [];
   }

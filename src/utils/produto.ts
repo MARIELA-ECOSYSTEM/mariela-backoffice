@@ -2,7 +2,9 @@ import type { Produto } from "@/types/produto";
 
 export const ESTOQUE_BAIXO = 5;
 
-export function precoFinal(produto: Pick<Produto, "ehPromocao" | "precoPromocional" | "precoVenda">): number {
+export function precoFinal(
+  produto: Pick<Produto, "ehPromocao" | "precoPromocional" | "precoVenda">,
+): number {
   if (produto.ehPromocao && produto.precoPromocional) return produto.precoPromocional;
   return produto.precoVenda;
 }

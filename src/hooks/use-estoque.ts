@@ -6,11 +6,16 @@ import type { FiltroDisponibilidade } from "@/types/produto";
 
 export const estoqueKeys = {
   todos: ["estoque"] as const,
-  lista: (filtros: { busca?: string | undefined; disponibilidade?: FiltroDisponibilidade | undefined }) =>
-    ["estoque", "lista", filtros] as const,
+  lista: (filtros: {
+    busca?: string | undefined;
+    disponibilidade?: FiltroDisponibilidade | undefined;
+  }) => ["estoque", "lista", filtros] as const,
 };
 
-export function useEstoque(filtros: { busca?: string | undefined; disponibilidade?: FiltroDisponibilidade | undefined }) {
+export function useEstoque(filtros: {
+  busca?: string | undefined;
+  disponibilidade?: FiltroDisponibilidade | undefined;
+}) {
   return useQuery({
     queryKey: estoqueKeys.lista(filtros),
     queryFn: () => estoqueApi.listar(filtros),
@@ -22,7 +27,8 @@ function useInvalidarEstoque() {
   return (produtoId?: string) => {
     void queryClient.invalidateQueries({ queryKey: estoqueKeys.todos });
     void queryClient.invalidateQueries({ queryKey: produtosKeys.todos });
-    if (produtoId) void queryClient.invalidateQueries({ queryKey: produtosKeys.detalhe(produtoId) });
+    if (produtoId)
+      void queryClient.invalidateQueries({ queryKey: produtosKeys.detalhe(produtoId) });
   };
 }
 

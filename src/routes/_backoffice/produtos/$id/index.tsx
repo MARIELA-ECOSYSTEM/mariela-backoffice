@@ -22,9 +22,15 @@ export const Route = createFileRoute("/_backoffice/produtos/$id/")({
   head: () => ({
     meta: [
       { title: "Detalhes do produto — MARIELA Backoffice" },
-      { name: "description", content: "Informações gerais, preços, margem, estoque e variantes do produto." },
+      {
+        name: "description",
+        content: "Informações gerais, preços, margem, estoque e variantes do produto.",
+      },
       { property: "og:title", content: "Detalhes do produto — MARIELA Backoffice" },
-      { property: "og:description", content: "Informações gerais, preços, margem, estoque e variantes do produto." },
+      {
+        property: "og:description",
+        content: "Informações gerais, preços, margem, estoque e variantes do produto.",
+      },
     ],
   }),
   component: ProdutoDetalhePage,
@@ -62,7 +68,11 @@ function ProdutoDetalhePage() {
   if (isError || !produto) {
     return (
       <Page titulo="Produto" breadcrumbs={[{ label: "Produtos", to: "/produtos" }]}>
-        <ErrorState error={error} onRetry={() => void refetch()} fallback="Produto não encontrado." />
+        <ErrorState
+          error={error}
+          onRetry={() => void refetch()}
+          fallback="Produto não encontrado."
+        />
       </Page>
     );
   }
@@ -93,7 +103,11 @@ function ProdutoDetalhePage() {
   return (
     <Page
       titulo={produto.nome}
-      breadcrumbs={[{ label: "Catálogo" }, { label: "Produtos", to: "/produtos" }, { label: produto.codProduto }]}
+      breadcrumbs={[
+        { label: "Catálogo" },
+        { label: "Produtos", to: "/produtos" },
+        { label: produto.codProduto },
+      ]}
       descricao={produto.descricao || "Sem descrição cadastrada."}
       acoes={
         <>
@@ -111,7 +125,11 @@ function ProdutoDetalhePage() {
               <Pencil aria-hidden className="size-4" /> Editar
             </Link>
           </Button>
-          <Button variant="ghost" className="text-destructive" onClick={() => setExclusaoAberta(true)}>
+          <Button
+            variant="ghost"
+            className="text-destructive"
+            onClick={() => setExclusaoAberta(true)}
+          >
             <Trash2 aria-hidden className="size-4" /> Excluir
           </Button>
         </>
@@ -151,18 +169,28 @@ function ProdutoDetalhePage() {
                 </div>
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm text-muted-foreground">Preço de venda</span>
-                  <span className={produto.ehPromocao ? "tabular-nums line-through text-muted-foreground" : "tabular-nums"}>
+                  <span
+                    className={
+                      produto.ehPromocao
+                        ? "tabular-nums line-through text-muted-foreground"
+                        : "tabular-nums"
+                    }
+                  >
                     {formatarMoeda(produto.precoVenda)}
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm text-muted-foreground">Preço promocional</span>
-                  <span className="tabular-nums">{formatarMoeda(produto.precoPromocional ?? null)}</span>
+                  <span className="tabular-nums">
+                    {formatarMoeda(produto.precoPromocional ?? null)}
+                  </span>
                 </div>
                 <Separator />
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm font-medium">Preço vigente</span>
-                  <span className="font-display text-2xl">{formatarMoeda(precoFinal(produto))}</span>
+                  <span className="font-display text-2xl">
+                    {formatarMoeda(precoFinal(produto))}
+                  </span>
                 </div>
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm text-muted-foreground">Margem</span>

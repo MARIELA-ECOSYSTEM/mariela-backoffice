@@ -1,5 +1,7 @@
 import { ApiError, type ApiResponse, type QueryParams } from "@/types/api";
 import { handleMockRequest } from "@/services/mock/mock-transport";
+import { tokenStorage, TOKEN_STORAGE_KEY } from "@/services/auth/token-storage";
+import { handleUnauthorized } from "@/services/auth/session";
 
 /**
  * Endereço remoto da API REST (NestJS). Configurado exclusivamente por ambiente
@@ -13,7 +15,7 @@ export const API_URL = (API_URL_ENV ?? "").replace(/\/+$/, "");
 /** Mock só é usado quando pedido explicitamente ou quando não há API configurada. */
 export const USE_MOCK_API = MOCK_ENV === "true" || (MOCK_ENV !== "false" && API_URL === "");
 export const REQUEST_TIMEOUT_MS = 15_000;
-export const TOKEN_STORAGE_KEY = "mariela.accessToken";
+export { TOKEN_STORAGE_KEY };
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -31,15 +33,14 @@ export interface ApiRequest {
   token: string | null;
 }
 
+/** Leitura/escrita do token sempre via abstração `TokenStorage`. */
 export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+  return tokenStorage.get();
 }
 
 export function setToken(token: string | null): void {
-  if (typeof window === "undefined") return;
-  if (token) window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
-  else window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  if (token) tokenStorage.set(token);
+  else tokenStorage.clear();
 }
 
 function buildQueryString(params: QueryParams): string {
@@ -115,10 +116,16 @@ async function request<T>(
     token: getToken(),
   };
 
-  if (USE_MOCK_API) {
-    return handleMockRequest<T>(apiRequest);
+  try {
+    return USE_MOCK_API ? await handleMockRequest<T>(apiRequest) : await httpRequest<T>(apiRequest);
+  } catch (error) {
+    // Tratamento global de 401: encerra a sessão e volta para o login.
+    // O login em si não conta — ali o 401 é apenas credencial inválida.
+    if (error instanceof ApiError && error.statusCode === 401 && !path.startsWith("/auth/login")) {
+      handleUnauthorized();
+    }
+    throw error;
   }
-  return httpRequest<T>(apiRequest);
 }
 
 export const apiClient = {

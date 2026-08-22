@@ -13,12 +13,17 @@ import { mensagemDeErro } from "@/services/api/client";
 
 export const Route = createFileRoute("/login")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } =>
+    typeof search["redirect"] === "string" ? { redirect: search["redirect"] } : {},
   head: () => ({
     meta: [
       { title: "Entrar — MARIELA Backoffice" },
       { name: "description", content: "Acesso administrativo ao sistema de gestão MARIELA." },
       { property: "og:title", content: "Entrar — MARIELA Backoffice" },
-      { property: "og:description", content: "Acesso administrativo ao sistema de gestão MARIELA." },
+      {
+        property: "og:description",
+        content: "Acesso administrativo ao sistema de gestão MARIELA.",
+      },
     ],
   }),
   component: LoginPage,
@@ -57,7 +62,9 @@ function LoginPage() {
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
       <div className="hidden flex-col justify-between bg-sidebar px-14 py-14 text-sidebar-foreground lg:flex">
-        <span className="font-display text-3xl tracking-[0.24em] text-sidebar-primary">MARIELA</span>
+        <span className="font-display text-3xl tracking-[0.24em] text-sidebar-primary">
+          MARIELA
+        </span>
         <div className="max-w-md">
           <h2 className="font-display text-4xl leading-tight">
             A gestão da sua loja, com a elegância que a marca merece.
@@ -66,7 +73,9 @@ function LoginPage() {
             Catálogo, variantes, estoque e configurações em um único lugar.
           </p>
         </div>
-        <p className="text-xs text-sidebar-foreground/50">Backoffice administrativo · acesso restrito</p>
+        <p className="text-xs text-sidebar-foreground/50">
+          Backoffice administrativo · acesso restrito
+        </p>
       </div>
 
       <div className="flex items-center justify-center px-6 py-14">

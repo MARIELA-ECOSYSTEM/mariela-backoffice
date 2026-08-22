@@ -33,7 +33,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/common/states";
 import { StatusEstoqueBadge, TagBadge } from "@/components/common/status-badge";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -58,9 +64,15 @@ export const Route = createFileRoute("/_backoffice/produtos/")({
   head: () => ({
     meta: [
       { title: "Produtos — MARIELA Backoffice" },
-      { name: "description", content: "Catálogo completo de produtos, variantes, preços e estoque." },
+      {
+        name: "description",
+        content: "Catálogo completo de produtos, variantes, preços e estoque.",
+      },
       { property: "og:title", content: "Produtos — MARIELA Backoffice" },
-      { property: "og:description", content: "Catálogo completo de produtos, variantes, preços e estoque." },
+      {
+        property: "og:description",
+        content: "Catálogo completo de produtos, variantes, preços e estoque.",
+      },
     ],
   }),
   component: ProdutosPage,
@@ -102,7 +114,12 @@ function LinhaProduto({
     <TableRow>
       <TableCell>
         {foto ? (
-          <img src={foto} alt={produto.nome} className="size-10 rounded-md object-cover" loading="lazy" />
+          <img
+            src={foto}
+            alt={produto.nome}
+            className="size-10 rounded-md object-cover"
+            loading="lazy"
+          />
         ) : (
           <span
             aria-label="Sem foto"
@@ -112,7 +129,9 @@ function LinhaProduto({
           </span>
         )}
       </TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground">{produto.codProduto}</TableCell>
+      <TableCell className="font-mono text-xs text-muted-foreground">
+        {produto.codProduto}
+      </TableCell>
       <TableCell>
         <Link
           to="/produtos/$id"
@@ -129,7 +148,9 @@ function LinhaProduto({
       <TableCell className="text-sm tabular-nums">
         {produto.ehPromocao ? (
           <span className="flex flex-col">
-            <span className="text-muted-foreground line-through">{formatarMoeda(produto.precoVenda)}</span>
+            <span className="text-muted-foreground line-through">
+              {formatarMoeda(produto.precoVenda)}
+            </span>
             <span>{formatarMoeda(precoFinal(produto))}</span>
           </span>
         ) : (
@@ -140,7 +161,9 @@ function LinhaProduto({
       <TableCell>
         <StatusEstoqueBadge quantidadeTotal={produto.quantidadeTotal} />
       </TableCell>
-      <TableCell>{produto.ehNovidade ? <TagBadge tom="primary">Novidade</TagBadge> : "—"}</TableCell>
+      <TableCell>
+        {produto.ehNovidade ? <TagBadge tom="primary">Novidade</TagBadge> : "—"}
+      </TableCell>
       <TableCell>{produto.ehPromocao ? <TagBadge tom="gold">Promoção</TagBadge> : "—"}</TableCell>
       <TableCell className="text-right">
         <DropdownMenu>
@@ -229,7 +252,18 @@ function ProdutosPage() {
       ordenarPor,
       ordem,
     }),
-    [busca, categoria, colecaoId, campanhaId, fornecedorId, disponibilidade, promocao, novidade, ordenarPor, ordem],
+    [
+      busca,
+      categoria,
+      colecaoId,
+      campanhaId,
+      fornecedorId,
+      disponibilidade,
+      promocao,
+      novidade,
+      ordenarPor,
+      ordem,
+    ],
   );
 
   const { data, isPending, isError, error, refetch, isFetching } = useProdutos(filtros);
@@ -282,7 +316,10 @@ function ProdutosPage() {
       <Card className="mb-5 shadow-card">
         <CardContent className="grid gap-3 py-5 lg:grid-cols-4 xl:grid-cols-5">
           <div className="relative lg:col-span-2">
-            <Search aria-hidden className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search
+              aria-hidden
+              className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
             <Input
               aria-label="Buscar por nome ou código"
               placeholder="Buscar por nome ou código…"
@@ -385,7 +422,10 @@ function ProdutosPage() {
           </Select>
 
           <div className="flex items-center gap-2">
-            <Select value={ordenarPor} onValueChange={(valor) => setOrdenarPor(valor as OrdenarProdutoPor)}>
+            <Select
+              value={ordenarPor}
+              onValueChange={(valor) => setOrdenarPor(valor as OrdenarProdutoPor)}
+            >
               <SelectTrigger aria-label="Ordenar por">
                 <SelectValue placeholder="Ordenar" />
               </SelectTrigger>

@@ -9,7 +9,10 @@ export const Route = createFileRoute("/_backoffice/integracoes")({
       { title: "Integrações — MARIELA Backoffice" },
       { name: "description", content: "Integrações com PDV, e-commerce e serviços externos." },
       { property: "og:title", content: "Integrações — MARIELA Backoffice" },
-      { property: "og:description", content: "Integrações com PDV, e-commerce e serviços externos." },
+      {
+        property: "og:description",
+        content: "Integrações com PDV, e-commerce e serviços externos.",
+      },
     ],
   }),
   component: IntegracoesPage,
@@ -17,10 +20,7 @@ export const Route = createFileRoute("/_backoffice/integracoes")({
 
 function IntegracoesPage() {
   return (
-    <Page
-      titulo="Integrações"
-      breadcrumbs={[{ label: "Sistema" }, { label: "Integrações" }]}
-    >
+    <Page titulo="Integrações" breadcrumbs={[{ label: "Sistema" }, { label: "Integrações" }]}>
       <EmDesenvolvimento modulo="Integrações" />
     </Page>
   );

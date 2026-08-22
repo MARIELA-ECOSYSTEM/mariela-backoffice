@@ -1,4 +1,12 @@
-import { ArrowDownRight, ArrowUpRight, Image as ImageIcon, Pencil, Plus, Trash2, Video } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Image as ImageIcon,
+  Pencil,
+  Plus,
+  Trash2,
+  Video,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,8 +55,8 @@ export function VarianteCard({
             <p className="font-display text-xl leading-tight">{variante.cor}</p>
             <p className="font-mono text-xs text-muted-foreground">{variante.codVariante}</p>
             <p className="mt-2 text-sm">
-              <span className="tabular-nums font-medium">{variante.quantidadeVariante}</span> peças na
-              variante
+              <span className="tabular-nums font-medium">{variante.quantidadeVariante}</span> peças
+              na variante
             </p>
             {variante.video ? (
               <a
@@ -94,10 +102,20 @@ export function VarianteCard({
             <Button variant="outline" size="sm" onClick={() => onAdicionarTamanho(variante)}>
               <Plus aria-hidden className="size-3.5" /> Adicionar tamanho
             </Button>
-            <Button variant="outline" size="sm" disabled={semTamanhos} onClick={() => onEntrada(variante)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={semTamanhos}
+              onClick={() => onEntrada(variante)}
+            >
               <ArrowUpRight aria-hidden className="size-3.5" /> Entrada
             </Button>
-            <Button variant="outline" size="sm" disabled={semTamanhos} onClick={() => onSaida(variante)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={semTamanhos}
+              onClick={() => onSaida(variante)}
+            >
               <ArrowDownRight aria-hidden className="size-3.5" /> Saída
             </Button>
             <Button

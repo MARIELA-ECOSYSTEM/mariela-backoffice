@@ -1,7 +1,9 @@
 import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
+import type { ApiFieldError } from "@/types/api";
 import { clonar, db, gerarId, recalcularProduto } from "./db";
 import type { Produto } from "@/types/produto";
+import { conflitoTamanhoUnico, normalizarTamanho, tamanhosDaVariante } from "@/utils/tamanho";
 import type { AdicionarTamanhoRequest, CriarVarianteRequest, Variante } from "@/types/variante";
 
 function encontrarProduto(id: string): Produto {
@@ -16,8 +18,12 @@ function encontrarVariante(produto: Produto, varianteId: string): Variante {
   return variante;
 }
 
-function validarVariante(produto: Produto, payload: Partial<CriarVarianteRequest>, idAtual?: string): void {
-  const errors = [];
+function validarVariante(
+  produto: Produto,
+  payload: Partial<CriarVarianteRequest>,
+  idAtual?: string,
+): void {
+  const errors: ApiFieldError[] = [];
   if (!payload.codVariante?.trim())
     errors.push({ field: "codVariante", message: "Código da variante é obrigatório." });
   if (!payload.cor?.trim()) errors.push({ field: "cor", message: "Cor é obrigatória." });
@@ -31,6 +37,13 @@ function validarVariante(produto: Produto, payload: Partial<CriarVarianteRequest
       { field: "cor", message: "Esta cor já está cadastrada neste produto." },
     ]);
   }
+}
+
+/** Aplica a regra do tamanho único (U) dentro da variante. */
+function validarRegraTamanhoUnico(variante: Variante, tamanho: string): void {
+  const conflito = conflitoTamanhoUnico(tamanhosDaVariante(variante), tamanho);
+  if (conflito)
+    throw ApiError.validation("Dados inválidos.", [{ field: "tamanho", message: conflito }]);
 }
 
 export function registerVariantesMocks(): void {
@@ -83,37 +96,44 @@ export function registerVariantesMocks(): void {
     const variante = encontrarVariante(produto, params["varianteId"]!);
     const payload = (body ?? {}) as AdicionarTamanhoRequest;
 
-    const errors = [];
-    if (!payload.tamanho?.trim()) errors.push({ field: "tamanho", message: "Tamanho é obrigatório." });
+    const errors: ApiFieldError[] = [];
+    if (!payload.tamanho?.trim())
+      errors.push({ field: "tamanho", message: "Tamanho é obrigatório." });
     if (payload.quantidade === undefined || payload.quantidade < 0)
       errors.push({ field: "quantidade", message: "Quantidade deve ser maior ou igual a zero." });
     if (errors.length) throw ApiError.validation("Dados inválidos.", errors);
 
-    const duplicado = variante.tamanhos.some(
-      (t) => t.tamanho.toLowerCase() === payload.tamanho.trim().toLowerCase(),
-    );
+    const tamanho = normalizarTamanho(payload.tamanho);
+
+    const duplicado = variante.tamanhos.some((t) => normalizarTamanho(t.tamanho) === tamanho);
     if (duplicado) {
       throw ApiError.validation("Dados inválidos.", [
         { field: "tamanho", message: "Este tamanho já está cadastrado nesta variante." },
       ]);
     }
 
+    validarRegraTamanhoUnico(variante, tamanho);
+
     variante.tamanhos.push({
       id: gerarId("tam"),
-      tamanho: payload.tamanho.trim(),
+      tamanho,
       quantidade: payload.quantidade,
     });
     recalcularProduto(produto);
     return { data: clonar(variante) };
   });
 
-  registerMock("DELETE", "/produtos/:id/variantes/:varianteId/tamanhos/:tamanhoId", ({ params }) => {
-    const produto = encontrarProduto(params["id"]!);
-    const variante = encontrarVariante(produto, params["varianteId"]!);
-    const index = variante.tamanhos.findIndex((t) => t.id === params["tamanhoId"]);
-    if (index < 0) throw ApiError.notFound("Tamanho não encontrado.");
-    variante.tamanhos.splice(index, 1);
-    recalcularProduto(produto);
-    return { data: clonar(variante) };
-  });
+  registerMock(
+    "DELETE",
+    "/produtos/:id/variantes/:varianteId/tamanhos/:tamanhoId",
+    ({ params }) => {
+      const produto = encontrarProduto(params["id"]!);
+      const variante = encontrarVariante(produto, params["varianteId"]!);
+      const index = variante.tamanhos.findIndex((t) => t.id === params["tamanhoId"]);
+      if (index < 0) throw ApiError.notFound("Tamanho não encontrado.");
+      variante.tamanhos.splice(index, 1);
+      recalcularProduto(produto);
+      return { data: clonar(variante) };
+    },
+  );
 }

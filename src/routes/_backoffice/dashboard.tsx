@@ -15,9 +15,15 @@ export const Route = createFileRoute("/_backoffice/dashboard")({
   head: () => ({
     meta: [
       { title: "Dashboard — MARIELA Backoffice" },
-      { name: "description", content: "Visão geral do catálogo, estoque e promoções da loja Mariela." },
+      {
+        name: "description",
+        content: "Visão geral do catálogo, estoque e promoções da loja Mariela.",
+      },
       { property: "og:title", content: "Dashboard — MARIELA Backoffice" },
-      { property: "og:description", content: "Visão geral do catálogo, estoque e promoções da loja Mariela." },
+      {
+        property: "og:description",
+        content: "Visão geral do catálogo, estoque e promoções da loja Mariela.",
+      },
     ],
   }),
   component: DashboardPage,
@@ -49,12 +55,17 @@ function Indicador({
 }
 
 function DashboardPage() {
-  const { data, isPending, isError, error, refetch } = useProdutos({ ordenarPor: "criadoEm", ordem: "desc" });
+  const { data, isPending, isError, error, refetch } = useProdutos({
+    ordenarPor: "criadoEm",
+    ordem: "desc",
+  });
   const produtos = data?.produtos ?? [];
 
   const totalPecas = produtos.reduce((total, p) => total + p.quantidadeTotal, 0);
   const semEstoque = produtos.filter((p) => p.quantidadeTotal === 0);
-  const estoqueBaixo = produtos.filter((p) => p.quantidadeTotal > 0 && p.quantidadeTotal <= ESTOQUE_BAIXO);
+  const estoqueBaixo = produtos.filter(
+    (p) => p.quantidadeTotal > 0 && p.quantidadeTotal <= ESTOQUE_BAIXO,
+  );
   const emPromocao = produtos.filter((p) => p.ehPromocao);
   const valorEstoque = produtos.reduce((total, p) => total + precoFinal(p) * p.quantidadeTotal, 0);
   const novidades = produtos.filter((p) => p.ehNovidade).slice(0, 5);
@@ -123,7 +134,9 @@ function DashboardPage() {
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm">{produto.nome}</span>
-                        <span className="block text-xs text-muted-foreground">{produto.codProduto}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {produto.codProduto}
+                        </span>
                       </span>
                       <span className="flex items-center gap-3">
                         <span className="text-sm tabular-nums">{produto.quantidadeTotal} un.</span>
@@ -154,12 +167,19 @@ function DashboardPage() {
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm">{produto.nome}</span>
-                        <span className="block text-xs text-muted-foreground">{produto.categoria}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {produto.categoria}
+                        </span>
                       </span>
                       <span className="flex items-center gap-3">
-                        <span className="text-sm tabular-nums">{formatarMoeda(precoFinal(produto))}</span>
+                        <span className="text-sm tabular-nums">
+                          {formatarMoeda(precoFinal(produto))}
+                        </span>
                         {produto.ehPromocao ? (
-                          <Badge variant="outline" className="border-gold/40 bg-gold/15 text-gold-foreground">
+                          <Badge
+                            variant="outline"
+                            className="border-gold/40 bg-gold/15 text-gold-foreground"
+                          >
                             Promoção
                           </Badge>
                         ) : null}
