@@ -1,28 +1,12 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { authApi } from "@/services/api/auth.api";
 import { getToken } from "@/services/api/client";
 import { encerrarSessao, registerSessionHandlers } from "@/services/auth/session";
+import { AuthContext, type AuthContextValue } from "@/hooks/auth-context";
 import type { LoginRequest, Usuario } from "@/types/auth";
 
-interface AuthContextValue {
-  usuario: Usuario | null;
-  carregando: boolean;
-  autenticado: boolean;
-  login: (payload: LoginRequest) => Promise<void>;
-  logout: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
