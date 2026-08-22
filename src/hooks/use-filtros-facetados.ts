@@ -69,8 +69,8 @@ export function useFiltrosFacetados<T>({
   );
 
   const limparTudo = useCallback(() => {
-    setSelecao(selecaoVazia(grupos));
-  }, [grupos]);
+    setSelecao(() => selecaoVazia(grupos));
+  }, [grupos, setSelecao]);
 
   const itensFiltrados = useMemo(
     () => aplicarFacetas(itens, grupos, selecao),
