@@ -38,11 +38,12 @@ export const entradaSchema = z.object({
 
 export type EntradaFormValues = z.infer<typeof entradaSchema>;
 
-export const saidaSchema = entradaSchema.extend({
-  motivo: z.string().trim().min(1, "Motivo é obrigatório.").max(200, "Máximo de 200 caracteres."),
+/** Usado por entrada e saída; o motivo é exigido apenas na saída (validado no formulário). */
+export const movimentacaoSchema = entradaSchema.extend({
+  motivo: z.string().trim().max(200, "Máximo de 200 caracteres."),
 });
 
-export type SaidaFormValues = z.infer<typeof saidaSchema>;
+export type MovimentacaoFormValues = z.infer<typeof movimentacaoSchema>;
 
 export const promocaoSchema = z.object({
   precoPromocional: z.coerce.number({ invalid_type_error: "Informe um valor." }).positive("Preço promocional deve ser maior que zero."),

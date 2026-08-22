@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field } from "@/components/common/field";
-import { entradaSchema, saidaSchema, type SaidaFormValues } from "@/schemas/produto.schema";
+import { movimentacaoSchema, type MovimentacaoFormValues } from "@/schemas/produto.schema";
 import { useEntradaEstoque, useSaidaEstoque } from "@/hooks/use-estoque";
 import { mensagemDeErro } from "@/services/api/client";
 import { ApiError } from "@/types/api";
@@ -41,8 +41,8 @@ export function MovimentacaoDialog({
   const saida = useSaidaEstoque();
   const ehSaida = tipo === "saida";
 
-  const form = useForm<SaidaFormValues>({
-    resolver: zodResolver(ehSaida ? saidaSchema : entradaSchema.extend(saidaSchema.pick({}).shape)),
+  const form = useForm<MovimentacaoFormValues>({
+    resolver: zodResolver(movimentacaoSchema),
     defaultValues: { tamanhoId: "", quantidade: 1, motivo: "" },
   });
 
@@ -53,8 +53,12 @@ export function MovimentacaoDialog({
   const tamanhos = variante?.tamanhos ?? [];
   const tamanhoSelecionado = tamanhos.find((t) => t.id === form.watch("tamanhoId"));
 
-  async function onSubmit(values: SaidaFormValues) {
+  async function onSubmit(values: MovimentacaoFormValues) {
     if (!variante) return;
+    if (ehSaida && !values.motivo.trim()) {
+      form.setError("motivo", { message: "Motivo é obrigatório." });
+      return;
+    }
     try {
       if (ehSaida) {
         await saida.mutateAsync({
@@ -78,7 +82,7 @@ export function MovimentacaoDialog({
       if (error instanceof ApiError) {
         error.errors.forEach((campo) => {
           if (campo.field === "quantidade" || campo.field === "motivo" || campo.field === "tamanhoId") {
-            form.setError(campo.field as keyof SaidaFormValues, { message: campo.message });
+            form.setError(campo.field as keyof MovimentacaoFormValues, { message: campo.message });
           }
         });
       }
