@@ -32,20 +32,41 @@ export function useFiltrosFacetados<T>({
   itens,
   grupos,
   facetasExternas,
+  selecao: selecaoControlada,
+  onSelecaoChange,
 }: {
   itens: T[];
   grupos: GrupoFacetaDef<T>[];
   facetasExternas?: FacetasExternas | undefined;
+  /** Seleção controlada — use quando ela precisa ir para a query da API. */
+  selecao?: SelecaoFacetas | undefined;
+  onSelecaoChange?: ((selecao: SelecaoFacetas) => void) | undefined;
 }): UseFiltrosFacetados<T> {
-  const [selecao, setSelecao] = useState<SelecaoFacetas>(() => selecaoVazia(grupos));
+  const [selecaoInterna, setSelecaoInterna] = useState<SelecaoFacetas>(() => selecaoVazia(grupos));
+  const controlado = selecaoControlada !== undefined;
+  const selecao = controlado ? selecaoControlada : selecaoInterna;
 
-  const alternar = useCallback((grupoId: string, valor: string) => {
-    setSelecao((atual) => alternarValor(atual, grupoId, valor));
-  }, []);
+  const setSelecao = useCallback(
+    (atualizar: (atual: SelecaoFacetas) => SelecaoFacetas) => {
+      if (controlado) onSelecaoChange?.(atualizar(selecaoControlada));
+      else setSelecaoInterna(atualizar);
+    },
+    [controlado, onSelecaoChange, selecaoControlada],
+  );
 
-  const limparGrupo = useCallback((grupoId: string) => {
-    setSelecao((atual) => ({ ...atual, [grupoId]: [] }));
-  }, []);
+  const alternar = useCallback(
+    (grupoId: string, valor: string) => {
+      setSelecao((atual) => alternarValor(atual, grupoId, valor));
+    },
+    [setSelecao],
+  );
+
+  const limparGrupo = useCallback(
+    (grupoId: string) => {
+      setSelecao((atual) => ({ ...atual, [grupoId]: [] }));
+    },
+    [setSelecao],
+  );
 
   const limparTudo = useCallback(() => {
     setSelecao(selecaoVazia(grupos));

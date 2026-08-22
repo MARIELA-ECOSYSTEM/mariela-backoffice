@@ -22,7 +22,21 @@ import { useExcluirProduto, useProdutos } from "@/hooks/use-produtos";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useCampanhas, useColecoes, useFornecedores } from "@/hooks/use-cadastros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import { opcoesDe, opcoesDeValores, type GrupoFacetaDef } from "@/lib/filtros/facetas";
+import {
+  opcoesDe,
+  opcoesDeValores,
+  type GrupoFacetaDef,
+  type SelecaoFacetas,
+} from "@/lib/filtros/facetas";
+import {
+  COM_ESTOQUE,
+  EH_NOVIDADE,
+  EM_PROMOCAO,
+  FACETAS_PRODUTO,
+  SEM_ESTOQUE,
+  SEM_NOVIDADE,
+  SEM_PROMOCAO,
+} from "@/lib/filtros/produtos-facetas";
 import { mensagemDeErro } from "@/services/api/client";
 import type { OrdenarProdutoPor, Ordem, Produto, ProdutoFiltros } from "@/types/produto";
 
