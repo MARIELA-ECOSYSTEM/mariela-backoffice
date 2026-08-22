@@ -98,7 +98,7 @@ function LoginPage() {
 
           <form onSubmit={form.handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
             <div className="space-y-2">
-              <Label htmlFor="usuario">Usuário</Label>
+              <Label htmlFor="usuario">Usuário ou e-mail</Label>
               <Input
                 id="usuario"
                 autoComplete="username"
