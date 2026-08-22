@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BackofficeRouteImport } from './routes/_backoffice'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as BackofficeConfiguracoesRouteImport } from './routes/_backoffice/configuracoes'
 import { Route as BackofficeDashboardRouteImport } from './routes/_backoffice/dashboard'
 import { Route as BackofficeEstoqueIndexRouteImport } from './routes/_backoffice/estoque/index'
 import { Route as BackofficeEstoqueProdutoIdRouteImport } from './routes/_backoffice/estoque/$produtoId'
@@ -34,6 +35,11 @@ const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
+} as any)
+const BackofficeConfiguracoesRoute = BackofficeConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
+  getParentRoute: () => BackofficeRoute,
 } as any)
 const BackofficeDashboardRoute = BackofficeDashboardRouteImport.update({
   id: '/dashboard',
@@ -83,6 +89,7 @@ const BackofficeProdutosIdVariantesRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/configuracoes': typeof BackofficeConfiguracoesRoute
   '/dashboard': typeof BackofficeDashboardRoute
   '/estoque/$produtoId': typeof BackofficeEstoqueProdutoIdRoute
   '/produtos/novo': typeof BackofficeProdutosNovoRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/configuracoes': typeof BackofficeConfiguracoesRoute
   '/dashboard': typeof BackofficeDashboardRoute
   '/estoque/$produtoId': typeof BackofficeEstoqueProdutoIdRoute
   '/produtos/novo': typeof BackofficeProdutosNovoRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_backoffice': typeof BackofficeRouteWithChildren
   '/login': typeof LoginRoute
+  '/_backoffice/configuracoes': typeof BackofficeConfiguracoesRoute
   '/_backoffice/dashboard': typeof BackofficeDashboardRoute
   '/_backoffice/estoque/$produtoId': typeof BackofficeEstoqueProdutoIdRoute
   '/_backoffice/produtos/novo': typeof BackofficeProdutosNovoRoute
@@ -123,6 +132,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/configuracoes'
     | '/dashboard'
     | '/estoque/$produtoId'
     | '/produtos/novo'
@@ -135,6 +145,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/configuracoes'
     | '/dashboard'
     | '/estoque/$produtoId'
     | '/produtos/novo'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_backoffice'
     | '/login'
+    | '/_backoffice/configuracoes'
     | '/_backoffice/dashboard'
     | '/_backoffice/estoque/$produtoId'
     | '/_backoffice/produtos/novo'
@@ -186,6 +198,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_backoffice/configuracoes': {
+      id: '/_backoffice/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof BackofficeConfiguracoesRouteImport
+      parentRoute: typeof BackofficeRoute
     }
     '/_backoffice/dashboard': {
       id: '/_backoffice/dashboard'
@@ -247,6 +266,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface BackofficeRouteChildren {
+  BackofficeConfiguracoesRoute: typeof BackofficeConfiguracoesRoute
   BackofficeDashboardRoute: typeof BackofficeDashboardRoute
   BackofficeEstoqueProdutoIdRoute: typeof BackofficeEstoqueProdutoIdRoute
   BackofficeProdutosNovoRoute: typeof BackofficeProdutosNovoRoute
@@ -258,6 +278,7 @@ interface BackofficeRouteChildren {
 }
 
 const BackofficeRouteChildren: BackofficeRouteChildren = {
+  BackofficeConfiguracoesRoute: BackofficeConfiguracoesRoute,
   BackofficeDashboardRoute: BackofficeDashboardRoute,
   BackofficeEstoqueProdutoIdRoute: BackofficeEstoqueProdutoIdRoute,
   BackofficeProdutosNovoRoute: BackofficeProdutosNovoRoute,
