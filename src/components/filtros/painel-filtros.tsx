@@ -40,9 +40,7 @@ export function PainelFiltros({
           <span className="flex items-center gap-2 font-brand text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground">
             <SlidersHorizontal aria-hidden className="size-3.5 text-primary" />
             Filtros
-            {totalSelecionados > 0 ? (
-              <Badge variant="outline">{totalSelecionados}</Badge>
-            ) : null}
+            {totalSelecionados > 0 ? <Badge variant="outline">{totalSelecionados}</Badge> : null}
           </span>
 
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
