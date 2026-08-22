@@ -38,6 +38,7 @@ import { UltimasVendas } from "@/components/dashboard/ultimas-vendas";
 import { RankingVendedores } from "@/components/dashboard/ranking-vendedores";
 import { ListaPessoas } from "@/components/dashboard/lista-pessoas";
 import { useResumoDashboard } from "@/hooks/use-dashboard";
+import { pluralizar } from "@/utils/format";
 
 export const Route = createFileRoute("/_backoffice/dashboard")({
   ssr: false,
@@ -118,7 +119,7 @@ function DashboardPage() {
               rotulo="Vendas no mês"
               valor={data.vendas.vendasMes}
               tipo="quantidade"
-              unidade="vendas"
+              unidade={pluralizar(data.vendas.vendasMes, "venda", "vendas")}
               icone={ShoppingBag}
               detalhe={`Ticket médio ${data.vendas.ticketMedioMes.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`}
             />
@@ -133,7 +134,7 @@ function DashboardPage() {
               rotulo="Clientes ativas"
               valor={data.clientes.ativos}
               tipo="quantidade"
-              unidade="clientes"
+              unidade={pluralizar(data.clientes.ativos, "cliente", "clientes")}
               icone={Users}
               detalhe={`${data.clientes.compraramNoMes} compraram no mês`}
             />
@@ -149,14 +150,14 @@ function DashboardPage() {
                 rotulo="Vendas hoje"
                 valor={data.vendas.vendasHoje}
                 tipo="quantidade"
-                unidade="vendas"
+                unidade={pluralizar(data.vendas.vendasHoje, "venda", "vendas")}
                 icone={ShoppingBag}
               />
               <Metrica
                 rotulo="Vendas na semana"
                 valor={data.vendas.vendasSemana}
                 tipo="quantidade"
-                unidade="vendas"
+                unidade={pluralizar(data.vendas.vendasSemana, "venda", "vendas")}
                 icone={ShoppingBag}
               />
               <Metrica
@@ -222,7 +223,7 @@ function DashboardPage() {
                 rotulo="Produtos cadastrados"
                 valor={data.estoque.produtosCadastrados}
                 tipo="quantidade"
-                unidade="produtos"
+                unidade={pluralizar(data.estoque.produtosCadastrados, "produto", "produtos")}
                 icone={Tag}
                 detalhe={`${data.estoque.variantesCadastradas} variantes cadastradas`}
               />
@@ -230,7 +231,7 @@ function DashboardPage() {
                 rotulo="Peças em estoque"
                 valor={data.estoque.pecasEmEstoque}
                 tipo="quantidade"
-                unidade="peças"
+                unidade={pluralizar(data.estoque.pecasEmEstoque, "peça", "peças")}
                 icone={Layers}
                 detalhe="Soma das quantidades por tamanho"
               />
@@ -238,7 +239,7 @@ function DashboardPage() {
                 rotulo="Produtos sem estoque"
                 valor={data.estoque.produtosSemEstoque}
                 tipo="quantidade"
-                unidade="produtos"
+                unidade={pluralizar(data.estoque.produtosSemEstoque, "produto", "produtos")}
                 icone={CircleSlash}
                 detalhe="Informação administrativa"
               />
@@ -291,28 +292,28 @@ function DashboardPage() {
                   rotulo="Clientes cadastradas"
                   valor={data.clientes.cadastrados}
                   tipo="quantidade"
-                  unidade="clientes"
+                  unidade={pluralizar(data.clientes.cadastrados, "cliente", "clientes")}
                   icone={Users}
                 />
                 <Metrica
                   rotulo="Clientes ativas"
                   valor={data.clientes.ativos}
                   tipo="quantidade"
-                  unidade="clientes"
+                  unidade={pluralizar(data.clientes.compraramNoMes, "cliente", "clientes")}
                   icone={UserRound}
                 />
                 <Metrica
                   rotulo="Clientes inativas"
                   valor={data.clientes.inativos}
                   tipo="quantidade"
-                  unidade="clientes"
+                  unidade={pluralizar(data.clientes.inativos, "cliente", "clientes")}
                   icone={CircleSlash}
                 />
                 <Metrica
                   rotulo="Novas no mês"
                   valor={data.clientes.novosNoMes}
                   tipo="quantidade"
-                  unidade="clientes"
+                  unidade={pluralizar(data.clientes.novosNoMes, "cliente", "clientes")}
                   icone={Sparkles}
                 />
                 <Metrica
@@ -350,21 +351,21 @@ function DashboardPage() {
                   rotulo="Fornecedores cadastrados"
                   valor={data.fornecedores.cadastrados}
                   tipo="quantidade"
-                  unidade="fornecedores"
+                  unidade={pluralizar(data.fornecedores.cadastrados, "fornecedor", "fornecedores")}
                   icone={Store}
                 />
                 <Metrica
                   rotulo="Fornecedores ativos"
                   valor={data.fornecedores.ativos}
                   tipo="quantidade"
-                  unidade="ativos"
+                  unidade={pluralizar(data.fornecedores.ativos, "ativo", "ativos")}
                   icone={Store}
                 />
                 <Metrica
                   rotulo="Fornecedores inativos"
                   valor={data.fornecedores.inativos}
                   tipo="quantidade"
-                  unidade="inativos"
+                  unidade={pluralizar(data.fornecedores.inativos, "inativo", "inativos")}
                   icone={CircleSlash}
                 />
               </div>
@@ -388,21 +389,21 @@ function DashboardPage() {
                   rotulo="Vendedores cadastrados"
                   valor={data.vendedores.cadastrados}
                   tipo="quantidade"
-                  unidade="vendedores"
+                  unidade={pluralizar(data.vendedores.cadastrados, "vendedor", "vendedores")}
                   icone={UserRound}
                 />
                 <Metrica
                   rotulo="Vendedores ativos"
                   valor={data.vendedores.ativos}
                   tipo="quantidade"
-                  unidade="ativos"
+                  unidade={pluralizar(data.vendedores.ativos, "ativo", "ativos")}
                   icone={UserRound}
                 />
                 <Metrica
                   rotulo="Vendedores inativos"
                   valor={data.vendedores.inativos}
                   tipo="quantidade"
-                  unidade="inativos"
+                  unidade={pluralizar(data.vendedores.inativos, "inativo", "inativos")}
                   icone={CircleSlash}
                 />
               </div>
