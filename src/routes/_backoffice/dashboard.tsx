@@ -299,7 +299,7 @@ function DashboardPage() {
                   rotulo="Clientes ativas"
                   valor={data.clientes.ativos}
                   tipo="quantidade"
-                  unidade={pluralizar(data.clientes.compraramNoMes, "cliente", "clientes")}
+                  unidade={pluralizar(data.clientes.ativos, "cliente", "clientes")}
                   icone={UserRound}
                 />
                 <Metrica
