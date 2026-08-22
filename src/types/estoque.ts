@@ -2,9 +2,9 @@ export interface EntradaEstoqueRequest {
   produtoId: string;
   varianteId: string;
   /** Informe tamanhoId para somar em um tamanho existente. */
-  tamanhoId?: string;
+  tamanhoId?: string | undefined;
   /** Informe tamanho para criar um novo tamanho na variante. */
-  tamanho?: string;
+  tamanho?: string | undefined;
   quantidade: number;
 }
 

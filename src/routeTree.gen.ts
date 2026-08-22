@@ -10,33 +10,74 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BackofficeRouteImport } from './routes/_backoffice'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as BackofficeDashboardRouteImport } from './routes/_backoffice/dashboard'
+import { Route as BackofficeProdutosIndexRouteImport } from './routes/_backoffice/produtos/index'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BackofficeRoute = BackofficeRouteImport.update({
+  id: '/_backoffice',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BackofficeDashboardRoute = BackofficeDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => BackofficeRoute,
+} as any)
+const BackofficeProdutosIndexRoute = BackofficeProdutosIndexRouteImport.update({
+  id: '/produtos/',
+  path: '/produtos/',
+  getParentRoute: () => BackofficeRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/dashboard': typeof BackofficeDashboardRoute
+  '/produtos/': typeof BackofficeProdutosIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/dashboard': typeof BackofficeDashboardRoute
+  '/produtos': typeof BackofficeProdutosIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_backoffice': typeof BackofficeRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_backoffice/dashboard': typeof BackofficeDashboardRoute
+  '/_backoffice/produtos/': typeof BackofficeProdutosIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/login' | '/dashboard' | '/produtos/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/login' | '/dashboard' | '/produtos'
+  id:
+    | '__root__'
+    | '/'
+    | '/_backoffice'
+    | '/login'
+    | '/_backoffice/dashboard'
+    | '/_backoffice/produtos/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BackofficeRoute: typeof BackofficeRouteWithChildren
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +89,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_backoffice': {
+      id: '/_backoffice'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof BackofficeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_backoffice/dashboard': {
+      id: '/_backoffice/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof BackofficeDashboardRouteImport
+      parentRoute: typeof BackofficeRoute
+    }
+    '/_backoffice/produtos/': {
+      id: '/_backoffice/produtos/'
+      path: '/produtos'
+      fullPath: '/produtos/'
+      preLoaderRoute: typeof BackofficeProdutosIndexRouteImport
+      parentRoute: typeof BackofficeRoute
+    }
   }
 }
 
+interface BackofficeRouteChildren {
+  BackofficeDashboardRoute: typeof BackofficeDashboardRoute
+  BackofficeProdutosIndexRoute: typeof BackofficeProdutosIndexRoute
+}
+
+const BackofficeRouteChildren: BackofficeRouteChildren = {
+  BackofficeDashboardRoute: BackofficeDashboardRoute,
+  BackofficeProdutosIndexRoute: BackofficeProdutosIndexRoute,
+}
+
+const BackofficeRouteWithChildren = BackofficeRoute._addFileChildren(
+  BackofficeRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BackofficeRoute: BackofficeRouteWithChildren,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

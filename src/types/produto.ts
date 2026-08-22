@@ -25,11 +25,11 @@ export interface Produto {
 export interface ProdutoPayload {
   codProduto: string;
   nome: string;
-  descricao?: string;
+  descricao?: string | undefined;
   categoria: string;
-  colecaoId?: string | null;
-  campanhaId?: string | null;
-  fornecedorId?: string | null;
+  colecaoId?: string | null | undefined;
+  campanhaId?: string | null | undefined;
+  fornecedorId?: string | null | undefined;
   precoCusto: number;
   precoVenda: number;
   ehNovidade: boolean;
@@ -41,16 +41,16 @@ export type FiltroDisponibilidade = "todos" | "disponivel" | "sem-estoque";
 export type FiltroBooleano = "todos" | "sim" | "nao";
 
 export interface ProdutoFiltros {
-  busca?: string;
-  categoria?: string;
-  colecaoId?: string;
-  campanhaId?: string;
-  fornecedorId?: string;
-  disponibilidade?: FiltroDisponibilidade;
-  promocao?: FiltroBooleano;
-  novidade?: FiltroBooleano;
-  ordenarPor?: OrdenarProdutoPor;
-  ordem?: Ordem;
+  busca?: string | undefined;
+  categoria?: string | undefined;
+  colecaoId?: string | undefined;
+  campanhaId?: string | undefined;
+  fornecedorId?: string | undefined;
+  disponibilidade?: FiltroDisponibilidade | undefined;
+  promocao?: FiltroBooleano | undefined;
+  novidade?: FiltroBooleano | undefined;
+  ordenarPor?: OrdenarProdutoPor | undefined;
+  ordem?: Ordem | undefined;
 }
 
 export interface PromocaoRequest {
