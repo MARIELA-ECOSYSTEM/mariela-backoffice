@@ -8,8 +8,12 @@ export const produtoSchema = z.object({
   colecaoId: z.string().optional(),
   campanhaId: z.string().optional(),
   fornecedorId: z.string().optional(),
-  precoCusto: z.coerce.number({ invalid_type_error: "Informe um valor." }).positive("Preço de custo deve ser maior que zero."),
-  precoVenda: z.coerce.number({ invalid_type_error: "Informe um valor." }).positive("Preço de venda deve ser maior que zero."),
+  precoCusto: z.coerce
+    .number({ invalid_type_error: "Informe um valor." })
+    .positive("Preço de custo deve ser maior que zero."),
+  precoVenda: z.coerce
+    .number({ invalid_type_error: "Informe um valor." })
+    .positive("Preço de venda deve ser maior que zero."),
   ehNovidade: z.boolean(),
 });
 
@@ -26,14 +30,20 @@ export type VarianteFormValues = z.infer<typeof varianteSchema>;
 
 export const tamanhoSchema = z.object({
   tamanho: z.string().trim().min(1, "Tamanho é obrigatório."),
-  quantidade: z.coerce.number({ invalid_type_error: "Informe um valor." }).int("Use números inteiros.").min(0, "Quantidade deve ser maior ou igual a zero."),
+  quantidade: z.coerce
+    .number({ invalid_type_error: "Informe um valor." })
+    .int("Use números inteiros.")
+    .min(0, "Quantidade deve ser maior ou igual a zero."),
 });
 
 export type TamanhoFormValues = z.infer<typeof tamanhoSchema>;
 
 export const entradaSchema = z.object({
   tamanhoId: z.string().min(1, "Selecione o tamanho."),
-  quantidade: z.coerce.number({ invalid_type_error: "Informe um valor." }).int("Use números inteiros.").positive("Quantidade deve ser maior que zero."),
+  quantidade: z.coerce
+    .number({ invalid_type_error: "Informe um valor." })
+    .int("Use números inteiros.")
+    .positive("Quantidade deve ser maior que zero."),
 });
 
 export type EntradaFormValues = z.infer<typeof entradaSchema>;
@@ -46,7 +56,9 @@ export const movimentacaoSchema = entradaSchema.extend({
 export type MovimentacaoFormValues = z.infer<typeof movimentacaoSchema>;
 
 export const promocaoSchema = z.object({
-  precoPromocional: z.coerce.number({ invalid_type_error: "Informe um valor." }).positive("Preço promocional deve ser maior que zero."),
+  precoPromocional: z.coerce
+    .number({ invalid_type_error: "Informe um valor." })
+    .positive("Preço promocional deve ser maior que zero."),
 });
 
 export type PromocaoFormValues = z.infer<typeof promocaoSchema>;

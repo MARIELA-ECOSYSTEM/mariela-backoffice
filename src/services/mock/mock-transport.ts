@@ -8,7 +8,9 @@ export interface MockContext {
   token: string | null;
 }
 
-export type MockHandler = (ctx: MockContext) => Promise<ApiResponse<unknown>> | ApiResponse<unknown>;
+export type MockHandler = (
+  ctx: MockContext,
+) => Promise<ApiResponse<unknown>> | ApiResponse<unknown>;
 
 interface MockRoute {
   method: HttpMethod;

@@ -24,7 +24,10 @@ export function AppHeader({ titulo, breadcrumbs }: { titulo: string; breadcrumbs
     <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-card px-8">
       <div className="min-w-0">
         {breadcrumbs && breadcrumbs.length > 0 ? (
-          <nav aria-label="Trilha de navegação" className="flex items-center gap-1 text-xs text-muted-foreground">
+          <nav
+            aria-label="Trilha de navegação"
+            className="flex items-center gap-1 text-xs text-muted-foreground"
+          >
             {breadcrumbs.map((crumb, index) => (
               <span key={`${crumb.label}-${index}`} className="flex items-center gap-1">
                 {index > 0 ? <ChevronRight aria-hidden className="size-3" /> : null}

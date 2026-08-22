@@ -12,18 +12,22 @@ function encontrarProduto(id: string): Produto {
 
 function validarPayload(payload: Partial<ProdutoPayload>, idAtual?: string): void {
   const errors: ApiFieldError[] = [];
-  if (!payload.codProduto?.trim()) errors.push({ field: "codProduto", message: "Código é obrigatório." });
+  if (!payload.codProduto?.trim())
+    errors.push({ field: "codProduto", message: "Código é obrigatório." });
   if (!payload.nome?.trim()) errors.push({ field: "nome", message: "Nome é obrigatório." });
-  if (!payload.categoria?.trim()) errors.push({ field: "categoria", message: "Categoria é obrigatória." });
+  if (!payload.categoria?.trim())
+    errors.push({ field: "categoria", message: "Categoria é obrigatória." });
   if (!payload.precoCusto || payload.precoCusto <= 0)
     errors.push({ field: "precoCusto", message: "Preço de custo deve ser maior que zero." });
   if (!payload.precoVenda || payload.precoVenda <= 0)
     errors.push({ field: "precoVenda", message: "Preço de venda deve ser maior que zero." });
 
   const duplicado = db.produtos.find(
-    (p) => p.codProduto.toLowerCase() === payload.codProduto?.trim().toLowerCase() && p.id !== idAtual,
+    (p) =>
+      p.codProduto.toLowerCase() === payload.codProduto?.trim().toLowerCase() && p.id !== idAtual,
   );
-  if (duplicado) errors.push({ field: "codProduto", message: "Já existe um produto com este código." });
+  if (duplicado)
+    errors.push({ field: "codProduto", message: "Já existe um produto com este código." });
 
   if (errors.length) throw ApiError.validation("Dados inválidos.", errors);
 }
@@ -48,9 +52,12 @@ function ordenar(lista: Produto[], campo: string, ordem: string): Produto[] {
 
 export function registerProdutosMocks(): void {
   registerMock("GET", "/produtos", ({ query }) => {
-    const busca = String(query["busca"] ?? "").trim().toLowerCase();
+    const busca = String(query["busca"] ?? "")
+      .trim()
+      .toLowerCase();
     let lista = db.produtos.filter((produto) => {
-      if (busca && !`${produto.nome} ${produto.codProduto}`.toLowerCase().includes(busca)) return false;
+      if (busca && !`${produto.nome} ${produto.codProduto}`.toLowerCase().includes(busca))
+        return false;
       if (query["categoria"] && produto.categoria !== query["categoria"]) return false;
       if (query["colecaoId"] && produto.colecaoId !== query["colecaoId"]) return false;
       if (query["campanhaId"] && produto.campanhaId !== query["campanhaId"]) return false;
@@ -140,7 +147,10 @@ export function registerProdutosMocks(): void {
         ]);
       if (preco >= produto.precoVenda)
         throw ApiError.validation("Dados inválidos.", [
-          { field: "precoPromocional", message: "Preço promocional deve ser menor que o preço de venda." },
+          {
+            field: "precoPromocional",
+            message: "Preço promocional deve ser menor que o preço de venda.",
+          },
         ]);
       produto.ehPromocao = true;
       produto.precoPromocional = preco;

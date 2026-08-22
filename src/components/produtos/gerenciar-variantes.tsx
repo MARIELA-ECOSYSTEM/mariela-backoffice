@@ -7,21 +7,28 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { VarianteCard } from "./variante-card";
 import { VarianteDialog } from "./variante-dialog";
 import { TamanhoDialog } from "./tamanho-dialog";
-import { MovimentacaoDialog, type TipoMovimentacao } from "@/components/estoque/movimentacao-dialog";
+import {
+  MovimentacaoDialog,
+  type TipoMovimentacao,
+} from "@/components/estoque/movimentacao-dialog";
 import { useExcluirVariante } from "@/hooks/use-variantes";
 import { mensagemDeErro } from "@/services/api/client";
 import type { Produto } from "@/types/produto";
 import type { Variante } from "@/types/variante";
 
 export function GerenciarVariantes({ produto }: { produto: Produto }) {
-  const [varianteDialog, setVarianteDialog] = useState<{ open: boolean; variante: Variante | null }>({
+  const [varianteDialog, setVarianteDialog] = useState<{
+    open: boolean;
+    variante: Variante | null;
+  }>({
     open: false,
     variante: null,
   });
   const [tamanhoVariante, setTamanhoVariante] = useState<Variante | null>(null);
-  const [movimentacao, setMovimentacao] = useState<{ tipo: TipoMovimentacao; variante: Variante } | null>(
-    null,
-  );
+  const [movimentacao, setMovimentacao] = useState<{
+    tipo: TipoMovimentacao;
+    variante: Variante;
+  } | null>(null);
   const [varianteExclusao, setVarianteExclusao] = useState<Variante | null>(null);
   const excluir = useExcluirVariante(produto.id);
 
@@ -82,7 +89,9 @@ export function GerenciarVariantes({ produto }: { produto: Produto }) {
         produtoId={produto.id}
         variante={varianteDialog.variante}
         open={varianteDialog.open}
-        onOpenChange={(aberto) => setVarianteDialog({ open: aberto, variante: aberto ? varianteDialog.variante : null })}
+        onOpenChange={(aberto) =>
+          setVarianteDialog({ open: aberto, variante: aberto ? varianteDialog.variante : null })
+        }
       />
 
       <TamanhoDialog

@@ -10,7 +10,11 @@ export const variantesApi = {
     const { data } = await apiClient.post<Variante>(`/produtos/${produtoId}/variantes`, payload);
     return data;
   },
-  async atualizar(produtoId: string, varianteId: string, payload: CriarVarianteRequest): Promise<Variante> {
+  async atualizar(
+    produtoId: string,
+    varianteId: string,
+    payload: CriarVarianteRequest,
+  ): Promise<Variante> {
     const { data } = await apiClient.put<Variante>(
       `/produtos/${produtoId}/variantes/${varianteId}`,
       payload,

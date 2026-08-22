@@ -17,10 +17,7 @@ export const Route = createFileRoute("/_backoffice/campanhas")({
 
 function CampanhasPage() {
   return (
-    <Page
-      titulo="Campanhas"
-      breadcrumbs={[{ label: "Marketing" }, { label: "Campanhas" }]}
-    >
+    <Page titulo="Campanhas" breadcrumbs={[{ label: "Marketing" }, { label: "Campanhas" }]}>
       <EmDesenvolvimento modulo="Campanhas" />
     </Page>
   );

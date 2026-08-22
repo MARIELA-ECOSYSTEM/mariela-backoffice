@@ -3,7 +3,11 @@ import { ApiError } from "@/types/api";
 import type { ApiFieldError } from "@/types/api";
 import { clonar, db, gerarId, recalcularProduto } from "./db";
 import type { Produto } from "@/types/produto";
-import type { EntradaEstoqueRequest, ResumoEstoqueProduto, SaidaEstoqueRequest } from "@/types/estoque";
+import type {
+  EntradaEstoqueRequest,
+  ResumoEstoqueProduto,
+  SaidaEstoqueRequest,
+} from "@/types/estoque";
 import type { Variante } from "@/types/variante";
 
 function encontrarProduto(id: string): Produto {
@@ -20,11 +24,14 @@ function encontrarVariante(produto: Produto, varianteId: string): Variante {
 
 export function registerEstoqueMocks(): void {
   registerMock("GET", "/estoque", ({ query }) => {
-    const busca = String(query["busca"] ?? "").trim().toLowerCase();
+    const busca = String(query["busca"] ?? "")
+      .trim()
+      .toLowerCase();
     const disponibilidade = query["disponibilidade"];
     const lista: ResumoEstoqueProduto[] = db.produtos
       .filter((produto) => {
-        if (busca && !`${produto.nome} ${produto.codProduto}`.toLowerCase().includes(busca)) return false;
+        if (busca && !`${produto.nome} ${produto.codProduto}`.toLowerCase().includes(busca))
+          return false;
         if (disponibilidade === "disponivel" && produto.quantidadeTotal <= 0) return false;
         if (disponibilidade === "sem-estoque" && produto.quantidadeTotal > 0) return false;
         return true;
@@ -63,10 +70,16 @@ export function registerEstoqueMocks(): void {
           { field: "tamanho", message: "Tamanho é obrigatório." },
         ]);
       }
-      const existente = variante.tamanhos.find((t) => t.tamanho.toLowerCase() === nome.toLowerCase());
+      const existente = variante.tamanhos.find(
+        (t) => t.tamanho.toLowerCase() === nome.toLowerCase(),
+      );
       if (existente) existente.quantidade += payload.quantidade;
       else
-        variante.tamanhos.push({ id: gerarId("tam"), tamanho: nome, quantidade: payload.quantidade });
+        variante.tamanhos.push({
+          id: gerarId("tam"),
+          tamanho: nome,
+          quantidade: payload.quantidade,
+        });
     }
 
     recalcularProduto(produto);

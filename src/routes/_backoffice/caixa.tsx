@@ -17,10 +17,7 @@ export const Route = createFileRoute("/_backoffice/caixa")({
 
 function CaixaPage() {
   return (
-    <Page
-      titulo="Caixa"
-      breadcrumbs={[{ label: "Comercial" }, { label: "Caixa" }]}
-    >
+    <Page titulo="Caixa" breadcrumbs={[{ label: "Comercial" }, { label: "Caixa" }]}>
       <EmDesenvolvimento modulo="Caixa" />
     </Page>
   );

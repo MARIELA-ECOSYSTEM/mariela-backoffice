@@ -17,10 +17,7 @@ export const Route = createFileRoute("/_backoffice/vendas")({
 
 function VendasPage() {
   return (
-    <Page
-      titulo="Vendas"
-      breadcrumbs={[{ label: "Comercial" }, { label: "Vendas" }]}
-    >
+    <Page titulo="Vendas" breadcrumbs={[{ label: "Comercial" }, { label: "Vendas" }]}>
       <EmDesenvolvimento modulo="Vendas" />
     </Page>
   );

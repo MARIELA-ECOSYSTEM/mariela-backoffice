@@ -9,9 +9,15 @@ export const Route = createFileRoute("/_backoffice/produtos/$id/variantes")({
   head: () => ({
     meta: [
       { title: "Variantes do produto — MARIELA Backoffice" },
-      { name: "description", content: "Gerencie cores, tamanhos e estoque das variantes do produto." },
+      {
+        name: "description",
+        content: "Gerencie cores, tamanhos e estoque das variantes do produto.",
+      },
       { property: "og:title", content: "Variantes do produto — MARIELA Backoffice" },
-      { property: "og:description", content: "Gerencie cores, tamanhos e estoque das variantes do produto." },
+      {
+        property: "og:description",
+        content: "Gerencie cores, tamanhos e estoque das variantes do produto.",
+      },
     ],
   }),
   component: VariantesPage,

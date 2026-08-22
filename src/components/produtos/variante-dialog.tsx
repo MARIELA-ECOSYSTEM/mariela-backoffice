@@ -13,7 +13,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Field } from "@/components/common/field";
 import { varianteSchema, type VarianteFormValues } from "@/schemas/produto.schema";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
@@ -92,7 +98,11 @@ export function VarianteDialog({
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          <Field id="codVariante" label="Código da variante" erro={form.formState.errors.codVariante?.message}>
+          <Field
+            id="codVariante"
+            label="Código da variante"
+            erro={form.formState.errors.codVariante?.message}
+          >
             <Input id="codVariante" placeholder="PRD-0001-01" {...form.register("codVariante")} />
           </Field>
 

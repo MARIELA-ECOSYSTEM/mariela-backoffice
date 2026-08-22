@@ -6,7 +6,14 @@ import type { Fornecedor } from "@/types/fornecedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
 import { calcularMargem, precoFinal } from "@/utils/produto";
-import { seedCampanhas, seedClientes, seedColecoes, seedConfiguracoes, seedFornecedores, seedProdutos } from "./seed";
+import {
+  seedCampanhas,
+  seedClientes,
+  seedColecoes,
+  seedConfiguracoes,
+  seedFornecedores,
+  seedProdutos,
+} from "./seed";
 
 export interface MockDatabase {
   produtos: Produto[];

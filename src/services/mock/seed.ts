@@ -34,7 +34,13 @@ export const CORES = [
   "Estampado Floral",
 ];
 
-export const FORMAS_PAGAMENTO = ["Dinheiro", "Pix", "Cartão de Débito", "Cartão de Crédito", "Crediário"];
+export const FORMAS_PAGAMENTO = [
+  "Dinheiro",
+  "Pix",
+  "Cartão de Débito",
+  "Cartão de Crédito",
+  "Crediário",
+];
 
 function iso(diasAtras: number): string {
   return new Date(Date.now() - diasAtras * 86_400_000).toISOString();
@@ -81,9 +87,28 @@ const SEEDS: ProdutoSeed[] = [
     fornecedorId: "for_001",
     criadoDiasAtras: 4,
     variantes: [
-      { cor: "Preto", tamanhos: [["P", 4], ["M", 6], ["G", 3]] },
-      { cor: "Terracota", tamanhos: [["P", 2], ["M", 5]] },
-      { cor: "Off White", tamanhos: [["M", 3], ["G", 1]] },
+      {
+        cor: "Preto",
+        tamanhos: [
+          ["P", 4],
+          ["M", 6],
+          ["G", 3],
+        ],
+      },
+      {
+        cor: "Terracota",
+        tamanhos: [
+          ["P", 2],
+          ["M", 5],
+        ],
+      },
+      {
+        cor: "Off White",
+        tamanhos: [
+          ["M", 3],
+          ["G", 1],
+        ],
+      },
     ],
   },
   {
@@ -99,8 +124,22 @@ const SEEDS: ProdutoSeed[] = [
     fornecedorId: "for_002",
     criadoDiasAtras: 20,
     variantes: [
-      { cor: "Rosé", tamanhos: [["PP", 5], ["P", 8], ["M", 4]] },
-      { cor: "Preto", tamanhos: [["P", 6], ["M", 6], ["G", 2]] },
+      {
+        cor: "Rosé",
+        tamanhos: [
+          ["PP", 5],
+          ["P", 8],
+          ["M", 4],
+        ],
+      },
+      {
+        cor: "Preto",
+        tamanhos: [
+          ["P", 6],
+          ["M", 6],
+          ["G", 2],
+        ],
+      },
     ],
   },
   {
@@ -114,8 +153,20 @@ const SEEDS: ProdutoSeed[] = [
     fornecedorId: "for_003",
     criadoDiasAtras: 35,
     variantes: [
-      { cor: "Azul Marinho", tamanhos: [["36", 2], ["38", 3]] },
-      { cor: "Bege", tamanhos: [["36", 1], ["38", 2]] },
+      {
+        cor: "Azul Marinho",
+        tamanhos: [
+          ["36", 2],
+          ["38", 3],
+        ],
+      },
+      {
+        cor: "Bege",
+        tamanhos: [
+          ["36", 1],
+          ["38", 2],
+        ],
+      },
     ],
   },
   {
@@ -128,7 +179,17 @@ const SEEDS: ProdutoSeed[] = [
     novidade: true,
     fornecedorId: "for_001",
     criadoDiasAtras: 7,
-    variantes: [{ cor: "Off White", tamanhos: [["P", 3], ["M", 4], ["G", 3], ["GG", 1]] }],
+    variantes: [
+      {
+        cor: "Off White",
+        tamanhos: [
+          ["P", 3],
+          ["M", 4],
+          ["G", 3],
+          ["GG", 1],
+        ],
+      },
+    ],
   },
   {
     cod: "PRD-0005",
@@ -143,8 +204,20 @@ const SEEDS: ProdutoSeed[] = [
     fornecedorId: "for_004",
     criadoDiasAtras: 60,
     variantes: [
-      { cor: "Vinho", tamanhos: [["P", 2], ["M", 1]] },
-      { cor: "Preto", tamanhos: [["M", 2], ["G", 1]] },
+      {
+        cor: "Vinho",
+        tamanhos: [
+          ["P", 2],
+          ["M", 1],
+        ],
+      },
+      {
+        cor: "Preto",
+        tamanhos: [
+          ["M", 2],
+          ["G", 1],
+        ],
+      },
     ],
   },
   {
@@ -157,7 +230,15 @@ const SEEDS: ProdutoSeed[] = [
     colecaoId: "col_003",
     fornecedorId: "for_002",
     criadoDiasAtras: 15,
-    variantes: [{ cor: "Verde Oliva", tamanhos: [["P", 1], ["M", 2]] }],
+    variantes: [
+      {
+        cor: "Verde Oliva",
+        tamanhos: [
+          ["P", 1],
+          ["M", 2],
+        ],
+      },
+    ],
   },
   {
     cod: "PRD-0007",
@@ -184,7 +265,15 @@ const SEEDS: ProdutoSeed[] = [
     colecaoId: "col_002",
     fornecedorId: "for_003",
     criadoDiasAtras: 90,
-    variantes: [{ cor: "Bege", tamanhos: [["P", 1], ["M", 1]] }],
+    variantes: [
+      {
+        cor: "Bege",
+        tamanhos: [
+          ["P", 1],
+          ["M", 1],
+        ],
+      },
+    ],
   },
   {
     cod: "PRD-0009",
@@ -211,8 +300,23 @@ const SEEDS: ProdutoSeed[] = [
     fornecedorId: "for_001",
     criadoDiasAtras: 25,
     variantes: [
-      { cor: "Vinho", tamanhos: [["P", 3], ["M", 3], ["G", 2]] },
-      { cor: "Preto", tamanhos: [["P", 4], ["M", 5], ["G", 4], ["GG", 2]] },
+      {
+        cor: "Vinho",
+        tamanhos: [
+          ["P", 3],
+          ["M", 3],
+          ["G", 2],
+        ],
+      },
+      {
+        cor: "Preto",
+        tamanhos: [
+          ["P", 4],
+          ["M", 5],
+          ["G", 4],
+          ["GG", 2],
+        ],
+      },
       { cor: "Estampado Floral", tamanhos: [["M", 2]] },
     ],
   },
@@ -228,8 +332,20 @@ const SEEDS: ProdutoSeed[] = [
     fornecedorId: "for_005",
     criadoDiasAtras: 2,
     variantes: [
-      { cor: "Rosé", tamanhos: [["P", 4], ["M", 4]] },
-      { cor: "Preto", tamanhos: [["P", 0], ["M", 0]] },
+      {
+        cor: "Rosé",
+        tamanhos: [
+          ["P", 4],
+          ["M", 4],
+        ],
+      },
+      {
+        cor: "Preto",
+        tamanhos: [
+          ["P", 0],
+          ["M", 0],
+        ],
+      },
     ],
   },
   {
@@ -241,7 +357,16 @@ const SEEDS: ProdutoSeed[] = [
     venda: 189.9,
     fornecedorId: "for_002",
     criadoDiasAtras: 70,
-    variantes: [{ cor: "Nude", tamanhos: [["P", 0], ["M", 0], ["G", 0]] }],
+    variantes: [
+      {
+        cor: "Nude",
+        tamanhos: [
+          ["P", 0],
+          ["M", 0],
+          ["G", 0],
+        ],
+      },
+    ],
   },
   {
     cod: "PRD-0013",
@@ -265,8 +390,20 @@ const SEEDS: ProdutoSeed[] = [
     fornecedorId: "for_003",
     criadoDiasAtras: 12,
     variantes: [
-      { cor: "Azul Marinho", tamanhos: [["36", 3], ["38", 4]] },
-      { cor: "Off White", tamanhos: [["36", 2], ["38", 2]] },
+      {
+        cor: "Azul Marinho",
+        tamanhos: [
+          ["36", 3],
+          ["38", 4],
+        ],
+      },
+      {
+        cor: "Off White",
+        tamanhos: [
+          ["36", 2],
+          ["38", 2],
+        ],
+      },
     ],
   },
   {
@@ -295,8 +432,21 @@ const SEEDS: ProdutoSeed[] = [
     fornecedorId: "for_001",
     criadoDiasAtras: 5,
     variantes: [
-      { cor: "Terracota", tamanhos: [["P", 2], ["M", 3], ["G", 1]] },
-      { cor: "Preto", tamanhos: [["P", 1], ["M", 2]] },
+      {
+        cor: "Terracota",
+        tamanhos: [
+          ["P", 2],
+          ["M", 3],
+          ["G", 1],
+        ],
+      },
+      {
+        cor: "Preto",
+        tamanhos: [
+          ["P", 1],
+          ["M", 2],
+        ],
+      },
     ],
   },
   {
@@ -332,7 +482,8 @@ export function seedProdutos(): Produto[] {
     });
 
     const quantidadeTotal = variantes.reduce((total, v) => total + v.quantidadeVariante, 0);
-    const precoVigente = seed.promocao && seed.precoPromocional ? seed.precoPromocional : seed.venda;
+    const precoVigente =
+      seed.promocao && seed.precoPromocional ? seed.precoPromocional : seed.venda;
 
     return {
       id: `prd_${String(indexProduto + 1).padStart(3, "0")}`,
@@ -386,11 +537,41 @@ export function seedConfiguracoes(): Configuracoes {
 
 export function seedFornecedores(): Fornecedor[] {
   return [
-    { id: "for_001", nome: "Ateliê Bella Vita", contato: "Renata Prado", telefone: "(11) 98123-0011", criadoEm: iso(200) },
-    { id: "for_002", nome: "Malharia Vittoria", contato: "Carlos Menezes", telefone: "(11) 97722-8090", criadoEm: iso(190) },
-    { id: "for_003", nome: "Alfaiataria Duarte", contato: "Marina Duarte", telefone: "(21) 98455-1200", criadoEm: iso(150) },
-    { id: "for_004", nome: "Confecções Lumière", contato: "Paula Ferraz", telefone: "(31) 99111-3322", criadoEm: iso(120) },
-    { id: "for_005", nome: "Acessórios Dolce", contato: "Iris Nakamura", telefone: "(11) 96555-7788", criadoEm: iso(80) },
+    {
+      id: "for_001",
+      nome: "Ateliê Bella Vita",
+      contato: "Renata Prado",
+      telefone: "(11) 98123-0011",
+      criadoEm: iso(200),
+    },
+    {
+      id: "for_002",
+      nome: "Malharia Vittoria",
+      contato: "Carlos Menezes",
+      telefone: "(11) 97722-8090",
+      criadoEm: iso(190),
+    },
+    {
+      id: "for_003",
+      nome: "Alfaiataria Duarte",
+      contato: "Marina Duarte",
+      telefone: "(21) 98455-1200",
+      criadoEm: iso(150),
+    },
+    {
+      id: "for_004",
+      nome: "Confecções Lumière",
+      contato: "Paula Ferraz",
+      telefone: "(31) 99111-3322",
+      criadoEm: iso(120),
+    },
+    {
+      id: "for_005",
+      nome: "Acessórios Dolce",
+      contato: "Iris Nakamura",
+      telefone: "(11) 96555-7788",
+      criadoEm: iso(80),
+    },
   ];
 }
 
@@ -412,10 +593,40 @@ export function seedCampanhas(): Campanha[] {
 
 export function seedClientes(): Cliente[] {
   return [
-    { id: "cli_001", nome: "Ana Beatriz Souza", telefone: "(11) 99811-2233", email: "ana.souza@email.com", criadoEm: iso(45) },
-    { id: "cli_002", nome: "Camila Ferreira", telefone: "(11) 98444-9090", email: "camila.f@email.com", criadoEm: iso(30) },
-    { id: "cli_003", nome: "Juliana Martins", telefone: "(21) 99700-1010", email: "juliana.m@email.com", criadoEm: iso(20) },
-    { id: "cli_004", nome: "Larissa Nogueira", telefone: "(31) 98222-3131", email: "larissa.n@email.com", criadoEm: iso(10) },
-    { id: "cli_005", nome: "Patrícia Lima", telefone: "(11) 97333-4545", email: "patricia.l@email.com", criadoEm: iso(5) },
+    {
+      id: "cli_001",
+      nome: "Ana Beatriz Souza",
+      telefone: "(11) 99811-2233",
+      email: "ana.souza@email.com",
+      criadoEm: iso(45),
+    },
+    {
+      id: "cli_002",
+      nome: "Camila Ferreira",
+      telefone: "(11) 98444-9090",
+      email: "camila.f@email.com",
+      criadoEm: iso(30),
+    },
+    {
+      id: "cli_003",
+      nome: "Juliana Martins",
+      telefone: "(21) 99700-1010",
+      email: "juliana.m@email.com",
+      criadoEm: iso(20),
+    },
+    {
+      id: "cli_004",
+      nome: "Larissa Nogueira",
+      telefone: "(31) 98222-3131",
+      email: "larissa.n@email.com",
+      criadoEm: iso(10),
+    },
+    {
+      id: "cli_005",
+      nome: "Patrícia Lima",
+      telefone: "(11) 97333-4545",
+      email: "patricia.l@email.com",
+      criadoEm: iso(5),
+    },
   ];
 }

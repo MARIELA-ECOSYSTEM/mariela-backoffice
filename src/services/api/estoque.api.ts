@@ -1,12 +1,19 @@
 import { apiClient } from "./client";
-import type { EntradaEstoqueRequest, ResumoEstoqueProduto, SaidaEstoqueRequest } from "@/types/estoque";
+import type {
+  EntradaEstoqueRequest,
+  ResumoEstoqueProduto,
+  SaidaEstoqueRequest,
+} from "@/types/estoque";
 import type { Produto } from "@/types/produto";
 import type { FiltroDisponibilidade } from "@/types/produto";
 
 export const estoqueApi = {
-  async listar(filtros: { busca?: string | undefined; disponibilidade?: FiltroDisponibilidade | undefined } = {}): Promise<
-    ResumoEstoqueProduto[]
-  > {
+  async listar(
+    filtros: {
+      busca?: string | undefined;
+      disponibilidade?: FiltroDisponibilidade | undefined;
+    } = {},
+  ): Promise<ResumoEstoqueProduto[]> {
     const { data } = await apiClient.get<ResumoEstoqueProduto[]>("/estoque", {
       params: { busca: filtros.busca, disponibilidade: filtros.disponibilidade },
     });

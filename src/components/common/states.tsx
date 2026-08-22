@@ -53,7 +53,11 @@ export function TableSkeleton({ linhas = 6, colunas = 6 }: { linhas?: number; co
   return (
     <div className="space-y-2 rounded-lg border border-border bg-card p-4">
       {Array.from({ length: linhas }).map((_, linha) => (
-        <div key={linha} className="grid gap-4" style={{ gridTemplateColumns: `repeat(${colunas}, 1fr)` }}>
+        <div
+          key={linha}
+          className="grid gap-4"
+          style={{ gridTemplateColumns: `repeat(${colunas}, 1fr)` }}
+        >
           {Array.from({ length: colunas }).map((__, coluna) => (
             <Skeleton key={coluna} className="h-6" />
           ))}
