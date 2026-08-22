@@ -3,25 +3,29 @@ import { LABEL_STATUS, statusEstoque } from "@/utils/produto";
 
 export function StatusEstoqueBadge({ quantidadeTotal }: { quantidadeTotal: number }) {
   const status = statusEstoque(quantidadeTotal);
-  const classes: Record<typeof status, string> = {
-    disponivel: "border-success/30 bg-success/10 text-success",
-    baixo: "border-warning/40 bg-warning/15 text-warning-foreground",
-    "sem-estoque": "border-destructive/30 bg-destructive/10 text-destructive",
+  const variantes: Record<typeof status, "success" | "warning" | "destructive"> = {
+    disponivel: "success",
+    baixo: "warning",
+    "sem-estoque": "destructive",
   };
   return (
-    <Badge variant="outline" className={classes[status]}>
+    <Badge variant={variantes[status]}>
+      <span
+        aria-hidden
+        className="size-1.5 rounded-full bg-current opacity-70"
+        data-status={status}
+      />
       {LABEL_STATUS[status]}
     </Badge>
   );
 }
 
 export function TagBadge({ children, tom }: { children: string; tom: "gold" | "primary" }) {
-  const classes =
-    tom === "gold"
-      ? "border-gold/40 bg-gold/15 text-gold-foreground"
-      : "border-primary/25 bg-primary/10 text-primary";
+  if (tom === "gold") {
+    return <Badge variant="gold">{children}</Badge>;
+  }
   return (
-    <Badge variant="outline" className={classes}>
+    <Badge variant="outline" className="border-primary/30 bg-primary-soft/50 text-primary">
       {children}
     </Badge>
   );

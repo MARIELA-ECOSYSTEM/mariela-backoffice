@@ -14,11 +14,11 @@ export function EmptyState({
   acao?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-card/60 px-6 py-16 text-center">
-      <PackageOpen aria-hidden className="size-8 text-muted-foreground" />
-      <h3 className="font-display text-xl">{titulo}</h3>
-      <p className="max-w-sm text-sm text-muted-foreground">{descricao}</p>
-      {acao}
+    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border-strong bg-surface/50 px-6 py-20 text-center">
+      <PackageOpen aria-hidden className="size-7 text-muted-foreground/60" />
+      <h3 className="font-display text-2xl">{titulo}</h3>
+      <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">{descricao}</p>
+      {acao ? <div className="mt-2">{acao}</div> : null}
     </div>
   );
 }
@@ -35,11 +35,14 @@ export function ErrorState({
   return (
     <div
       role="alert"
-      className="flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-6 py-14 text-center"
+      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-destructive/25 bg-destructive/[0.04] px-6 py-16 text-center"
     >
-      <AlertTriangle aria-hidden className="size-7 text-destructive" />
-      <h3 className="font-display text-xl">Algo deu errado</h3>
-      <p className="max-w-sm text-sm text-muted-foreground">{mensagemDeErro(error, fallback)}</p>
+      <AlertTriangle aria-hidden className="size-6 text-destructive/80" />
+      <h3 className="font-display text-2xl">Algo deu errado</h3>
+      <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
+        {mensagemDeErro(error, fallback)}
+      </p>
+
       {onRetry ? (
         <Button variant="outline" onClick={onRetry}>
           Tentar novamente
@@ -51,7 +54,7 @@ export function ErrorState({
 
 export function TableSkeleton({ linhas = 6, colunas = 6 }: { linhas?: number; colunas?: number }) {
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+    <div className="space-y-3 rounded-xl border border-border bg-card p-5 shadow-card">
       {Array.from({ length: linhas }).map((_, linha) => (
         <div
           key={linha}
@@ -69,9 +72,12 @@ export function TableSkeleton({ linhas = 6, colunas = 6 }: { linhas?: number; co
 
 export function EmDesenvolvimento({ modulo }: { modulo: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-card/60 px-6 py-20 text-center">
-      <Wrench aria-hidden className="size-8 text-muted-foreground" />
-      <h3 className="font-display text-2xl">{modulo} em desenvolvimento</h3>
+    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border-strong bg-surface/50 px-6 py-24 text-center">
+      <Wrench aria-hidden className="size-7 text-muted-foreground/60" />
+      <span aria-hidden className="rule-gold h-px w-16" />
+      <h3 className="font-display text-3xl">{modulo}</h3>
+      <p className="text-eyebrow">Em desenvolvimento</p>
+
       <p className="max-w-md text-sm text-muted-foreground">
         Este módulo já possui navegação preparada e será implementado nos próximos ciclos do MARIELA
         Backoffice.

@@ -111,32 +111,32 @@ function LinhaProduto({
   const foto = produto.variantes.find((v) => v.foto)?.foto ?? null;
 
   return (
-    <TableRow>
+    <TableRow className="group">
       <TableCell>
         {foto ? (
           <img
             src={foto}
             alt={produto.nome}
-            className="size-10 rounded-md object-cover"
+            className="h-14 w-11 rounded-sm border border-border object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             loading="lazy"
           />
         ) : (
           <span
             aria-label="Sem foto"
-            className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground"
+            className="flex h-14 w-11 items-center justify-center rounded-sm border border-dashed border-border-strong bg-surface text-muted-foreground/60"
           >
             <ImageIcon aria-hidden className="size-4" />
           </span>
         )}
       </TableCell>
-      <TableCell className="font-mono text-xs text-muted-foreground">
+      <TableCell className="font-brand text-[0.7rem] uppercase tracking-[0.12em] text-muted-foreground">
         {produto.codProduto}
       </TableCell>
-      <TableCell>
+      <TableCell className="max-w-[18rem]">
         <Link
           to="/produtos/$id"
           params={{ id: produto.id }}
-          className="font-medium transition-colors hover:text-primary"
+          className="block truncate font-display text-base transition-colors hover:text-primary"
         >
           {produto.nome}
         </Link>
@@ -144,14 +144,14 @@ function LinhaProduto({
           {produto.variantes.length} variante(s)
         </span>
       </TableCell>
-      <TableCell className="text-sm">{produto.categoria}</TableCell>
+      <TableCell className="text-sm text-muted-foreground">{produto.categoria}</TableCell>
       <TableCell className="text-sm tabular-nums">
         {produto.ehPromocao ? (
-          <span className="flex flex-col">
-            <span className="text-muted-foreground line-through">
+          <span className="flex flex-col leading-tight">
+            <span className="text-xs text-muted-foreground line-through">
               {formatarMoeda(produto.precoVenda)}
             </span>
-            <span>{formatarMoeda(precoFinal(produto))}</span>
+            <span className="text-primary">{formatarMoeda(precoFinal(produto))}</span>
           </span>
         ) : (
           formatarMoeda(produto.precoVenda)
@@ -162,9 +162,20 @@ function LinhaProduto({
         <StatusEstoqueBadge quantidadeTotal={produto.quantidadeTotal} />
       </TableCell>
       <TableCell>
-        {produto.ehNovidade ? <TagBadge tom="primary">Novidade</TagBadge> : "—"}
+        {produto.ehNovidade ? (
+          <TagBadge tom="primary">Novidade</TagBadge>
+        ) : (
+          <span className="text-muted-foreground/50">—</span>
+        )}
       </TableCell>
-      <TableCell>{produto.ehPromocao ? <TagBadge tom="gold">Promoção</TagBadge> : "—"}</TableCell>
+      <TableCell>
+        {produto.ehPromocao ? (
+          <TagBadge tom="gold">Promoção</TagBadge>
+        ) : (
+          <span className="text-muted-foreground/50">—</span>
+        )}
+      </TableCell>
+
       <TableCell className="text-right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -313,7 +324,7 @@ function ProdutosPage() {
         </Button>
       }
     >
-      <Card className="mb-5 shadow-card">
+      <Card className="mb-6 border-border bg-surface/60">
         <CardContent className="grid gap-3 py-5 lg:grid-cols-4 xl:grid-cols-5">
           <div className="relative lg:col-span-2">
             <Search
@@ -478,7 +489,7 @@ function ProdutosPage() {
           }
         />
       ) : (
-        <Card className="overflow-hidden shadow-card">
+        <Card className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -505,7 +516,7 @@ function ProdutosPage() {
               ))}
             </TableBody>
           </Table>
-          <div className="flex items-center justify-between border-t border-border px-4 py-3 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between border-t border-border bg-surface/60 px-4 py-3 font-brand text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
             <span>{produtos.length} produto(s)</span>
             {isFetching ? <Badge variant="outline">Atualizando…</Badge> : null}
           </div>

@@ -34,21 +34,35 @@ function Indicador({
   valor,
   detalhe,
   icone: Icone,
+  destaque,
 }: {
   titulo: string;
   valor: string;
   detalhe: string;
   icone: typeof Tag;
+  destaque?: boolean;
 }) {
   return (
-    <Card className="shadow-card">
+    <Card
+      className={
+        destaque
+          ? "relative overflow-hidden border-primary/20 bg-primary-soft/45 shadow-raised"
+          : "transition-shadow duration-200 hover:shadow-raised"
+      }
+    >
+      {destaque ? (
+        <span aria-hidden className="rule-gold absolute inset-x-0 top-0 h-px opacity-80" />
+      ) : null}
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-eyebrow font-sans">{titulo}</CardTitle>
-        <Icone aria-hidden className="size-4 text-muted-foreground" />
+        <p className="text-eyebrow">{titulo}</p>
+        <Icone
+          aria-hidden
+          className={destaque ? "size-4 text-primary/70" : "size-4 text-muted-foreground/70"}
+        />
       </CardHeader>
       <CardContent>
-        <p className="font-display text-3xl leading-none">{valor}</p>
-        <p className="mt-2 text-xs text-muted-foreground">{detalhe}</p>
+        <p className={destaque ? "text-metric text-primary" : "text-metric"}>{valor}</p>
+        <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">{detalhe}</p>
       </CardContent>
     </Card>
   );
@@ -85,8 +99,8 @@ function DashboardPage() {
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : (
-        <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="space-y-7">
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <Indicador
               titulo="Produtos cadastrados"
               valor={String(produtos.length)}
@@ -94,6 +108,7 @@ function DashboardPage() {
               icone={Tag}
             />
             <Indicador
+              destaque
               titulo="Peças em estoque"
               valor={String(totalPecas)}
               detalhe={`Valor estimado ${formatarMoeda(valorEstoque)}`}
@@ -114,78 +129,87 @@ function DashboardPage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">
-            <Card className="shadow-card">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="font-display text-xl">Atenção no estoque</CardTitle>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/70 pb-4">
+                <div>
+                  <CardTitle className="text-xl">Atenção no estoque</CardTitle>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Peças esgotadas ou próximas do fim
+                  </p>
+                </div>
                 <AlertTriangle aria-hidden className="size-4 text-warning" />
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="pt-4">
                 {[...semEstoque, ...estoqueBaixo].slice(0, 6).length === 0 ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
+                  <p className="py-8 text-center text-sm text-muted-foreground">
                     Nenhum produto exige atenção no momento.
                   </p>
                 ) : (
-                  [...semEstoque, ...estoqueBaixo].slice(0, 6).map((produto) => (
-                    <Link
-                      key={produto.id}
-                      to="/produtos/$id"
-                      params={{ id: produto.id }}
-                      className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 transition-colors hover:bg-accent/50"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm">{produto.nome}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {produto.codProduto}
-                        </span>
-                      </span>
-                      <span className="flex items-center gap-3">
-                        <span className="text-sm tabular-nums">{produto.quantidadeTotal} un.</span>
-                        <StatusEstoqueBadge quantidadeTotal={produto.quantidadeTotal} />
-                      </span>
-                    </Link>
-                  ))
+                  <ul className="divide-y divide-border/60">
+                    {[...semEstoque, ...estoqueBaixo].slice(0, 6).map((produto) => (
+                      <li key={produto.id}>
+                        <Link
+                          to="/produtos/$id"
+                          params={{ id: produto.id }}
+                          className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-3 transition-colors hover:bg-primary-soft/30"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm">{produto.nome}</span>
+                            <span className="block font-brand text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
+                              {produto.codProduto}
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-3">
+                            <span className="text-sm tabular-nums text-muted-foreground">
+                              {produto.quantidadeTotal} un.
+                            </span>
+                            <StatusEstoqueBadge quantidadeTotal={produto.quantidadeTotal} />
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="shadow-card">
-              <CardHeader>
-                <CardTitle className="font-display text-xl">Novidades recentes</CardTitle>
+            <Card>
+              <CardHeader className="border-b border-border/70 pb-4">
+                <CardTitle className="text-xl">Novidades recentes</CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Últimas peças marcadas como novidade
+                </p>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="pt-4">
                 {novidades.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
+                  <p className="py-8 text-center text-sm text-muted-foreground">
                     Nenhuma novidade cadastrada.
                   </p>
                 ) : (
-                  novidades.map((produto) => (
-                    <Link
-                      key={produto.id}
-                      to="/produtos/$id"
-                      params={{ id: produto.id }}
-                      className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 transition-colors hover:bg-accent/50"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm">{produto.nome}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {produto.categoria}
-                        </span>
-                      </span>
-                      <span className="flex items-center gap-3">
-                        <span className="text-sm tabular-nums">
-                          {formatarMoeda(precoFinal(produto))}
-                        </span>
-                        {produto.ehPromocao ? (
-                          <Badge
-                            variant="outline"
-                            className="border-gold/40 bg-gold/15 text-gold-foreground"
-                          >
-                            Promoção
-                          </Badge>
-                        ) : null}
-                      </span>
-                    </Link>
-                  ))
+                  <ul className="divide-y divide-border/60">
+                    {novidades.map((produto) => (
+                      <li key={produto.id}>
+                        <Link
+                          to="/produtos/$id"
+                          params={{ id: produto.id }}
+                          className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-3 transition-colors hover:bg-primary-soft/30"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm">{produto.nome}</span>
+                            <span className="block font-brand text-[0.65rem] uppercase tracking-[0.12em] text-muted-foreground">
+                              {produto.categoria}
+                            </span>
+                          </span>
+                          <span className="flex shrink-0 items-center gap-3">
+                            <span className="text-sm tabular-nums">
+                              {formatarMoeda(precoFinal(produto))}
+                            </span>
+                            {produto.ehPromocao ? <Badge variant="gold">Promoção</Badge> : null}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </CardContent>
             </Card>

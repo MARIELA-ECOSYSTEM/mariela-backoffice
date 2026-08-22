@@ -63,7 +63,7 @@ function EstoquePage() {
       breadcrumbs={[{ label: "Catálogo" }, { label: "Estoque" }]}
       descricao="O estoque pertence ao produto: total, variantes por cor e quantidade por tamanho. As alterações são feitas por entrada e saída."
     >
-      <Card className="mb-5 shadow-card">
+      <Card className="mb-6 border-border bg-surface/60">
         <CardContent className="flex flex-wrap gap-3 py-5">
           <div className="relative min-w-64 flex-1">
             <Search
