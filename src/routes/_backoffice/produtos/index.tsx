@@ -22,7 +22,21 @@ import { useExcluirProduto, useProdutos } from "@/hooks/use-produtos";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useCampanhas, useColecoes, useFornecedores } from "@/hooks/use-cadastros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import { opcoesDe, opcoesDeValores, type GrupoFacetaDef } from "@/lib/filtros/facetas";
+import {
+  opcoesDe,
+  opcoesDeValores,
+  type GrupoFacetaDef,
+  type SelecaoFacetas,
+} from "@/lib/filtros/facetas";
+import {
+  COM_ESTOQUE,
+  EH_NOVIDADE,
+  EM_PROMOCAO,
+  FACETAS_PRODUTO,
+  SEM_ESTOQUE,
+  SEM_NOVIDADE,
+  SEM_PROMOCAO,
+} from "@/lib/filtros/produtos-facetas";
 import { mensagemDeErro } from "@/services/api/client";
 import type { OrdenarProdutoPor, Ordem, Produto, ProdutoFiltros } from "@/types/produto";
 
@@ -86,89 +100,101 @@ function ProdutosPage() {
   const { data: fornecedores } = useFornecedores();
   const excluir = useExcluirProduto();
 
+  // Seleção das facetas é enviada à camada de dados: os counts NÃO são
+  // calculados sobre a página atual, e sim devolvidos em `facets`.
+  const [selecao, setSelecao] = useState<SelecaoFacetas>({});
+
   const filtros = useMemo<ProdutoFiltros>(() => {
     const opcao = ORDENACOES.find((item) => item.valor === ordenacao) ?? ORDENACOES[0]!;
     return {
       busca: busca || undefined,
       ordenarPor: opcao.campo,
       ordem: opcao.ordem,
+      facetas: selecao,
     };
-  }, [busca, ordenacao]);
+  }, [busca, ordenacao, selecao]);
 
   const { data, isPending, isError, error, refetch, isFetching } = useProdutos(filtros);
-  const produtos = data?.produtos ?? [];
+  const produtos = useMemo(() => data?.produtos ?? [], [data?.produtos]);
 
   const grupos = useMemo<GrupoFacetaDef<Produto>[]>(
     () => [
       {
-        id: "categoria",
+        id: FACETAS_PRODUTO.categorias,
         label: "Categoria",
         opcoes: opcoesDeValores(configuracoes?.categorias),
         corresponde: (produto, valor) => produto.categoria === valor,
         placeholderBusca: "Buscar categoria…",
       },
       {
-        id: "colecao",
+        id: FACETAS_PRODUTO.colecoes,
         label: "Coleção",
         opcoes: opcoesDe(colecoes),
         corresponde: (produto, valor) => produto.colecaoId === valor,
         placeholderBusca: "Buscar coleção…",
       },
       {
-        id: "campanha",
+        id: FACETAS_PRODUTO.campanhas,
         label: "Campanha",
         opcoes: opcoesDe(campanhas),
         corresponde: (produto, valor) => produto.campanhaId === valor,
         placeholderBusca: "Buscar campanha…",
       },
       {
-        id: "fornecedor",
+        id: FACETAS_PRODUTO.fornecedores,
         label: "Fornecedor",
         opcoes: opcoesDe(fornecedores),
         corresponde: (produto, valor) => produto.fornecedorId === valor,
         placeholderBusca: "Buscar fornecedor…",
       },
       {
-        id: "estoque",
+        id: FACETAS_PRODUTO.estoque,
         label: "Estoque",
         opcoes: [
-          { valor: "disponivel", label: "Com estoque" },
-          { valor: "sem-estoque", label: "Sem estoque" },
+          { valor: COM_ESTOQUE, label: "Com estoque" },
+          { valor: SEM_ESTOQUE, label: "Sem estoque" },
         ],
         corresponde: (produto, valor) =>
-          valor === "disponivel" ? produto.quantidadeTotal > 0 : produto.quantidadeTotal === 0,
+          valor === COM_ESTOQUE ? produto.quantidadeTotal > 0 : produto.quantidadeTotal === 0,
       },
       {
-        id: "promocao",
+        id: FACETAS_PRODUTO.promocao,
         label: "Promoção",
         opcoes: [
-          { valor: "sim", label: "Em promoção" },
-          { valor: "nao", label: "Sem promoção" },
+          { valor: EM_PROMOCAO, label: "Em promoção" },
+          { valor: SEM_PROMOCAO, label: "Sem promoção" },
         ],
         corresponde: (produto, valor) =>
-          valor === "sim" ? produto.ehPromocao : !produto.ehPromocao,
+          valor === EM_PROMOCAO ? produto.ehPromocao : !produto.ehPromocao,
       },
       {
-        id: "novidade",
+        id: FACETAS_PRODUTO.novidade,
         label: "Novidade",
         opcoes: [
-          { valor: "sim", label: "Novidades" },
-          { valor: "nao", label: "Não novidades" },
+          { valor: EH_NOVIDADE, label: "Novidades" },
+          { valor: SEM_NOVIDADE, label: "Não novidades" },
         ],
         corresponde: (produto, valor) =>
-          valor === "sim" ? produto.ehNovidade : !produto.ehNovidade,
+          valor === EH_NOVIDADE ? produto.ehNovidade : !produto.ehNovidade,
       },
     ],
     [configuracoes?.categorias, colecoes, campanhas, fornecedores],
   );
 
-  const filtragem = useFiltrosFacetados({ itens: produtos, grupos });
-  const visiveisTotal = filtragem.itensFiltrados;
+  const filtragem = useFiltrosFacetados({
+    itens: produtos,
+    grupos,
+    facetasExternas: data?.facets,
+    selecao,
+    onSelecaoChange: setSelecao,
+  });
+  // A lista já vem filtrada pela camada de dados.
+  const visiveisTotal = produtos;
 
   // Busca, ordenação ou filtros mudaram: volta para a primeira página.
   useEffect(() => {
     setPagina(1);
-  }, [filtros, filtragem.selecao]);
+  }, [filtros]);
 
   const total = visiveisTotal.length;
   const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));

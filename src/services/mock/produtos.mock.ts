@@ -1,5 +1,11 @@
 import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
+import {
+  calcularFacetasApi,
+  filtrarPorSelecao,
+  lerSelecaoDaQuery,
+} from "@/lib/filtros/facetas-servidor";
+import { facetasProduto } from "@/lib/filtros/produtos-facetas";
 import type { ApiFieldError } from "@/types/api";
 import { agora, calcularMargem, clonar, db, gerarId, precoFinal, recalcularProduto } from "./db";
 import type { Produto, ProdutoPayload, PromocaoRequest } from "@/types/produto";
@@ -74,9 +80,19 @@ export function registerProdutosMocks(): void {
       return true;
     });
 
+    // Facetas: counts sempre sobre o conjunto completo desta consulta
+    // (nunca sobre a página) e recalculados conforme os filtros combinados.
+    const selecao = lerSelecaoDaQuery(query, facetasProduto);
+    const facets = calcularFacetasApi(lista, facetasProduto, selecao);
+
+    lista = filtrarPorSelecao(lista, facetasProduto, selecao);
     lista = ordenar(lista, String(query["ordenarPor"] ?? "nome"), String(query["ordem"] ?? "asc"));
 
-    return { data: clonar(lista), meta: { total: lista.length, page: 1, limit: lista.length } };
+    return {
+      data: clonar(lista),
+      meta: { total: lista.length, page: 1, limit: lista.length },
+      facets,
+    };
   });
 
   registerMock("GET", "/produtos/:id", ({ params }) => ({
