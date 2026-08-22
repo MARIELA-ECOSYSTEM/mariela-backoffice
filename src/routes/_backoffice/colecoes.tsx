@@ -104,7 +104,7 @@ function ColecoesPage() {
   }
 
   function contarProdutos(colecaoId: string): number {
-    return (produtos?.itens ?? []).filter((produto) => produto.colecaoId === colecaoId).length;
+    return (produtos?.produtos ?? []).filter((produto) => produto.colecaoId === colecaoId).length;
   }
 
   return (

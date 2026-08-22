@@ -101,7 +101,7 @@ function CampanhasPage() {
   }
 
   function contarProdutos(campanhaId: string): number {
-    return (produtos?.itens ?? []).filter((produto) => produto.campanhaId === campanhaId).length;
+    return (produtos?.produtos ?? []).filter((produto) => produto.campanhaId === campanhaId).length;
   }
 
   return (
