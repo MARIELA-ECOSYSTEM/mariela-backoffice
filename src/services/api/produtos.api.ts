@@ -1,10 +1,13 @@
 import { apiClient } from "./client";
-import type { ApiMeta, QueryParams } from "@/types/api";
+import type { ApiFacets, ApiMeta, QueryParams } from "@/types/api";
+import { selecaoParaQuery } from "@/lib/filtros/facetas-servidor";
 import type { Produto, ProdutoFiltros, ProdutoPayload, PromocaoRequest } from "@/types/produto";
 
 export interface ListaProdutos {
   produtos: Produto[];
   meta: ApiMeta;
+  /** Contagens dos filtros vindas da camada de dados (mock hoje, API amanhã). */
+  facets: ApiFacets;
 }
 
 export const produtosApi = {
@@ -20,9 +23,11 @@ export const produtosApi = {
       novidade: filtros.novidade,
       ordenarPor: filtros.ordenarPor,
       ordem: filtros.ordem,
+      // Seleção multivalorada das facetas: `?categorias=a,b&estoque=com_estoque`
+      ...selecaoParaQuery(filtros.facetas),
     };
-    const { data, meta } = await apiClient.get<Produto[]>("/produtos", { params });
-    return { produtos: data, meta: meta ?? {} };
+    const { data, meta, facets } = await apiClient.get<Produto[]>("/produtos", { params });
+    return { produtos: data, meta: meta ?? {}, facets: facets ?? {} };
   },
 
   async obter(id: string): Promise<Produto> {

@@ -42,6 +42,8 @@ export type FiltroDisponibilidade = "todos" | "disponivel" | "sem-estoque";
 export type FiltroBooleano = "todos" | "sim" | "nao";
 
 export interface ProdutoFiltros {
+  /** Seleção multivalorada das facetas (`{ categorias: ["Vestidos"] }`). */
+  facetas?: SelecaoFacetas | undefined;
   busca?: string | undefined;
   categoria?: string | undefined;
   colecaoId?: string | undefined;
