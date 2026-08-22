@@ -13,6 +13,9 @@ import { mensagemDeErro } from "@/services/api/client";
 
 export const Route = createFileRoute("/login")({
   ssr: false,
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: typeof search["redirect"] === "string" ? (search["redirect"] as string) : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Entrar — MARIELA Backoffice" },
