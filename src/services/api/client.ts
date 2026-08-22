@@ -1,5 +1,7 @@
 import { ApiError, type ApiResponse, type QueryParams } from "@/types/api";
 import { handleMockRequest } from "@/services/mock/mock-transport";
+import { tokenStorage, TOKEN_STORAGE_KEY } from "@/services/auth/token-storage";
+import { handleUnauthorized } from "@/services/auth/session";
 
 /**
  * Endereço remoto da API REST (NestJS). Configurado exclusivamente por ambiente
