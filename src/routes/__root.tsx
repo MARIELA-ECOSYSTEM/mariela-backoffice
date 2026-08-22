@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/hooks/use-auth";
+import { useRealtimeSync } from "@/hooks/use-realtime";
 
 function NotFoundComponent() {
   return (
@@ -118,11 +119,17 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function RealtimeBridge() {
+  useRealtimeSync();
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
+      <RealtimeBridge />
       <AuthProvider>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
