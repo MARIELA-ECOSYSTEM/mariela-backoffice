@@ -28,13 +28,14 @@ export interface NavGrupo {
 
 export const NAV_GRUPOS: NavGrupo[] = [
   {
-    titulo: null,
+    titulo: "Principal",
     itens: [{ label: "Dashboard", to: "/dashboard", icon: LayoutDashboard }],
   },
   {
     titulo: "Catálogo",
     itens: [
       { label: "Produtos", to: "/produtos", icon: Tags },
+      { label: "Estoque", to: "/estoque", icon: Boxes },
       { label: "Coleções", to: "/colecoes", icon: Sparkles, emDesenvolvimento: true },
       { label: "Campanhas", to: "/campanhas", icon: Megaphone, emDesenvolvimento: true },
     ],
@@ -49,7 +50,6 @@ export const NAV_GRUPOS: NavGrupo[] = [
   {
     titulo: "Operação",
     itens: [
-      { label: "Estoque", to: "/estoque", icon: Boxes },
       { label: "Vendas", to: "/vendas", icon: ShoppingBag, emDesenvolvimento: true },
       { label: "Caixa", to: "/caixa", icon: Landmark, emDesenvolvimento: true },
     ],
@@ -59,7 +59,10 @@ export const NAV_GRUPOS: NavGrupo[] = [
     itens: [
       { label: "Relatórios", to: "/relatorios", icon: BarChart3, emDesenvolvimento: true },
       { label: "Configurações", to: "/configuracoes", icon: Settings },
-      { label: "Integrações", to: "/integracoes", icon: Plug, emDesenvolvimento: true },
     ],
+  },
+  {
+    titulo: "Integrações",
+    itens: [{ label: "Integrações", to: "/integracoes", icon: Plug, emDesenvolvimento: true }],
   },
 ];

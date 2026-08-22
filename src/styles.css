@@ -70,69 +70,69 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --shadow-card: 0 1px 1px oklch(0.3 0.06 18 / 4%), 0 10px 30px -22px oklch(0.3 0.06 18 / 22%);
-  --shadow-raised: 0 1px 2px oklch(0.3 0.06 18 / 5%), 0 18px 42px -26px oklch(0.3 0.06 18 / 26%);
-  --shadow-overlay: 0 24px 70px -30px oklch(0.24 0.05 18 / 38%);
+  --shadow-card: 0 1px 1px oklch(0.32 0.09 305 / 4%), 0 10px 30px -22px oklch(0.32 0.09 305 / 20%);
+  --shadow-raised: 0 1px 2px oklch(0.32 0.09 305 / 5%), 0 18px 42px -26px oklch(0.32 0.09 305 / 24%);
+  --shadow-overlay: 0 24px 70px -30px oklch(0.28 0.08 305 / 34%);
 }
 
 :root {
   --radius: 0.625rem;
 
-  /* Superfícies — marfim quente, quase papel */
-  --background: oklch(0.982 0.005 60);
-  --surface: oklch(0.968 0.008 55);
-  --foreground: oklch(0.255 0.022 22);
+  /* Superfícies — branco e lilás quase imperceptível (#FAF9FB / #FFFFFF) */
+  --background: oklch(0.981 0.004 300);
+  --surface: oklch(0.964 0.008 303);
+  --foreground: oklch(0.26 0.017 305);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.255 0.022 22);
+  --card-foreground: oklch(0.26 0.017 305);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.255 0.022 22);
+  --popover-foreground: oklch(0.26 0.017 305);
 
-  /* Marca — vinho rosé profundo, elegante e pouco saturado */
-  --primary: oklch(0.39 0.095 12);
-  --primary-foreground: oklch(0.985 0.005 60);
-  --primary-soft: oklch(0.93 0.022 12);
+  /* Marca — roxo MARIELA (#6F4A8E), escuro (#4B2E63), lilás claro (#F3EEF7) */
+  --primary: oklch(0.44 0.105 305);
+  --primary-foreground: oklch(0.995 0.002 300);
+  --primary-soft: oklch(0.955 0.014 305);
 
-  --secondary: oklch(0.955 0.01 45);
-  --secondary-foreground: oklch(0.33 0.035 20);
-  --muted: oklch(0.962 0.008 50);
-  --muted-foreground: oklch(0.53 0.018 32);
-  --accent: oklch(0.945 0.018 25);
-  --accent-foreground: oklch(0.33 0.05 18);
+  --secondary: oklch(0.955 0.012 305);
+  --secondary-foreground: oklch(0.32 0.075 305);
+  --muted: oklch(0.965 0.008 303);
+  --muted-foreground: oklch(0.52 0.02 305);
+  --accent: oklch(0.945 0.02 305);
+  --accent-foreground: oklch(0.32 0.075 305);
 
-  /* Feedback — dessaturado, sem alarme visual */
-  --destructive: oklch(0.52 0.16 22);
-  --destructive-foreground: oklch(0.985 0.005 60);
-  --success: oklch(0.53 0.075 158);
-  --success-foreground: oklch(0.985 0.005 60);
-  --warning: oklch(0.68 0.105 68);
-  --warning-foreground: oklch(0.3 0.045 55);
-  --info: oklch(0.55 0.055 235);
-  --info-foreground: oklch(0.985 0.005 60);
+  /* Feedback — funcionais, nunca substituídos pelo roxo */
+  --destructive: oklch(0.52 0.17 25);
+  --destructive-foreground: oklch(0.99 0.003 300);
+  --success: oklch(0.53 0.09 158);
+  --success-foreground: oklch(0.99 0.003 300);
+  --warning: oklch(0.72 0.13 70);
+  --warning-foreground: oklch(0.3 0.05 60);
+  --info: oklch(0.55 0.075 245);
+  --info-foreground: oklch(0.99 0.003 300);
 
-  /* Champagne — usado com parcimônia (promoções, marca) */
-  --gold: oklch(0.76 0.075 82);
-  --gold-foreground: oklch(0.34 0.045 62);
+  /* Acento de destaque — lilás (#9B7BB5), usado com parcimônia */
+  --gold: oklch(0.6 0.09 305);
+  --gold-foreground: oklch(0.34 0.09 305);
 
-  --border: oklch(0.912 0.008 50);
-  --border-strong: oklch(0.86 0.012 45);
-  --input: oklch(0.9 0.01 48);
-  --ring: oklch(0.52 0.085 14);
+  --border: oklch(0.9 0.012 305);
+  --border-strong: oklch(0.855 0.016 305);
+  --input: oklch(0.895 0.014 305);
+  --ring: oklch(0.5 0.1 305);
 
-  --chart-1: oklch(0.44 0.1 14);
-  --chart-2: oklch(0.68 0.085 58);
-  --chart-3: oklch(0.58 0.07 158);
-  --chart-4: oklch(0.76 0.075 82);
-  --chart-5: oklch(0.52 0.05 300);
+  --chart-1: oklch(0.44 0.105 305);
+  --chart-2: oklch(0.6 0.09 305);
+  --chart-3: oklch(0.72 0.055 305);
+  --chart-4: oklch(0.58 0.08 158);
+  --chart-5: oklch(0.72 0.12 70);
 
-  /* Sidebar — vinho quase preto com detalhe champagne */
-  --sidebar: oklch(0.215 0.028 18);
-  --sidebar-foreground: oklch(0.93 0.008 60);
-  --sidebar-primary: oklch(0.8 0.072 82);
-  --sidebar-primary-foreground: oklch(0.215 0.028 18);
-  --sidebar-accent: oklch(0.285 0.038 16);
-  --sidebar-accent-foreground: oklch(0.975 0.006 70);
-  --sidebar-border: oklch(0.3 0.026 18);
-  --sidebar-ring: oklch(0.8 0.072 82);
+  /* Sidebar — roxo escuro sofisticado com destaque lilás */
+  --sidebar: oklch(0.29 0.078 305);
+  --sidebar-foreground: oklch(0.945 0.008 305);
+  --sidebar-primary: oklch(0.86 0.045 305);
+  --sidebar-primary-foreground: oklch(0.29 0.078 305);
+  --sidebar-accent: oklch(0.36 0.082 305);
+  --sidebar-accent-foreground: oklch(0.99 0.004 305);
+  --sidebar-border: oklch(0.37 0.06 305);
+  --sidebar-ring: oklch(0.78 0.07 305);
 }
 
 @layer base {
