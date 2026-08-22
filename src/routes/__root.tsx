@@ -119,6 +119,11 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function RealtimeBridge() {
+  useRealtimeSync();
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
