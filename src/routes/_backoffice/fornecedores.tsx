@@ -30,6 +30,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { AtivoBadge, DataToolbar, Paginacao } from "@/components/common/data-toolbar";
+import { PainelFiltros } from "@/components/filtros/painel-filtros";
+import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
+import { OPCOES_STATUS, type GrupoFacetaDef } from "@/lib/filtros/facetas";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import {
   AvatarPessoa,
@@ -82,7 +85,7 @@ function FornecedoresPage() {
   const remover = useRemoverFornecedor();
 
   const [busca, setBusca] = useState("");
-  const [status, setStatus] = useState("todos");
+
   const [ordem, setOrdem] = useState<Ordenacao>("nome");
   const [pagina, setPagina] = useState(1);
   const [dialogAberto, setDialogAberto] = useState(false);
@@ -90,32 +93,75 @@ function FornecedoresPage() {
   const [paraExcluir, setParaExcluir] = useState<Fornecedor | null>(null);
   const [detalhe, setDetalhe] = useState<Fornecedor | null>(null);
 
-  const produtos = listaProdutos?.produtos ?? [];
+  const produtos = useMemo(() => listaProdutos?.produtos ?? [], [listaProdutos]);
 
   function produtosDo(fornecedorId: string) {
     return produtos.filter((produto) => produto.fornecedorId === fornecedorId);
   }
 
-  const filtrados = useMemo(() => {
+  const grupos = useMemo<GrupoFacetaDef<Fornecedor>[]>(
+    () => [
+      {
+        id: "status",
+        label: "Status",
+        opcoes: OPCOES_STATUS,
+        corresponde: (fornecedor, valor) =>
+          valor === "ativos" ? fornecedor.ativo : !fornecedor.ativo,
+      },
+      {
+        id: "vinculo",
+        label: "Produtos vinculados",
+        opcoes: [
+          { valor: "com", label: "Com produtos" },
+          { valor: "sem", label: "Sem produtos" },
+        ],
+        corresponde: (fornecedor, valor) => {
+          const quantidade = produtos.filter(
+            (produto) => produto.fornecedorId === fornecedor.id,
+          ).length;
+          return valor === "com" ? quantidade > 0 : quantidade === 0;
+        },
+      },
+      {
+        id: "dados",
+        label: "Dados cadastrais",
+        opcoes: [
+          { valor: "cnpj", label: "Com CNPJ" },
+          { valor: "email", label: "Com e-mail" },
+          { valor: "instagram", label: "Com Instagram" },
+        ],
+        corresponde: (fornecedor, valor) => {
+          if (valor === "cnpj") return Boolean(fornecedor.cnpj);
+          if (valor === "email") return Boolean(fornecedor.email);
+          return Boolean(fornecedor.instagram);
+        },
+      },
+    ],
+    [produtos],
+  );
+
+  const buscados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    const lista = (fornecedores ?? []).filter((fornecedor) => {
-      const casaTermo =
+    return (fornecedores ?? []).filter(
+      (fornecedor) =>
         !termo ||
         fornecedor.nome.toLowerCase().includes(termo) ||
         fornecedor.contato.toLowerCase().includes(termo) ||
         fornecedor.telefone.toLowerCase().includes(termo) ||
         fornecedor.email.toLowerCase().includes(termo) ||
-        fornecedor.cnpj.toLowerCase().includes(termo);
-      const casaStatus =
-        status === "todos" || (status === "ativos" ? fornecedor.ativo : !fornecedor.ativo);
-      return casaTermo && casaStatus;
-    });
-    const copia = [...lista];
+        fornecedor.cnpj.toLowerCase().includes(termo),
+    );
+  }, [fornecedores, busca]);
+
+  const filtragem = useFiltrosFacetados({ itens: buscados, grupos });
+
+  const filtrados = useMemo(() => {
+    const copia = [...filtragem.itensFiltrados];
     if (ordem === "nome") return copia.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
     if (ordem === "recentes") return copia.sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
     return copia.sort((a, b) => produtosDo(b.id).length - produtosDo(a.id).length);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fornecedores, busca, status, ordem, produtos]);
+  }, [filtragem.itensFiltrados, ordem, produtos]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -192,22 +238,6 @@ function FornecedoresPage() {
         }}
         placeholder="Buscar por nome, contato, telefone, e-mail ou CNPJ…"
       >
-        <Select
-          value={status}
-          onValueChange={(valor) => {
-            setStatus(valor);
-            setPagina(1);
-          }}
-        >
-          <SelectTrigger className="w-44" aria-label="Filtrar por status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os status</SelectItem>
-            <SelectItem value="ativos">Somente ativos</SelectItem>
-            <SelectItem value="inativos">Somente inativos</SelectItem>
-          </SelectContent>
-        </Select>
         <Select value={ordem} onValueChange={(valor) => setOrdem(valor as Ordenacao)}>
           <SelectTrigger className="w-52" aria-label="Ordenar fornecedores">
             <SelectValue />
@@ -219,6 +249,23 @@ function FornecedoresPage() {
           </SelectContent>
         </Select>
       </DataToolbar>
+
+      <PainelFiltros
+        grupos={filtragem.grupos}
+        totalSelecionados={filtragem.totalSelecionados}
+        onAlternar={(grupoId, valor) => {
+          filtragem.alternar(grupoId, valor);
+          setPagina(1);
+        }}
+        onLimparGrupo={filtragem.limparGrupo}
+        onLimparTudo={filtragem.limparTudo}
+        colunas={3}
+        resultado={
+          <span className="text-sm text-muted-foreground">
+            {filtrados.length} fornecedor(es) encontrado(s)
+          </span>
+        }
+      />
 
       {isPending ? (
         <GridSkeleton itens={8} />

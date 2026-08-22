@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -16,20 +15,16 @@ import {
 } from "@/components/ui/select";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { PromocaoDialog } from "@/components/produtos/promocao-dialog";
 import { ProdutoCard, ProdutoCardSkeleton } from "@/components/produtos/produto-card";
 import { useExcluirProduto, useProdutos } from "@/hooks/use-produtos";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useCampanhas, useColecoes, useFornecedores } from "@/hooks/use-cadastros";
+import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
+import { opcoesDe, opcoesDeValores, type GrupoFacetaDef } from "@/lib/filtros/facetas";
 import { mensagemDeErro } from "@/services/api/client";
-import type {
-  FiltroBooleano,
-  FiltroDisponibilidade,
-  OrdenarProdutoPor,
-  Ordem,
-  Produto,
-  ProdutoFiltros,
-} from "@/types/produto";
+import type { OrdenarProdutoPor, Ordem, Produto, ProdutoFiltros } from "@/types/produto";
 
 export const Route = createFileRoute("/_backoffice/produtos/")({
   ssr: false,
@@ -50,7 +45,6 @@ export const Route = createFileRoute("/_backoffice/produtos/")({
   component: ProdutosPage,
 });
 
-const TODOS = "todos";
 const POR_PAGINA = 12;
 
 type OrdenacaoValor =
@@ -80,13 +74,6 @@ const ORDENACOES: {
 function ProdutosPage() {
   const navigate = useNavigate();
   const [busca, setBusca] = useState("");
-  const [categoria, setCategoria] = useState(TODOS);
-  const [colecaoId, setColecaoId] = useState(TODOS);
-  const [campanhaId, setCampanhaId] = useState(TODOS);
-  const [fornecedorId, setFornecedorId] = useState(TODOS);
-  const [disponibilidade, setDisponibilidade] = useState<FiltroDisponibilidade>("todos");
-  const [promocao, setPromocao] = useState<FiltroBooleano>("todos");
-  const [novidade, setNovidade] = useState<FiltroBooleano>("todos");
   const [ordenacao, setOrdenacao] = useState<OrdenacaoValor>("nome-asc");
   const [pagina, setPagina] = useState(1);
 
@@ -103,62 +90,98 @@ function ProdutosPage() {
     const opcao = ORDENACOES.find((item) => item.valor === ordenacao) ?? ORDENACOES[0]!;
     return {
       busca: busca || undefined,
-      categoria: categoria === TODOS ? undefined : categoria,
-      colecaoId: colecaoId === TODOS ? undefined : colecaoId,
-      campanhaId: campanhaId === TODOS ? undefined : campanhaId,
-      fornecedorId: fornecedorId === TODOS ? undefined : fornecedorId,
-      disponibilidade,
-      promocao,
-      novidade,
       ordenarPor: opcao.campo,
       ordem: opcao.ordem,
     };
-  }, [
-    busca,
-    categoria,
-    colecaoId,
-    campanhaId,
-    fornecedorId,
-    disponibilidade,
-    promocao,
-    novidade,
-    ordenacao,
-  ]);
-
-  // Filtros/ordenação mudaram: volta para a primeira página.
-  useEffect(() => {
-    setPagina(1);
-  }, [filtros]);
+  }, [busca, ordenacao]);
 
   const { data, isPending, isError, error, refetch, isFetching } = useProdutos(filtros);
   const produtos = data?.produtos ?? [];
 
-  const total = produtos.length;
+  const grupos = useMemo<GrupoFacetaDef<Produto>[]>(
+    () => [
+      {
+        id: "categoria",
+        label: "Categoria",
+        opcoes: opcoesDeValores(configuracoes?.categorias),
+        corresponde: (produto, valor) => produto.categoria === valor,
+        placeholderBusca: "Buscar categoria…",
+      },
+      {
+        id: "colecao",
+        label: "Coleção",
+        opcoes: opcoesDe(colecoes),
+        corresponde: (produto, valor) => produto.colecaoId === valor,
+        placeholderBusca: "Buscar coleção…",
+      },
+      {
+        id: "campanha",
+        label: "Campanha",
+        opcoes: opcoesDe(campanhas),
+        corresponde: (produto, valor) => produto.campanhaId === valor,
+        placeholderBusca: "Buscar campanha…",
+      },
+      {
+        id: "fornecedor",
+        label: "Fornecedor",
+        opcoes: opcoesDe(fornecedores),
+        corresponde: (produto, valor) => produto.fornecedorId === valor,
+        placeholderBusca: "Buscar fornecedor…",
+      },
+      {
+        id: "estoque",
+        label: "Estoque",
+        opcoes: [
+          { valor: "disponivel", label: "Com estoque" },
+          { valor: "sem-estoque", label: "Sem estoque" },
+        ],
+        corresponde: (produto, valor) =>
+          valor === "disponivel" ? produto.quantidadeTotal > 0 : produto.quantidadeTotal === 0,
+      },
+      {
+        id: "promocao",
+        label: "Promoção",
+        opcoes: [
+          { valor: "sim", label: "Em promoção" },
+          { valor: "nao", label: "Sem promoção" },
+        ],
+        corresponde: (produto, valor) =>
+          valor === "sim" ? produto.ehPromocao : !produto.ehPromocao,
+      },
+      {
+        id: "novidade",
+        label: "Novidade",
+        opcoes: [
+          { valor: "sim", label: "Novidades" },
+          { valor: "nao", label: "Não novidades" },
+        ],
+        corresponde: (produto, valor) =>
+          valor === "sim" ? produto.ehNovidade : !produto.ehNovidade,
+      },
+    ],
+    [configuracoes?.categorias, colecoes, campanhas, fornecedores],
+  );
+
+  const filtragem = useFiltrosFacetados({ itens: produtos, grupos });
+  const visiveisTotal = filtragem.itensFiltrados;
+
+  // Busca, ordenação ou filtros mudaram: volta para a primeira página.
+  useEffect(() => {
+    setPagina(1);
+  }, [filtros, filtragem.selecao]);
+
+  const total = visiveisTotal.length;
   const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
   const inicio = (paginaAtual - 1) * POR_PAGINA;
   // Recorte local por página; ao conectar a API real basta enviar page/limit.
-  const visiveis = produtos.slice(inicio, inicio + POR_PAGINA);
+  const visiveis = visiveisTotal.slice(inicio, inicio + POR_PAGINA);
 
-  const temFiltros =
-    Boolean(busca) ||
-    categoria !== TODOS ||
-    colecaoId !== TODOS ||
-    campanhaId !== TODOS ||
-    fornecedorId !== TODOS ||
-    disponibilidade !== "todos" ||
-    promocao !== "todos" ||
-    novidade !== "todos";
+  const temFiltros = Boolean(busca) || filtragem.temSelecao;
 
   function limparFiltros() {
     setBusca("");
-    setCategoria(TODOS);
-    setColecaoId(TODOS);
-    setCampanhaId(TODOS);
-    setFornecedorId(TODOS);
-    setDisponibilidade("todos");
-    setPromocao("todos");
-    setNovidade("todos");
+    filtragem.limparTudo();
   }
 
   async function confirmarExclusao() {
@@ -184,8 +207,16 @@ function ProdutosPage() {
         </Button>
       }
     >
-      <Card className="mb-6 border-border bg-surface/60">
-        <CardContent className="space-y-3 py-5">
+      <PainelFiltros
+        grupos={filtragem.grupos}
+        totalSelecionados={filtragem.totalSelecionados}
+        onAlternar={filtragem.alternar}
+        onLimparGrupo={filtragem.limparGrupo}
+        onLimparTudo={limparFiltros}
+        resultado={
+          <span className="text-sm text-muted-foreground">{total} produto(s) encontrado(s)</span>
+        }
+        cabecalho={
           <div className="flex flex-col gap-3 lg:flex-row">
             <div className="relative lg:max-w-sm lg:flex-1">
               <Search
@@ -200,7 +231,6 @@ function ProdutosPage() {
                 onChange={(event) => setBusca(event.target.value)}
               />
             </div>
-
             <div className="flex flex-1 items-center justify-end gap-2">
               <Select
                 value={ordenacao}
@@ -217,115 +247,10 @@ function ProdutosPage() {
                   ))}
                 </SelectContent>
               </Select>
-              {temFiltros ? (
-                <Button variant="ghost" onClick={limparFiltros}>
-                  Limpar filtros
-                </Button>
-              ) : null}
             </div>
           </div>
-
-          <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-4">
-            <Select value={categoria} onValueChange={setCategoria}>
-              <SelectTrigger aria-label="Filtrar por categoria">
-                <SelectValue placeholder="Categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={TODOS}>Todas as categorias</SelectItem>
-                {(configuracoes?.categorias ?? []).map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={colecaoId} onValueChange={setColecaoId}>
-              <SelectTrigger aria-label="Filtrar por coleção">
-                <SelectValue placeholder="Coleção" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={TODOS}>Todas as coleções</SelectItem>
-                {(colecoes ?? []).map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={campanhaId} onValueChange={setCampanhaId}>
-              <SelectTrigger aria-label="Filtrar por campanha">
-                <SelectValue placeholder="Campanha" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={TODOS}>Todas as campanhas</SelectItem>
-                {(campanhas ?? []).map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={fornecedorId} onValueChange={setFornecedorId}>
-              <SelectTrigger aria-label="Filtrar por fornecedor">
-                <SelectValue placeholder="Fornecedor" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={TODOS}>Todos os fornecedores</SelectItem>
-                {(fornecedores ?? []).map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={disponibilidade}
-              onValueChange={(valor) => setDisponibilidade(valor as FiltroDisponibilidade)}
-            >
-              <SelectTrigger aria-label="Filtrar por estoque">
-                <SelectValue placeholder="Estoque" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Estoque: todos</SelectItem>
-                <SelectItem value="disponivel">Em estoque</SelectItem>
-                <SelectItem value="sem-estoque">Sem estoque</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={promocao}
-              onValueChange={(valor) => setPromocao(valor as FiltroBooleano)}
-            >
-              <SelectTrigger aria-label="Filtrar por promoção">
-                <SelectValue placeholder="Promoção" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Promoção: todas</SelectItem>
-                <SelectItem value="sim">Em promoção</SelectItem>
-                <SelectItem value="nao">Sem promoção</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={novidade}
-              onValueChange={(valor) => setNovidade(valor as FiltroBooleano)}
-            >
-              <SelectTrigger aria-label="Filtrar por novidade">
-                <SelectValue placeholder="Novidade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Novidade: todas</SelectItem>
-                <SelectItem value="sim">Novidades</SelectItem>
-                <SelectItem value="nao">Não novidades</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+        }
+      />
 
       {isPending ? (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

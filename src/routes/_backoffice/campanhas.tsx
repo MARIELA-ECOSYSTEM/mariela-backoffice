@@ -6,6 +6,9 @@ import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
 import { CardsSkeleton, DataToolbar, NotaDemonstracao } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
+import { PainelFiltros } from "@/components/filtros/painel-filtros";
+import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
+import { OPCOES_STATUS, type GrupoFacetaDef } from "@/lib/filtros/facetas";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PeriodoCard } from "@/components/cadastros/periodo-card";
 import { PeriodoDialog, type PeriodoFormValues } from "@/components/cadastros/periodo-dialog";
@@ -52,7 +55,50 @@ function CampanhasPage() {
   const [emEdicao, setEmEdicao] = useState<Campanha | null>(null);
   const [paraExcluir, setParaExcluir] = useState<Campanha | null>(null);
 
-  const filtradas = useMemo(() => {
+  const listaProdutos = useMemo(() => produtos?.produtos ?? [], [produtos]);
+
+  const grupos = useMemo<GrupoFacetaDef<Campanha>[]>(
+    () => [
+      {
+        id: "status",
+        label: "Status",
+        opcoes: OPCOES_STATUS,
+        corresponde: (campanha, valor) => (valor === "ativos" ? campanha.ativo : !campanha.ativo),
+      },
+      {
+        id: "vigencia",
+        label: "Vigência",
+        opcoes: [
+          { valor: "vigente", label: "Em vigência" },
+          { valor: "futura", label: "Programada" },
+          { valor: "encerrada", label: "Encerrada" },
+        ],
+        corresponde: (campanha, valor) => {
+          const hoje = new Date().toISOString().slice(0, 10);
+          if (valor === "vigente") return campanha.inicio <= hoje && campanha.fim >= hoje;
+          if (valor === "futura") return campanha.inicio > hoje;
+          return campanha.fim < hoje;
+        },
+      },
+      {
+        id: "produtos",
+        label: "Produtos vinculados",
+        opcoes: [
+          { valor: "com", label: "Com produtos" },
+          { valor: "sem", label: "Sem produtos" },
+        ],
+        corresponde: (campanha, valor) => {
+          const quantidade = listaProdutos.filter(
+            (produto) => produto.campanhaId === campanha.id,
+          ).length;
+          return valor === "com" ? quantidade > 0 : quantidade === 0;
+        },
+      },
+    ],
+    [listaProdutos],
+  );
+
+  const buscadas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     if (!termo) return campanhas ?? [];
     return (campanhas ?? []).filter(
@@ -61,6 +107,9 @@ function CampanhasPage() {
         campanha.descricao.toLowerCase().includes(termo),
     );
   }, [campanhas, busca]);
+
+  const filtragem = useFiltrosFacetados({ itens: buscadas, grupos });
+  const filtradas = filtragem.itensFiltrados;
 
   const valoresIniciais: PeriodoFormValues = emEdicao
     ? {
@@ -122,6 +171,20 @@ function CampanhasPage() {
       </NotaDemonstracao>
 
       <DataToolbar busca={busca} onBuscaChange={setBusca} placeholder="Buscar campanha…" />
+
+      <PainelFiltros
+        grupos={filtragem.grupos}
+        totalSelecionados={filtragem.totalSelecionados}
+        onAlternar={filtragem.alternar}
+        onLimparGrupo={filtragem.limparGrupo}
+        onLimparTudo={filtragem.limparTudo}
+        colunas={3}
+        resultado={
+          <span className="text-sm text-muted-foreground">
+            {filtradas.length} campanha(s) encontrada(s)
+          </span>
+        }
+      />
 
       {isPending ? (
         <CardsSkeleton itens={6} />

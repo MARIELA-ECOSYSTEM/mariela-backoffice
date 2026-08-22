@@ -1,17 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Search, Settings2 } from "lucide-react";
 import { Page } from "@/components/layout/page";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -22,9 +15,11 @@ import {
 } from "@/components/ui/table";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/common/states";
 import { StatusEstoqueBadge } from "@/components/common/status-badge";
+import { PainelFiltros } from "@/components/filtros/painel-filtros";
+import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
+import { opcoesDeValores, type GrupoFacetaDef } from "@/lib/filtros/facetas";
 import { useEstoque } from "@/hooks/use-estoque";
 import { formatarData } from "@/utils/format";
-import type { FiltroDisponibilidade } from "@/types/produto";
 
 export const Route = createFileRoute("/_backoffice/estoque/")({
   ssr: false,
@@ -42,19 +37,57 @@ export const Route = createFileRoute("/_backoffice/estoque/")({
   component: EstoquePage,
 });
 
+type ItemEstoque = NonNullable<ReturnType<typeof useEstoque>["data"]>[number];
+
 function EstoquePage() {
   const [busca, setBusca] = useState("");
-  const [disponibilidade, setDisponibilidade] = useState<FiltroDisponibilidade>("todos");
   const { data, isPending, isError, error, refetch } = useEstoque({
     busca: busca || undefined,
-    disponibilidade,
   });
-  const itens = data ?? [];
-  const temFiltros = Boolean(busca) || disponibilidade !== "todos";
+  const dados = useMemo(() => data ?? [], [data]);
+
+  const grupos = useMemo<GrupoFacetaDef<ItemEstoque>[]>(() => {
+    const categorias = Array.from(new Set(dados.map((item) => item.categoria))).sort((a, b) =>
+      a.localeCompare(b, "pt-BR"),
+    );
+    return [
+      {
+        id: "disponibilidade",
+        label: "Disponibilidade",
+        opcoes: [
+          { valor: "disponivel", label: "Disponível" },
+          { valor: "sem-estoque", label: "Sem estoque" },
+        ],
+        corresponde: (item, valor) =>
+          valor === "disponivel" ? item.quantidadeTotal > 0 : item.quantidadeTotal === 0,
+      },
+      {
+        id: "categoria",
+        label: "Categoria",
+        opcoes: opcoesDeValores(categorias),
+        corresponde: (item, valor) => item.categoria === valor,
+        placeholderBusca: "Buscar categoria…",
+      },
+      {
+        id: "variantes",
+        label: "Variantes",
+        opcoes: [
+          { valor: "com", label: "Com variantes" },
+          { valor: "sem", label: "Sem variantes" },
+        ],
+        corresponde: (item, valor) =>
+          valor === "com" ? item.totalVariantes > 0 : item.totalVariantes === 0,
+      },
+    ];
+  }, [dados]);
+
+  const filtragem = useFiltrosFacetados({ itens: dados, grupos });
+  const itens = filtragem.itensFiltrados;
+  const temFiltros = Boolean(busca) || filtragem.temSelecao;
 
   function limpar() {
     setBusca("");
-    setDisponibilidade("todos");
+    filtragem.limparTudo();
   }
 
   return (
@@ -63,8 +96,17 @@ function EstoquePage() {
       breadcrumbs={[{ label: "Catálogo" }, { label: "Estoque" }]}
       descricao="O estoque pertence ao produto: total, variantes por cor e quantidade por tamanho. As alterações são feitas por entrada e saída."
     >
-      <Card className="mb-6 border-border bg-surface/60">
-        <CardContent className="flex flex-wrap gap-3 py-5">
+      <PainelFiltros
+        grupos={filtragem.grupos}
+        totalSelecionados={filtragem.totalSelecionados}
+        onAlternar={filtragem.alternar}
+        onLimparGrupo={filtragem.limparGrupo}
+        onLimparTudo={limpar}
+        colunas={3}
+        resultado={
+          <span className="text-sm text-muted-foreground">{itens.length} produto(s) no filtro</span>
+        }
+        cabecalho={
           <div className="relative min-w-64 flex-1">
             <Search
               aria-hidden
@@ -78,26 +120,8 @@ function EstoquePage() {
               onChange={(event) => setBusca(event.target.value)}
             />
           </div>
-          <Select
-            value={disponibilidade}
-            onValueChange={(valor) => setDisponibilidade(valor as FiltroDisponibilidade)}
-          >
-            <SelectTrigger className="w-56" aria-label="Filtrar por disponibilidade">
-              <SelectValue placeholder="Disponibilidade" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Disponibilidade: todas</SelectItem>
-              <SelectItem value="disponivel">Disponível</SelectItem>
-              <SelectItem value="sem-estoque">Sem estoque</SelectItem>
-            </SelectContent>
-          </Select>
-          {temFiltros ? (
-            <Button variant="ghost" onClick={limpar}>
-              Limpar filtros
-            </Button>
-          ) : null}
-        </CardContent>
-      </Card>
+        }
+      />
 
       {isPending ? (
         <TableSkeleton linhas={8} colunas={5} />
