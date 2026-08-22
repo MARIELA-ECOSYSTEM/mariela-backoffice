@@ -25,6 +25,9 @@ import {
   Paginacao,
 } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
+import { PainelFiltros } from "@/components/filtros/painel-filtros";
+import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
+import { OPCOES_STATUS, type GrupoFacetaDef } from "@/lib/filtros/facetas";
 import {
   AvatarPessoa,
   GridSkeleton,
@@ -82,7 +85,7 @@ function VendedoresPage() {
   const remover = useRemoverVendedor();
 
   const [busca, setBusca] = useState("");
-  const [status, setStatus] = useState("todos");
+
   const [ordem, setOrdem] = useState<Ordenacao>("nome");
   const [pagina, setPagina] = useState(1);
   const [dialogAberto, setDialogAberto] = useState(false);
@@ -91,22 +94,56 @@ function VendedoresPage() {
   const [paraExcluir, setParaExcluir] = useState<Vendedor | null>(null);
   const [detalhe, setDetalhe] = useState<Vendedor | null>(null);
 
-  const filtrados = useMemo(() => {
+  const grupos = useMemo<GrupoFacetaDef<Vendedor>[]>(
+    () => [
+      {
+        id: "status",
+        label: "Status",
+        opcoes: OPCOES_STATUS,
+        corresponde: (vendedor, valor) => (valor === "ativos" ? vendedor.ativo : !vendedor.ativo),
+      },
+      {
+        id: "nascimento",
+        label: "Aniversário",
+        opcoes: [
+          { valor: "com", label: "Com data cadastrada" },
+          { valor: "sem", label: "Sem data cadastrada" },
+        ],
+        corresponde: (vendedor, valor) =>
+          valor === "com" ? Boolean(vendedor.dataNascimento) : !vendedor.dataNascimento,
+      },
+      {
+        id: "observacao",
+        label: "Observação",
+        opcoes: [
+          { valor: "com", label: "Com observação" },
+          { valor: "sem", label: "Sem observação" },
+        ],
+        corresponde: (vendedor, valor) =>
+          valor === "com" ? Boolean(vendedor.observacao) : !vendedor.observacao,
+      },
+    ],
+    [],
+  );
+
+  const buscados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    const lista = (vendedores ?? []).filter((vendedor) => {
-      const casaTermo =
+    return (vendedores ?? []).filter(
+      (vendedor) =>
         !termo ||
         vendedor.nome.toLowerCase().includes(termo) ||
-        vendedor.telefone.toLowerCase().includes(termo);
-      const casaStatus =
-        status === "todos" || (status === "ativos" ? vendedor.ativo : !vendedor.ativo);
-      return casaTermo && casaStatus;
-    });
-    const copia = [...lista];
+        vendedor.telefone.toLowerCase().includes(termo),
+    );
+  }, [vendedores, busca]);
+
+  const filtragem = useFiltrosFacetados({ itens: buscados, grupos });
+
+  const filtrados = useMemo(() => {
+    const copia = [...filtragem.itensFiltrados];
     return ordem === "nome"
       ? copia.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
       : copia.sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
-  }, [vendedores, busca, status, ordem]);
+  }, [filtragem.itensFiltrados, ordem]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -207,22 +244,6 @@ function VendedoresPage() {
         }}
         placeholder="Buscar por nome ou telefone…"
       >
-        <Select
-          value={status}
-          onValueChange={(valor) => {
-            setStatus(valor);
-            setPagina(1);
-          }}
-        >
-          <SelectTrigger className="w-44" aria-label="Filtrar por status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os status</SelectItem>
-            <SelectItem value="ativos">Somente ativos</SelectItem>
-            <SelectItem value="inativos">Somente inativos</SelectItem>
-          </SelectContent>
-        </Select>
         <Select value={ordem} onValueChange={(valor) => setOrdem(valor as Ordenacao)}>
           <SelectTrigger className="w-52" aria-label="Ordenar vendedores">
             <SelectValue />
@@ -233,6 +254,23 @@ function VendedoresPage() {
           </SelectContent>
         </Select>
       </DataToolbar>
+
+      <PainelFiltros
+        grupos={filtragem.grupos}
+        totalSelecionados={filtragem.totalSelecionados}
+        onAlternar={(grupoId, valor) => {
+          filtragem.alternar(grupoId, valor);
+          setPagina(1);
+        }}
+        onLimparGrupo={filtragem.limparGrupo}
+        onLimparTudo={filtragem.limparTudo}
+        colunas={3}
+        resultado={
+          <span className="text-sm text-muted-foreground">
+            {filtrados.length} vendedor(as) encontrada(s)
+          </span>
+        }
+      />
 
       {isPending ? (
         <GridSkeleton itens={8} />

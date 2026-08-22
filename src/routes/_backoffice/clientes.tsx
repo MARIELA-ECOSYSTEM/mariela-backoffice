@@ -25,6 +25,9 @@ import {
   Paginacao,
 } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
+import { PainelFiltros } from "@/components/filtros/painel-filtros";
+import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
+import { OPCOES_STATUS, type GrupoFacetaDef } from "@/lib/filtros/facetas";
 import {
   AvatarPessoa,
   GridSkeleton,
@@ -82,7 +85,7 @@ function ClientesPage() {
   const remover = useRemoverCliente();
 
   const [busca, setBusca] = useState("");
-  const [status, setStatus] = useState("todos");
+
   const [ordem, setOrdem] = useState<Ordenacao>("nome");
   const [pagina, setPagina] = useState(1);
   const [dialogAberto, setDialogAberto] = useState(false);
@@ -90,19 +93,53 @@ function ClientesPage() {
   const [paraExcluir, setParaExcluir] = useState<Cliente | null>(null);
   const [detalhe, setDetalhe] = useState<Cliente | null>(null);
 
-  const filtrados = useMemo(() => {
+  const grupos = useMemo<GrupoFacetaDef<Cliente>[]>(
+    () => [
+      {
+        id: "status",
+        label: "Status",
+        opcoes: OPCOES_STATUS,
+        corresponde: (cliente, valor) => (valor === "ativos" ? cliente.ativo : !cliente.ativo),
+      },
+      {
+        id: "nascimento",
+        label: "Aniversário",
+        opcoes: [
+          { valor: "com", label: "Com data cadastrada" },
+          { valor: "sem", label: "Sem data cadastrada" },
+        ],
+        corresponde: (cliente, valor) =>
+          valor === "com" ? Boolean(cliente.dataNascimento) : !cliente.dataNascimento,
+      },
+      {
+        id: "observacao",
+        label: "Observação",
+        opcoes: [
+          { valor: "com", label: "Com observação" },
+          { valor: "sem", label: "Sem observação" },
+        ],
+        corresponde: (cliente, valor) =>
+          valor === "com" ? Boolean(cliente.observacao) : !cliente.observacao,
+      },
+    ],
+    [],
+  );
+
+  const buscados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    const lista = (clientes ?? []).filter((cliente) => {
-      const casaTermo =
+    return (clientes ?? []).filter(
+      (cliente) =>
         !termo ||
         cliente.nome.toLowerCase().includes(termo) ||
-        cliente.telefone.toLowerCase().includes(termo);
-      const casaStatus =
-        status === "todos" || (status === "ativos" ? cliente.ativo : !cliente.ativo);
-      return casaTermo && casaStatus;
-    });
-    return ordenar(lista, ordem);
-  }, [clientes, busca, status, ordem]);
+        cliente.telefone.toLowerCase().includes(termo),
+    );
+  }, [clientes, busca]);
+
+  const filtragem = useFiltrosFacetados({ itens: buscados, grupos });
+  const filtrados = useMemo(
+    () => ordenar(filtragem.itensFiltrados, ordem),
+    [filtragem.itensFiltrados, ordem],
+  );
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -184,22 +221,6 @@ function ClientesPage() {
         }}
         placeholder="Buscar por nome ou telefone…"
       >
-        <Select
-          value={status}
-          onValueChange={(valor) => {
-            setStatus(valor);
-            setPagina(1);
-          }}
-        >
-          <SelectTrigger className="w-44" aria-label="Filtrar por status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os status</SelectItem>
-            <SelectItem value="ativos">Somente ativos</SelectItem>
-            <SelectItem value="inativos">Somente inativos</SelectItem>
-          </SelectContent>
-        </Select>
         <Select value={ordem} onValueChange={(valor) => setOrdem(valor as Ordenacao)}>
           <SelectTrigger className="w-52" aria-label="Ordenar clientes">
             <SelectValue />
@@ -211,6 +232,23 @@ function ClientesPage() {
           </SelectContent>
         </Select>
       </DataToolbar>
+
+      <PainelFiltros
+        grupos={filtragem.grupos}
+        totalSelecionados={filtragem.totalSelecionados}
+        onAlternar={(grupoId, valor) => {
+          filtragem.alternar(grupoId, valor);
+          setPagina(1);
+        }}
+        onLimparGrupo={filtragem.limparGrupo}
+        onLimparTudo={filtragem.limparTudo}
+        colunas={3}
+        resultado={
+          <span className="text-sm text-muted-foreground">
+            {filtrados.length} cliente(s) encontrada(s)
+          </span>
+        }
+      />
 
       {isPending ? (
         <GridSkeleton itens={8} />

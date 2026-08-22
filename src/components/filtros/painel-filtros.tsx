@@ -1,0 +1,78 @@
+import type { ReactNode } from "react";
+import { SlidersHorizontal } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { FilterGroup } from "@/components/filtros/filter-group";
+import type { GrupoFacetaRenderizavel } from "@/lib/filtros/facetas";
+import { cn } from "@/lib/utils";
+
+/**
+ * Painel padrão de filtros com contagem. Deve ser usado por TODAS as páginas
+ * do backoffice que tenham filtros de seleção múltipla.
+ */
+export function PainelFiltros({
+  grupos,
+  totalSelecionados,
+  onAlternar,
+  onLimparGrupo,
+  onLimparTudo,
+  colunas = 4,
+  cabecalho,
+  resultado,
+}: {
+  grupos: GrupoFacetaRenderizavel[];
+  totalSelecionados: number;
+  onAlternar: (grupoId: string, valor: string) => void;
+  onLimparGrupo: (grupoId: string) => void;
+  onLimparTudo: () => void;
+  colunas?: 2 | 3 | 4;
+  /** Conteúdo extra no topo (busca principal, ordenação…). */
+  cabecalho?: ReactNode;
+  /** Total de resultados da pesquisa — distinto das contagens das opções. */
+  resultado?: ReactNode;
+}) {
+  const gridColunas =
+    colunas === 2
+      ? "sm:grid-cols-2"
+      : colunas === 3
+        ? "sm:grid-cols-2 lg:grid-cols-3"
+        : "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+
+  return (
+    <Card className="mb-6 border-border bg-surface/60">
+      <CardContent className="space-y-4 py-5">
+        {cabecalho}
+
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-4">
+          <span className="flex items-center gap-2 font-brand text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground">
+            <SlidersHorizontal aria-hidden className="size-3.5 text-primary" />
+            Filtros
+            {totalSelecionados > 0 ? (
+              <Badge variant="outline">{totalSelecionados} selecionado(s)</Badge>
+            ) : null}
+          </span>
+          <div className="flex items-center gap-3">
+            {resultado}
+            {totalSelecionados > 0 ? (
+              <Button variant="ghost" size="sm" onClick={onLimparTudo}>
+                Limpar filtros
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className={cn("grid gap-x-6 gap-y-5", gridColunas)}>
+          {grupos.map((grupo) => (
+            <FilterGroup
+              key={grupo.id}
+              grupo={grupo}
+              onAlternar={onAlternar}
+              onLimpar={onLimparGrupo}
+            />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
