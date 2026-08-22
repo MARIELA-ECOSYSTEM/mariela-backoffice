@@ -296,32 +296,32 @@ function ProdutosPage() {
               </SelectContent>
             </Select>
 
-              <Select
-                value={promocao}
-                onValueChange={(valor) => setPromocao(valor as FiltroBooleano)}
-              >
-                <SelectTrigger aria-label="Filtrar por promoção">
-                  <SelectValue placeholder="Promoção" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Promoção: todas</SelectItem>
-                  <SelectItem value="sim">Em promoção</SelectItem>
-                  <SelectItem value="nao">Sem promoção</SelectItem>
-                </SelectContent>
-              </Select>
+            <Select
+              value={promocao}
+              onValueChange={(valor) => setPromocao(valor as FiltroBooleano)}
+            >
+              <SelectTrigger aria-label="Filtrar por promoção">
+                <SelectValue placeholder="Promoção" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Promoção: todas</SelectItem>
+                <SelectItem value="sim">Em promoção</SelectItem>
+                <SelectItem value="nao">Sem promoção</SelectItem>
+              </SelectContent>
+            </Select>
 
-              <Select
-                value={novidade}
-                onValueChange={(valor) => setNovidade(valor as FiltroBooleano)}
-              >
-                <SelectTrigger aria-label="Filtrar por novidade">
-                  <SelectValue placeholder="Novidade" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Novidade: todas</SelectItem>
-                  <SelectItem value="sim">Novidades</SelectItem>
-                  <SelectItem value="nao">Não novidades</SelectItem>
-                </SelectContent>
+            <Select
+              value={novidade}
+              onValueChange={(valor) => setNovidade(valor as FiltroBooleano)}
+            >
+              <SelectTrigger aria-label="Filtrar por novidade">
+                <SelectValue placeholder="Novidade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Novidade: todas</SelectItem>
+                <SelectItem value="sim">Novidades</SelectItem>
+                <SelectItem value="nao">Não novidades</SelectItem>
+              </SelectContent>
             </Select>
           </div>
         </CardContent>
