@@ -1,5 +1,11 @@
 import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
+import {
+  calcularFacetasApi,
+  filtrarPorSelecao,
+  lerSelecaoDaQuery,
+} from "@/lib/filtros/facetas-servidor";
+import { facetasProduto } from "@/lib/filtros/produtos-facetas";
 import type { ApiFieldError } from "@/types/api";
 import { agora, calcularMargem, clonar, db, gerarId, precoFinal, recalcularProduto } from "./db";
 import type { Produto, ProdutoPayload, PromocaoRequest } from "@/types/produto";
