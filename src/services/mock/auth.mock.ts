@@ -27,7 +27,11 @@ export function registerAuthMocks(): void {
       if (!payload.senha) errors.push({ field: "senha", message: "Senha é obrigatória." });
       if (errors.length) throw ApiError.validation("Dados inválidos.", errors);
 
-      if (payload.usuario !== CREDENCIAIS.usuario || payload.senha !== CREDENCIAIS.senha) {
+      const usuarioInformado = (payload.usuario ?? "").trim().toLowerCase();
+      if (
+        usuarioInformado !== CREDENCIAIS.usuario.toLowerCase() ||
+        payload.senha !== CREDENCIAIS.senha
+      ) {
         throw ApiError.unauthorized("Usuário ou senha inválidos.");
       }
 
