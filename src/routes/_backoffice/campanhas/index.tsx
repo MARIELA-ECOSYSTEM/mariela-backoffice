@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
@@ -8,11 +8,16 @@ import { CardsSkeleton, DataToolbar, NotaDemonstracao } from "@/components/commo
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import { OPCOES_STATUS, type GrupoFacetaDef } from "@/lib/filtros/facetas";
+import type { GrupoFacetaDef } from "@/lib/filtros/facetas";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PeriodoCard } from "@/components/cadastros/periodo-card";
-import { PeriodoDialog, type PeriodoFormValues } from "@/components/cadastros/periodo-dialog";
 import {
+  PERIODO_VALORES_PADRAO,
+  PeriodoDialog,
+  type PeriodoFormValues,
+} from "@/components/cadastros/periodo-dialog";
+import {
+  useAlterarStatusCampanha,
   useAtualizarCampanha,
   useCampanhas,
   useCriarCampanha,
@@ -20,6 +25,7 @@ import {
 } from "@/hooks/use-cadastros";
 import { useProdutos } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
+import { OPCOES_BANNER, OPCOES_DESTAQUE, OPCOES_VIGENCIA, statusVigencia } from "@/utils/vitrine";
 import type { Campanha } from "@/types/campanha";
 
 export const Route = createFileRoute("/_backoffice/campanhas/")({
@@ -27,27 +33,29 @@ export const Route = createFileRoute("/_backoffice/campanhas/")({
   head: () => ({
     meta: [
       { title: "Campanhas — MARIELA Backoffice" },
-      { name: "description", content: "Campanhas da loja Mariela com período e status." },
+      {
+        name: "description",
+        content: "Campanhas da loja Mariela com período, banner e produtos vinculados.",
+      },
       { property: "og:title", content: "Campanhas — MARIELA Backoffice" },
-      { property: "og:description", content: "Campanhas da loja Mariela com período e status." },
+      {
+        property: "og:description",
+        content: "Campanhas da loja Mariela com período, banner e produtos vinculados.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: CampanhasPage,
 });
 
-const VALORES_PADRAO: PeriodoFormValues = {
-  nome: "",
-  descricao: "",
-  inicio: new Date().toISOString().slice(0, 10),
-  fim: new Date().toISOString().slice(0, 10),
-  ativo: true,
-};
-
 function CampanhasPage() {
+  const navigate = useNavigate();
   const { data: campanhas, isPending, isError, error, refetch } = useCampanhas();
   const { data: produtos } = useProdutos({});
   const criar = useCriarCampanha();
   const atualizar = useAtualizarCampanha();
+  const alterarStatus = useAlterarStatusCampanha();
   const remover = useRemoverCampanha();
 
   const [busca, setBusca] = useState("");
@@ -60,25 +68,23 @@ function CampanhasPage() {
   const grupos = useMemo<GrupoFacetaDef<Campanha>[]>(
     () => [
       {
-        id: "status",
-        label: "Status",
-        opcoes: OPCOES_STATUS,
-        corresponde: (campanha, valor) => (valor === "ativos" ? campanha.ativo : !campanha.ativo),
+        id: "situacao",
+        label: "Situação",
+        opcoes: OPCOES_VIGENCIA,
+        corresponde: (campanha, valor) => statusVigencia(campanha) === valor,
       },
       {
-        id: "vigencia",
-        label: "Vigência",
-        opcoes: [
-          { valor: "vigente", label: "Em vigência" },
-          { valor: "futura", label: "Programada" },
-          { valor: "encerrada", label: "Encerrada" },
-        ],
-        corresponde: (campanha, valor) => {
-          const hoje = new Date().toISOString().slice(0, 10);
-          if (valor === "vigente") return campanha.inicio <= hoje && campanha.fim >= hoje;
-          if (valor === "futura") return campanha.inicio > hoje;
-          return campanha.fim < hoje;
-        },
+        id: "destaque",
+        label: "Destaque",
+        opcoes: OPCOES_DESTAQUE,
+        corresponde: (campanha, valor) =>
+          valor === "sim" ? campanha.destaque : !campanha.destaque,
+      },
+      {
+        id: "banner",
+        label: "Banner",
+        opcoes: OPCOES_BANNER,
+        corresponde: (campanha, valor) => (valor === "sim" ? campanha.banner : !campanha.banner),
       },
       {
         id: "produtos",
@@ -104,7 +110,8 @@ function CampanhasPage() {
     return (campanhas ?? []).filter(
       (campanha) =>
         campanha.nome.toLowerCase().includes(termo) ||
-        campanha.descricao.toLowerCase().includes(termo),
+        campanha.descricao.toLowerCase().includes(termo) ||
+        campanha.codigo.toLowerCase().includes(termo),
     );
   }, [campanhas, busca]);
 
@@ -118,8 +125,12 @@ function CampanhasPage() {
         inicio: emEdicao.inicio,
         fim: emEdicao.fim,
         ativo: emEdicao.ativo,
+        destaque: emEdicao.destaque,
+        banner: emEdicao.banner,
+        fotoDestaque: emEdicao.fotoDestaque ?? "",
+        fotoBanner: emEdicao.fotoBanner ?? "",
       }
-    : VALORES_PADRAO;
+    : PERIODO_VALORES_PADRAO;
 
   function abrirNova() {
     setEmEdicao(null);
@@ -138,6 +149,15 @@ function CampanhasPage() {
     }
   }
 
+  async function alternarStatus(campanha: Campanha) {
+    try {
+      await alterarStatus.mutateAsync({ id: campanha.id, ativo: !campanha.ativo });
+      toast.success(campanha.ativo ? "Campanha inativada." : "Campanha ativada.");
+    } catch (err) {
+      toast.error(mensagemDeErro(err, "Não foi possível alterar o status."));
+    }
+  }
+
   async function excluir(campanha: Campanha) {
     try {
       await remover.mutateAsync(campanha.id);
@@ -150,14 +170,14 @@ function CampanhasPage() {
   }
 
   function contarProdutos(campanhaId: string): number {
-    return (produtos?.produtos ?? []).filter((produto) => produto.campanhaId === campanhaId).length;
+    return listaProdutos.filter((produto) => produto.campanhaId === campanhaId).length;
   }
 
   return (
     <Page
       titulo="Campanhas"
       breadcrumbs={[{ label: "Catálogo" }, { label: "Campanhas" }]}
-      descricao="Ações de divulgação com período definido. A relação com produtos acontece por produto.campanhaId."
+      descricao="Ações de comunicação e venda por período, com banners preparados para a vitrine virtual."
       acoes={
         <Button onClick={abrirNova}>
           <Plus aria-hidden className="size-4" />
@@ -167,10 +187,14 @@ function CampanhasPage() {
     >
       <NotaDemonstracao>
         As campanhas são servidas pela camada mock preparada para os contratos{" "}
-        <code>/campanhas</code> da futura API. Nenhuma regra de desconto é aplicada aqui.
+        <code>/campanhas</code> da futura API.
       </NotaDemonstracao>
 
-      <DataToolbar busca={busca} onBuscaChange={setBusca} placeholder="Buscar campanha…" />
+      <DataToolbar
+        busca={busca}
+        onBuscaChange={setBusca}
+        placeholder="Buscar por nome, descrição ou código…"
+      />
 
       <PainelFiltros
         grupos={filtragem.grupos}
@@ -178,7 +202,6 @@ function CampanhasPage() {
         onAlternar={filtragem.alternar}
         onLimparGrupo={filtragem.limparGrupo}
         onLimparTudo={filtragem.limparTudo}
-        colunas={3}
         resultado={
           <span className="text-sm text-muted-foreground">
             {filtradas.length} campanha(s) encontrada(s)
@@ -193,7 +216,7 @@ function CampanhasPage() {
       ) : filtradas.length === 0 ? (
         <EmptyState
           titulo="Nenhuma campanha encontrada"
-          descricao="Ajuste a busca ou cadastre uma nova campanha para organizar suas ações."
+          descricao="Ajuste a busca ou cadastre uma nova campanha para impulsionar as vendas."
           acao={
             <Button onClick={abrirNova}>
               <Plus aria-hidden className="size-4" />
@@ -202,16 +225,21 @@ function CampanhasPage() {
           }
         />
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
           {filtradas.map((campanha) => (
             <PeriodoCard
               key={campanha.id}
               item={campanha}
+              tipo="campanha"
               totalProdutos={contarProdutos(campanha.id)}
               onEditar={() => {
                 setEmEdicao(campanha);
                 setDialogAberto(true);
               }}
+              onAlternarStatus={() => void alternarStatus(campanha)}
+              onGerenciarProdutos={() =>
+                void navigate({ to: "/campanhas/$id", params: { id: campanha.id } })
+              }
               onExcluir={() => setParaExcluir(campanha)}
             />
           ))}
@@ -225,7 +253,8 @@ function CampanhasPage() {
           if (!aberto) setEmEdicao(null);
         }}
         titulo={emEdicao ? "Editar campanha" : "Nova campanha"}
-        descricaoDialog="Defina nome, descrição, período de vigência e se a campanha está ativa."
+        descricaoDialog="Defina nome, descrição, período, status e o conteúdo de vitrine."
+        codigo={emEdicao?.codigo ?? null}
         valoresIniciais={valoresIniciais}
         salvando={criar.isPending || atualizar.isPending}
         onSubmit={(valores) => void salvar(valores)}
