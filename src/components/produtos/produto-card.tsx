@@ -11,6 +11,7 @@ import {
   Pencil,
   Percent,
   Plus,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDefinirPromocao } from "@/hooks/use-produtos";
+import { useDefinirNovidade, useDefinirPromocao } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarMoeda, formatarPercentual } from "@/utils/format";
 import { fotosDoProduto, lucroFinal, margemVigente, precoFinal } from "@/utils/produto";
@@ -153,10 +154,22 @@ export function ProdutoCard({
   onPromocao: (produto: Produto) => void;
 }) {
   const desativarPromocao = useDefinirPromocao(produto.id);
+  const definirNovidade = useDefinirNovidade(produto.id);
   const semEstoque = produto.quantidadeTotal === 0;
   const preco = precoFinal(produto);
   const lucro = lucroFinal(produto);
   const margem = margemVigente(produto);
+
+  async function alternarNovidade() {
+    try {
+      await definirNovidade.mutateAsync({ ehNovidade: !produto.ehNovidade });
+      toast.success(
+        produto.ehNovidade ? "Marca de novidade removida." : "Produto marcado como novidade.",
+      );
+    } catch (error) {
+      toast.error(mensagemDeErro(error, "Não foi possível atualizar a novidade."));
+    }
+  }
 
   async function desativar() {
     try {
@@ -250,6 +263,10 @@ export function ProdutoCard({
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void alternarNovidade()}>
+                <Sparkles aria-hidden className="size-4" />{" "}
+                {produto.ehNovidade ? "Remover marca de novidade" : "Marcar como novidade"}
+              </DropdownMenuItem>
               {produto.ehPromocao ? (
                 <DropdownMenuItem onSelect={() => void desativar()}>
                   <Percent aria-hidden className="size-4" /> Desativar promoção
