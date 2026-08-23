@@ -61,6 +61,10 @@ export const colecoesApi = {
     const { data } = await apiClient.put<Colecao>(`/colecoes/${id}`, payload);
     return data;
   },
+  async alterarStatus(id: string, ativo: boolean): Promise<Colecao> {
+    const { data } = await apiClient.patch<Colecao>(`/colecoes/${id}/status`, { ativo });
+    return data;
+  },
   async remover(id: string): Promise<void> {
     await apiClient.delete(`/colecoes/${id}`);
   },
@@ -77,6 +81,10 @@ export const campanhasApi = {
   },
   async atualizar(id: string, payload: CampanhaPayload): Promise<Campanha> {
     const { data } = await apiClient.put<Campanha>(`/campanhas/${id}`, payload);
+    return data;
+  },
+  async alterarStatus(id: string, ativo: boolean): Promise<Campanha> {
+    const { data } = await apiClient.patch<Campanha>(`/campanhas/${id}/status`, { ativo });
     return data;
   },
   async remover(id: string): Promise<void> {

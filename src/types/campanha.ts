@@ -9,6 +9,14 @@ export interface Campanha {
   /** Fim da campanha em ISO (YYYY-MM-DD). */
   fim: string;
   ativo: boolean;
+  /** Marcada para aparecer em áreas de destaque (futuro Mariela Vitrine Virtual). */
+  destaque: boolean;
+  /** Marcada para aparecer em banners/hero sections da vitrine. */
+  banner: boolean;
+  /** Imagem editorial usada em cards e destaques. */
+  fotoDestaque: string | null;
+  /** Imagem horizontal usada em banners/hero. */
+  fotoBanner: string | null;
   criadoEm: string;
 }
 
@@ -18,4 +26,8 @@ export interface CampanhaPayload {
   inicio: string;
   fim: string;
   ativo: boolean;
+  destaque?: boolean | undefined;
+  banner?: boolean | undefined;
+  fotoDestaque?: string | undefined;
+  fotoBanner?: string | undefined;
 }
