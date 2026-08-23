@@ -257,7 +257,7 @@ export function ProdutoForm({
             </Field>
 
             {porMargem ? (
-              <>
+              <div key="modo-margem" className="contents">
                 <Field id="margemLucro" label="Margem de lucro (%)">
                   <Input
                     id="margemLucro"
@@ -282,9 +282,9 @@ export function ProdutoForm({
                     <p className="text-xs text-destructive">{errors.precoVenda.message}</p>
                   ) : null}
                 </div>
-              </>
+              </div>
             ) : (
-              <>
+              <div key="modo-venda" className="contents">
                 <Field
                   id="precoVenda"
                   label="Preço de venda (R$)"
@@ -305,7 +305,7 @@ export function ProdutoForm({
                   </div>
                   <p className="text-xs text-muted-foreground">Calculada automaticamente.</p>
                 </div>
-              </>
+              </div>
             )}
           </div>
           <p className="text-xs text-muted-foreground">
