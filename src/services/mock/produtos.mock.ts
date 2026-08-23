@@ -9,7 +9,12 @@ import { facetasProduto } from "@/lib/filtros/produtos-facetas";
 import type { ApiFieldError } from "@/types/api";
 import { agora, calcularMargem, clonar, db, gerarId, precoFinal, recalcularProduto } from "./db";
 import { proximoCodigo } from "./sequencias";
-import type { FotoPrincipalRequest, Produto, ProdutoPayload, PromocaoRequest } from "@/types/produto";
+import type {
+  FotoPrincipalRequest,
+  Produto,
+  ProdutoPayload,
+  PromocaoRequest,
+} from "@/types/produto";
 
 function encontrarProduto(id: string): Produto {
   const produto = db.produtos.find((p) => p.id === id);

@@ -307,8 +307,7 @@ export function ProdutoCard({
           ) : null}
           <div className="mt-1 flex items-baseline justify-between gap-2 border-t border-border pt-1">
             <span className="text-[0.68rem] text-muted-foreground">
-              Lucro{" "}
-              <span className="tabular-nums text-foreground">{formatarMoeda(lucro)}</span>
+              Lucro <span className="tabular-nums text-foreground">{formatarMoeda(lucro)}</span>
             </span>
             <Badge
               variant="outline"

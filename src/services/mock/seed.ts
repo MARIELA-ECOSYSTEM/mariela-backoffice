@@ -775,16 +775,18 @@ export function seedVendedores(): Vendedor[] {
       30,
     ],
   ];
-  return base.map(([id, nome, telefone, dataNascimento, observacao, ativo, dias], indice): Vendedor => ({
-    id,
-    codigo: formatarCodigo("vendedor", indice + 1),
-    nome,
-    foto: null,
-    telefone,
-    dataNascimento: dataNascimento || null,
-    observacao,
-    ativo,
-    criadoEm: iso(dias),
-    atualizadoEm: iso(Math.max(0, dias - 3)),
-  }));
+  return base.map(
+    ([id, nome, telefone, dataNascimento, observacao, ativo, dias], indice): Vendedor => ({
+      id,
+      codigo: formatarCodigo("vendedor", indice + 1),
+      nome,
+      foto: null,
+      telefone,
+      dataNascimento: dataNascimento || null,
+      observacao,
+      ativo,
+      criadoEm: iso(dias),
+      atualizadoEm: iso(Math.max(0, dias - 3)),
+    }),
+  );
 }

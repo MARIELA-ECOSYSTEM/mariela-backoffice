@@ -13,14 +13,7 @@
  */
 
 export type EntidadeCodificada =
-  | "produto"
-  | "colecao"
-  | "campanha"
-  | "cliente"
-  | "fornecedor"
-  | "vendedor"
-  | "venda"
-  | "caixa";
+  "produto" | "colecao" | "campanha" | "cliente" | "fornecedor" | "vendedor" | "venda" | "caixa";
 
 /** Prefixo oficial de cada entidade. */
 export const PREFIXO_CODIGO: Record<EntidadeCodificada, string> = {
