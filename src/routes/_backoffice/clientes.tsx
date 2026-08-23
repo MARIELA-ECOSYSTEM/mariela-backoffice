@@ -361,7 +361,6 @@ function ClientesPage() {
         open={aniversariantesAberto}
         onOpenChange={setAniversariantesAberto}
         clientes={clientes ?? []}
-        onEnviarMensagem={(cliente) => setAlvoMensagem({ cliente, tipoMensagem: "aniversario" })}
       />
 
       <DialogMensagemWhatsapp
