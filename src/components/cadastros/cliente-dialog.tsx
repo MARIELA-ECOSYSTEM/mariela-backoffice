@@ -14,17 +14,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Field } from "@/components/common/field";
+import { CodigoBadge } from "@/components/common/codigo-badge";
 
 const clienteSchema = z.object({
   nome: z.string().trim().min(1, "Nome é obrigatório.").max(120),
   foto: z.string().trim().max(400),
   telefone: z.string().trim().min(1, "Telefone é obrigatório.").max(20),
+  whatsapp: z.string().trim().max(20),
   dataNascimento: z.string().trim(),
   observacao: z.string().trim().max(400),
-  ativo: z.boolean(),
 });
 
 export type ClienteFormValues = z.infer<typeof clienteSchema>;
@@ -33,15 +32,16 @@ export const CLIENTE_VALORES_PADRAO: ClienteFormValues = {
   nome: "",
   foto: "",
   telefone: "",
+  whatsapp: "",
   dataNascimento: "",
   observacao: "",
-  ativo: true,
 };
 
 export function ClienteDialog({
   open,
   onOpenChange,
   edicao,
+  codigo,
   valoresIniciais,
   salvando,
   onSubmit,
@@ -49,6 +49,8 @@ export function ClienteDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   edicao: boolean;
+  /** Código gerado pela API — somente leitura. */
+  codigo?: string | undefined;
   valoresIniciais: ClienteFormValues;
   salvando: boolean;
   onSubmit: (valores: ClienteFormValues) => void;
@@ -67,10 +69,13 @@ export function ClienteDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{edicao ? "Editar cliente" : "Novo cliente"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-3">
+            {edicao ? "Editar cliente" : "Nova cliente"}
+            {edicao && codigo ? <CodigoBadge codigo={codigo} /> : null}
+          </DialogTitle>
           <DialogDescription>
-            Cadastro conforme especificação: nome, telefone, data de nascimento, observação e
-            status.
+            Nome, contato, WhatsApp, data de nascimento e observações. O código é gerado
+            automaticamente pelo sistema.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -89,25 +94,20 @@ export function ClienteDialog({
             <Field id="telefone" label="Telefone" erro={errors.telefone?.message}>
               <Input id="telefone" placeholder="(00) 00000-0000" {...form.register("telefone")} />
             </Field>
-            <Field
-              id="dataNascimento"
-              label="Data de nascimento"
-              erro={errors.dataNascimento?.message}
-            >
-              <Input id="dataNascimento" type="date" {...form.register("dataNascimento")} />
+            <Field id="whatsapp" label="WhatsApp" erro={errors.whatsapp?.message}>
+              <Input id="whatsapp" placeholder="(00) 00000-0000" {...form.register("whatsapp")} />
             </Field>
           </div>
+          <Field
+            id="dataNascimento"
+            label="Data de nascimento"
+            erro={errors.dataNascimento?.message}
+          >
+            <Input id="dataNascimento" type="date" {...form.register("dataNascimento")} />
+          </Field>
           <Field id="observacao" label="Observação" erro={errors.observacao?.message}>
             <Textarea id="observacao" rows={3} {...form.register("observacao")} />
           </Field>
-          <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-            <Label htmlFor="ativo">Cliente ativo</Label>
-            <Switch
-              id="ativo"
-              checked={form.watch("ativo")}
-              onCheckedChange={(valor) => form.setValue("ativo", valor)}
-            />
-          </div>
         </form>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -1,5 +1,6 @@
 import { registerMock } from "./mock-transport";
-import { agora, clonar, db, gerarId } from "./db";
+import { agora, clonar, db, gerarId, sincronizarAgregadosClientes } from "./db";
+import { vendasDoCliente } from "./clientes-vendas.seed";
 import { proximoCodigo } from "./sequencias";
 import { ApiError, type ApiFieldError } from "@/types/api";
 import type { Cliente, ClientePayload } from "@/types/cliente";
@@ -68,14 +69,23 @@ function validarPeriodo(body: unknown): {
 }
 
 function registrarClientes(): void {
-  registerMock("GET", "/clientes", () => ({
-    data: clonar(db.clientes),
-    meta: { total: db.clientes.length },
-  }));
+  registerMock("GET", "/clientes", () => {
+    // Os agregados de compras são responsabilidade da camada de dados (futuro NestJS).
+    sincronizarAgregadosClientes();
+    return { data: clonar(db.clientes), meta: { total: db.clientes.length } };
+  });
 
-  registerMock("GET", "/clientes/:id", ({ params }) => ({
-    data: clonar(encontrar(db.clientes, params["id"]!, "Cliente")),
-  }));
+  registerMock("GET", "/clientes/:id", ({ params }) => {
+    sincronizarAgregadosClientes();
+    return { data: clonar(encontrar(db.clientes, params["id"]!, "Cliente")) };
+  });
+
+  /** Histórico de compras do cliente (somente leitura — a venda pertence ao PDV). */
+  registerMock("GET", "/clientes/:id/vendas", ({ params }) => {
+    const cliente = encontrar(db.clientes, params["id"]!, "Cliente");
+    const vendas = vendasDoCliente(cliente.id, db.vendas);
+    return { data: clonar(vendas), meta: { total: vendas.length } };
+  });
 
   registerMock("POST", "/clientes", ({ body }) => {
     const payload = (body ?? {}) as Partial<ClientePayload>;
@@ -93,11 +103,14 @@ function registrarClientes(): void {
       nome,
       foto: texto(payload.foto) || null,
       telefone,
+      whatsapp: texto(payload.whatsapp),
       dataNascimento: texto(payload.dataNascimento) || null,
       observacao: texto(payload.observacao),
-      ativo: booleano(payload.ativo),
       criadoEm: agora(),
       atualizadoEm: agora(),
+      compras: 0,
+      totalComprado: 0,
+      ultimaCompra: null,
     };
     db.clientes.unshift(cliente);
     return { data: clonar(cliente) };
@@ -116,17 +129,9 @@ function registrarClientes(): void {
     cliente.nome = nome;
     cliente.foto = texto(payload.foto) || null;
     cliente.telefone = telefone;
+    cliente.whatsapp = texto(payload.whatsapp);
     cliente.dataNascimento = texto(payload.dataNascimento) || null;
     cliente.observacao = texto(payload.observacao);
-    cliente.ativo = booleano(payload.ativo, cliente.ativo);
-    cliente.atualizadoEm = agora();
-    return { data: clonar(cliente) };
-  });
-
-  registerMock("PATCH", "/clientes/:id/status", ({ params, body }) => {
-    const cliente = encontrar(db.clientes, params["id"]!, "Cliente");
-    const payload = (body ?? {}) as { ativo?: boolean };
-    cliente.ativo = typeof payload.ativo === "boolean" ? payload.ativo : !cliente.ativo;
     cliente.atualizadoEm = agora();
     return { data: clonar(cliente) };
   });

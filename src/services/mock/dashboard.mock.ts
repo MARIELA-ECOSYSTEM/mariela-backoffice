@@ -173,15 +173,16 @@ function resumoClientes(chave: string): DashboardClientes {
 
   return {
     cadastrados: clientes.length,
-    ativos: clientes.filter((cliente) => cliente.ativo).length,
-    inativos: clientes.filter((cliente) => !cliente.ativo).length,
+    // Clientes não possuem status ativo/inativo — todo cadastro é considerado ativo.
+    ativos: clientes.length,
+    inativos: 0,
     novosNoMes: clientes.filter((cliente) => chaveMes(new Date(cliente.criadoEm)) === chave).length,
     compraramNoMes: compradoras.size,
     ticketMedioPorCliente: compradoras.size
       ? Number((faturamentoIdentificado / compradoras.size).toFixed(2))
       : 0,
     recentes: recentes(
-      clientes,
+      clientes.map((cliente) => ({ ...cliente, ativo: true })),
       (id) => db.clientes.find((cliente) => cliente.id === id)?.telefone ?? "",
     ),
   };

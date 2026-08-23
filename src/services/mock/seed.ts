@@ -641,8 +641,10 @@ export function seedColecoes(): Colecao[] {
       ativo: true,
       destaque: true,
       banner: true,
-      fotoDestaque: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&q=80",
-      fotoBanner: "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80",
+      fotoDestaque:
+        "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&q=80",
+      fotoBanner:
+        "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80",
       criadoEm: iso(120),
     },
     {
@@ -655,7 +657,8 @@ export function seedColecoes(): Colecao[] {
       ativo: true,
       destaque: true,
       banner: false,
-      fotoDestaque: "https://images.unsplash.com/photo-1509319117193-57bab727e09d?auto=format&fit=crop&w=900&q=80",
+      fotoDestaque:
+        "https://images.unsplash.com/photo-1509319117193-57bab727e09d?auto=format&fit=crop&w=900&q=80",
       fotoBanner: null,
       criadoEm: iso(300),
     },
@@ -688,8 +691,10 @@ export function seedCampanhas(): Campanha[] {
       ativo: true,
       destaque: true,
       banner: true,
-      fotoDestaque: "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80",
-      fotoBanner: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=1600&q=80",
+      fotoDestaque:
+        "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80",
+      fotoBanner:
+        "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=1600&q=80",
       criadoEm: iso(90),
     },
     {
@@ -703,7 +708,8 @@ export function seedCampanhas(): Campanha[] {
       destaque: false,
       banner: true,
       fotoDestaque: null,
-      fotoBanner: "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1600&q=80",
+      fotoBanner:
+        "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1600&q=80",
       criadoEm: iso(150),
     },
     {
@@ -723,49 +729,214 @@ export function seedCampanhas(): Campanha[] {
   ];
 }
 
+/**
+ * Aniversário determinístico: mesmo dia/mês de "hoje + offsetDias",
+ * com o ano informado. Garante clientes aniversariando hoje, amanhã,
+ * nesta semana e neste mês em qualquer data de execução.
+ */
+function nascimento(offsetDias: number, ano: number): string {
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  base.setDate(base.getDate() + offsetDias);
+  const mes = String(base.getMonth() + 1).padStart(2, "0");
+  const dia = String(base.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
+interface SeedCliente {
+  id: string;
+  nome: string;
+  telefone: string;
+  whatsapp: string;
+  /** Offset em dias para o aniversário; null = sem data cadastrada. */
+  aniversarioEmDias: number | null;
+  anoNascimento: number;
+  observacao: string;
+  diasCadastro: number;
+  /** Dias atrás de cada compra da cliente — determinístico, sem aleatoriedade. */
+  compras: number[];
+}
+
+const CLIENTES_SEED: SeedCliente[] = [
+  {
+    id: "cli_001",
+    nome: "Ana Beatriz Souza",
+    telefone: "(11) 99811-2233",
+    whatsapp: "(11) 99811-2233",
+    aniversarioEmDias: 0,
+    anoNascimento: 1992,
+    observacao: "Prefere vestidos midi.",
+    diasCadastro: 420,
+    compras: [2, 16, 44, 91, 150, 220],
+  },
+  {
+    id: "cli_002",
+    nome: "Camila Ferreira",
+    telefone: "(11) 98444-9090",
+    whatsapp: "(11) 98444-9090",
+    aniversarioEmDias: 1,
+    anoNascimento: 1988,
+    observacao: "Cliente de crediário.",
+    diasCadastro: 360,
+    compras: [9, 38, 120],
+  },
+  {
+    id: "cli_003",
+    nome: "Juliana Martins",
+    telefone: "(21) 99700-1010",
+    whatsapp: "(21) 99700-1010",
+    aniversarioEmDias: 3,
+    anoNascimento: 1995,
+    observacao: "",
+    diasCadastro: 280,
+    compras: [45],
+  },
+  {
+    id: "cli_004",
+    nome: "Larissa Nogueira",
+    telefone: "(31) 98222-3131",
+    whatsapp: "(31) 98222-3131",
+    aniversarioEmDias: 5,
+    anoNascimento: 1990,
+    observacao: "Sempre pede novidades de acessórios.",
+    diasCadastro: 240,
+    compras: [1, 5, 12, 21, 33, 60, 88, 130],
+  },
+  {
+    id: "cli_005",
+    nome: "Patrícia Lima",
+    telefone: "(11) 97333-4545",
+    whatsapp: "",
+    aniversarioEmDias: null,
+    anoNascimento: 1991,
+    observacao: "Cadastro incompleto.",
+    diasCadastro: 200,
+    compras: [],
+  },
+  {
+    id: "cli_006",
+    nome: "Bianca Rezende",
+    telefone: "(11) 99120-7788",
+    whatsapp: "(11) 99120-7788",
+    aniversarioEmDias: 12,
+    anoNascimento: 1997,
+    observacao: "Gosta de peças de festa.",
+    diasCadastro: 190,
+    compras: [70, 105],
+  },
+  {
+    id: "cli_007",
+    nome: "Renata Andrade",
+    telefone: "(11) 98511-2020",
+    whatsapp: "(11) 98511-2020",
+    aniversarioEmDias: 20,
+    anoNascimento: 1985,
+    observacao: "",
+    diasCadastro: 320,
+    compras: [140, 200],
+  },
+  {
+    id: "cli_008",
+    nome: "Gabriela Pontes",
+    telefone: "(41) 99666-1414",
+    whatsapp: "(41) 99666-1414",
+    aniversarioEmDias: 45,
+    anoNascimento: 1993,
+    observacao: "Compra para revenda ocasional.",
+    diasCadastro: 500,
+    compras: [230, 300, 380],
+  },
+  {
+    id: "cli_009",
+    nome: "Fernanda Sales",
+    telefone: "(11) 97444-3322",
+    whatsapp: "(11) 97444-3322",
+    aniversarioEmDias: 60,
+    anoNascimento: 1999,
+    observacao: "",
+    diasCadastro: 120,
+    compras: [4],
+  },
+  {
+    id: "cli_010",
+    nome: "Débora Castro",
+    telefone: "(11) 98800-1177",
+    whatsapp: "(11) 98800-1177",
+    aniversarioEmDias: 6,
+    anoNascimento: 1980,
+    observacao: "Prefere atendimento por WhatsApp.",
+    diasCadastro: 460,
+    compras: [55, 96, 190, 260],
+  },
+  {
+    id: "cli_011",
+    nome: "Marina Teixeira",
+    telefone: "(11) 99333-8181",
+    whatsapp: "(11) 99333-8181",
+    aniversarioEmDias: 90,
+    anoNascimento: 1996,
+    observacao: "",
+    diasCadastro: 150,
+    compras: [],
+  },
+  {
+    id: "cli_012",
+    nome: "Sabrina Duarte",
+    telefone: "(11) 96555-4040",
+    whatsapp: "(11) 96555-4040",
+    aniversarioEmDias: 14,
+    anoNascimento: 1987,
+    observacao: "Indicou várias amigas.",
+    diasCadastro: 600,
+    compras: [3, 8, 19, 27, 40, 58, 75, 99, 128, 170],
+  },
+  {
+    id: "cli_013",
+    nome: "Aline Barros",
+    telefone: "(11) 98122-6363",
+    whatsapp: "(11) 98122-6363",
+    aniversarioEmDias: 200,
+    anoNascimento: 1994,
+    observacao: "",
+    diasCadastro: 260,
+    compras: [210],
+  },
+  {
+    id: "cli_014",
+    nome: "Tatiane Moraes",
+    telefone: "(11) 97711-9090",
+    whatsapp: "(11) 97711-9090",
+    aniversarioEmDias: 2,
+    anoNascimento: 2001,
+    observacao: "Primeira compra pelo Instagram.",
+    diasCadastro: 40,
+    compras: [30],
+  },
+];
+
+/** Plano determinístico de compras por cliente (dias atrás de cada venda). */
+export const PLANO_COMPRAS_CLIENTES: { clienteId: string; diasAtras: number[] }[] =
+  CLIENTES_SEED.map((cliente) => ({ clienteId: cliente.id, diasAtras: cliente.compras }));
+
 export function seedClientes(): Cliente[] {
-  const base: [string, string, string, string, string, boolean, number][] = [
-    [
-      "cli_001",
-      "Ana Beatriz Souza",
-      "(11) 99811-2233",
-      "1992-04-18",
-      "Prefere vestidos midi.",
-      true,
-      45,
-    ],
-    [
-      "cli_002",
-      "Camila Ferreira",
-      "(11) 98444-9090",
-      "1988-11-02",
-      "Cliente de crediário.",
-      true,
-      30,
-    ],
-    ["cli_003", "Juliana Martins", "(21) 99700-1010", "1995-07-25", "", true, 20],
-    [
-      "cli_004",
-      "Larissa Nogueira",
-      "(31) 98222-3131",
-      "1990-01-09",
-      "Sempre pede novidades de acessórios.",
-      true,
-      10,
-    ],
-    ["cli_005", "Patrícia Lima", "(11) 97333-4545", "", "Cadastro incompleto.", false, 5],
-  ];
-  return base.map(([id, nome, telefone, dataNascimento, observacao, ativo, dias], indice) => ({
-    id,
+  return CLIENTES_SEED.map((cliente, indice) => ({
+    id: cliente.id,
     codigo: formatarCodigo("cliente", indice + 1),
-    nome,
+    nome: cliente.nome,
     foto: null,
-    telefone,
-    dataNascimento: dataNascimento || null,
-    observacao,
-    ativo,
-    criadoEm: iso(dias),
-    atualizadoEm: iso(Math.max(0, dias - 2)),
+    telefone: cliente.telefone,
+    whatsapp: cliente.whatsapp,
+    dataNascimento:
+      cliente.aniversarioEmDias === null
+        ? null
+        : nascimento(cliente.aniversarioEmDias, cliente.anoNascimento),
+    observacao: cliente.observacao,
+    criadoEm: iso(cliente.diasCadastro),
+    atualizadoEm: iso(Math.max(0, cliente.diasCadastro - 2)),
+    // Agregados recalculados pela camada de dados a partir das vendas.
+    compras: 0,
+    totalComprado: 0,
+    ultimaCompra: null,
   }));
 }
 

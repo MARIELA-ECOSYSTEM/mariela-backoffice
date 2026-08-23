@@ -49,12 +49,12 @@ export function useRemoverCliente() {
   });
 }
 
-export function useAlterarStatusCliente() {
-  const invalidar = useInvalidar(clientesKeys.todos);
-  return useMutation({
-    mutationFn: (vars: { id: string; ativo: boolean }) =>
-      clientesApi.alterarStatus(vars.id, vars.ativo),
-    onSuccess: () => void invalidar(),
+/** Histórico de compras do cliente (somente leitura). */
+export function useVendasDoCliente(id: string | null) {
+  return useQuery({
+    queryKey: [...clientesKeys.todos, id, "vendas"],
+    queryFn: () => clientesApi.listarVendas(id!),
+    enabled: Boolean(id),
   });
 }
 

@@ -18,6 +18,7 @@ import {
   seedProdutos,
 } from "./seed";
 import { seedVendas } from "./vendas.seed";
+import { agregadosDoCliente, seedVendasClientes } from "./clientes-vendas.seed";
 
 export interface MockDatabase {
   produtos: Produto[];
@@ -45,7 +46,23 @@ export const db: MockDatabase = {
   vendas: [],
 };
 
-db.vendas = seedVendas(db.produtos, db.clientes, db.vendedores);
+// Vendas anônimas (consumidor final) + vendas determinísticas vinculadas às clientes.
+db.vendas = [
+  ...seedVendas(db.produtos, [], db.vendedores),
+  ...seedVendasClientes(db.produtos, db.clientes, db.vendedores),
+].sort((a, b) => b.dataVenda.localeCompare(a.dataVenda));
+
+/** Reaplica os agregados de compras em todas as clientes do banco mock. */
+export function sincronizarAgregadosClientes(): void {
+  db.clientes.forEach((cliente) => {
+    const resumo = agregadosDoCliente(cliente.id, db.vendas);
+    cliente.compras = resumo.compras;
+    cliente.totalComprado = resumo.totalComprado;
+    cliente.ultimaCompra = resumo.ultimaCompra;
+  });
+}
+
+sincronizarAgregadosClientes();
 
 export function agora(): string {
   return new Date().toISOString();

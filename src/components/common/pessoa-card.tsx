@@ -59,6 +59,13 @@ export interface PessoaAcao {
   separarAntes?: boolean;
 }
 
+export interface PessoaMetrica {
+  label: string;
+  valor: string;
+  /** Destaca o valor (usado em Total Comprado, por exemplo). */
+  destaque?: boolean;
+}
+
 /**
  * Card padrão para pessoas (clientes, fornecedores e vendedores).
  * Puramente apresentacional: regras de negócio ficam nos hooks/services.
@@ -69,19 +76,26 @@ export function PessoaCard({
   ativo,
   subtitulo,
   campos,
+  metricas,
   observacao,
   rodape,
+  acaoRapida,
   onVisualizar,
   acoes,
   badgeExtra,
 }: {
   nome: string;
   foto?: string | null | undefined;
-  ativo: boolean;
+  /** Quando omitido, o card não exibe badge de status (caso de Clientes). */
+  ativo?: boolean | undefined;
   subtitulo?: string | undefined;
   campos: PessoaCampo[];
+  /** Pequena área de métricas dentro do card. */
+  metricas?: PessoaMetrica[] | undefined;
   observacao?: string | undefined;
   rodape?: ReactNode;
+  /** Ação visual em destaque no topo do card (ex.: WhatsApp). */
+  acaoRapida?: ReactNode;
   onVisualizar: () => void;
   acoes: PessoaAcao[];
   badgeExtra?: ReactNode;
@@ -102,40 +116,47 @@ export function PessoaCard({
             {subtitulo ? (
               <p className="mt-0.5 truncate text-xs text-muted-foreground">{subtitulo}</p>
             ) : null}
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              <Badge variant={ativo ? "success" : "outline"}>
-                <span aria-hidden className="size-1.5 rounded-full bg-current opacity-70" />
-                {ativo ? "Ativo" : "Inativo"}
-              </Badge>
-              {badgeExtra}
-            </div>
+            {ativo !== undefined || badgeExtra ? (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {ativo === undefined ? null : (
+                  <Badge variant={ativo ? "success" : "outline"}>
+                    <span aria-hidden className="size-1.5 rounded-full bg-current opacity-70" />
+                    {ativo ? "Ativo" : "Inativo"}
+                  </Badge>
+                )}
+                {badgeExtra}
+              </div>
+            ) : null}
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label={`Ações de ${nome}`}>
-                <MoreVertical aria-hidden className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={onVisualizar}>
-                <Eye aria-hidden className="size-4" />
-                Visualizar
-              </DropdownMenuItem>
-              {acoes.map((acao) => (
-                <div key={acao.label}>
-                  {acao.separarAntes ? <DropdownMenuSeparator /> : null}
-                  <DropdownMenuItem
-                    onClick={acao.onClick}
-                    className={acao.destrutivo ? "text-destructive" : undefined}
-                  >
-                    <acao.icon aria-hidden className="size-4" />
-                    {acao.label}
-                  </DropdownMenuItem>
-                </div>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            {acaoRapida}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label={`Ações de ${nome}`}>
+                  <MoreVertical aria-hidden className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={onVisualizar}>
+                  <Eye aria-hidden className="size-4" />
+                  Visualizar
+                </DropdownMenuItem>
+                {acoes.map((acao) => (
+                  <div key={acao.label}>
+                    {acao.separarAntes ? <DropdownMenuSeparator /> : null}
+                    <DropdownMenuItem
+                      onClick={acao.onClick}
+                      className={acao.destrutivo ? "text-destructive" : undefined}
+                    >
+                      <acao.icon aria-hidden className="size-4" />
+                      {acao.label}
+                    </DropdownMenuItem>
+                  </div>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <dl className="space-y-1.5 text-sm">
@@ -147,6 +168,28 @@ export function PessoaCard({
             </div>
           ))}
         </dl>
+
+        {metricas?.length ? (
+          <dl className="grid grid-cols-3 gap-2 rounded-lg border border-primary/15 bg-primary-soft/30 px-3 py-2.5">
+            {metricas.map((metrica) => (
+              <div key={metrica.label} className="min-w-0">
+                <dt className="font-brand text-[0.58rem] uppercase leading-tight tracking-[0.1em] text-muted-foreground">
+                  {metrica.label}
+                </dt>
+                <dd
+                  className={
+                    metrica.destaque
+                      ? "mt-0.5 font-display text-base leading-tight text-primary"
+                      : "mt-0.5 text-[0.8rem] leading-tight text-foreground/90"
+                  }
+                  title={metrica.valor}
+                >
+                  {metrica.valor}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
 
         {observacao ? (
           <p className="line-clamp-2 rounded-lg bg-primary-soft/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">

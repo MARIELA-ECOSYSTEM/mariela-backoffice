@@ -6,19 +6,28 @@ export interface Cliente {
   /** URL da foto/avatar da cliente ou null. */
   foto: string | null;
   telefone: string;
+  /** Número de WhatsApp; quando vazio, a UI usa o telefone como referência. */
+  whatsapp: string;
   /** Data de nascimento em ISO (YYYY-MM-DD) ou null. */
   dataNascimento: string | null;
   observacao: string;
-  ativo: boolean;
   criadoEm: string;
   atualizadoEm: string;
+  /**
+   * Agregados de compras calculados pelo backend (hoje pelo mock).
+   * O frontend NUNCA deve recalcular isso somando vendas no componente.
+   */
+  compras: number;
+  totalComprado: number;
+  /** Data ISO da venda mais recente ou null quando nunca comprou. */
+  ultimaCompra: string | null;
 }
 
 export interface ClientePayload {
   nome: string;
   foto?: string | null | undefined;
   telefone: string;
+  whatsapp?: string | undefined;
   dataNascimento?: string | null | undefined;
   observacao?: string | undefined;
-  ativo: boolean;
 }
