@@ -41,7 +41,6 @@ export function PeriodoCard({
   item,
   tipo,
   totalProdutos,
-  detalheHref,
   onEditar,
   onAlternarStatus,
   onGerenciarProdutos,
@@ -50,7 +49,6 @@ export function PeriodoCard({
   item: ItemPeriodo;
   tipo: "colecao" | "campanha";
   totalProdutos: number;
-  detalheHref: string;
   onEditar: () => void;
   onAlternarStatus: () => void;
   onGerenciarProdutos: () => void;
@@ -58,6 +56,7 @@ export function PeriodoCard({
 }) {
   const status = statusVigencia(item);
   const ehCampanha = tipo === "campanha";
+  const rotaDetalhe = ehCampanha ? "/campanhas/$id" : "/colecoes/$id";
   const imagem = ehCampanha
     ? (item.fotoBanner ?? item.fotoDestaque)
     : (item.fotoDestaque ?? item.fotoBanner);
@@ -120,7 +119,7 @@ export function PeriodoCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem asChild>
-                <Link to={detalheHref}>
+                <Link to={rotaDetalhe} params={{ id: item.id }}>
                   <Eye aria-hidden className="size-4" />
                   Visualizar
                 </Link>
@@ -167,7 +166,8 @@ export function PeriodoCard({
       <div className="space-y-3 p-4">
         <div className="min-w-0">
           <Link
-            to={detalheHref}
+            to={rotaDetalhe}
+            params={{ id: item.id }}
             className="block truncate font-display text-xl leading-tight hover:text-primary"
           >
             {item.nome}
