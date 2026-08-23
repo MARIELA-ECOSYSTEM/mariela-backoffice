@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Field } from "@/components/common/field";
+import { CodigoBadge } from "@/components/common/codigo-badge";
+import { CODIGO_AUTOMATICO } from "@/lib/codigos";
 import { produtoSchema, type ProdutoFormValues } from "@/schemas/produto.schema";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useCampanhas, useColecoes, useFornecedores } from "@/hooks/use-cadastros";
@@ -43,7 +45,6 @@ export function ProdutoForm({
   const form = useForm<ProdutoFormValues>({
     resolver: zodResolver(produtoSchema),
     defaultValues: {
-      codProduto: produto?.codProduto ?? "",
       nome: produto?.nome ?? "",
       descricao: produto?.descricao ?? "",
       categoria: produto?.categoria ?? "",
@@ -76,9 +77,19 @@ export function ProdutoForm({
           <CardTitle className="font-display text-xl">Informações gerais</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-5 md:grid-cols-2">
-          <Field id="codProduto" label="Código do produto" erro={errors.codProduto?.message}>
-            <Input id="codProduto" placeholder="PRD-0001" {...form.register("codProduto")} />
-          </Field>
+          <div className="space-y-2">
+            <Label>Código do produto</Label>
+            <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/40 px-3 text-sm">
+              {produto ? (
+                <CodigoBadge codigo={produto.codProduto} />
+              ) : (
+                <span className="text-muted-foreground">{CODIGO_AUTOMATICO}</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Gerado automaticamente pelo sistema e não editável.
+            </p>
+          </div>
 
           <Field id="nome" label="Nome" erro={errors.nome?.message}>
             <Input id="nome" placeholder="Vestido Midi Amalfi" {...form.register("nome")} />
