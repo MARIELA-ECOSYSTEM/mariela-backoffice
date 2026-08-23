@@ -3,6 +3,7 @@ import type { Cliente, ClientePayload } from "@/types/cliente";
 import type { Fornecedor, FornecedorPayload } from "@/types/fornecedor";
 import type { Colecao, ColecaoPayload } from "@/types/colecao";
 import type { Campanha, CampanhaPayload } from "@/types/campanha";
+import type { VendaResumo } from "@/types/venda";
 
 export const clientesApi = {
   async listar(): Promise<Cliente[]> {
@@ -17,8 +18,9 @@ export const clientesApi = {
     const { data } = await apiClient.put<Cliente>(`/clientes/${id}`, payload);
     return data;
   },
-  async alterarStatus(id: string, ativo: boolean): Promise<Cliente> {
-    const { data } = await apiClient.patch<Cliente>(`/clientes/${id}/status`, { ativo });
+  /** Histórico de compras do cliente — agregados já calculados pelo backend. */
+  async listarVendas(id: string): Promise<VendaResumo[]> {
+    const { data } = await apiClient.get<VendaResumo[]>(`/clientes/${id}/vendas`);
     return data;
   },
   async remover(id: string): Promise<void> {

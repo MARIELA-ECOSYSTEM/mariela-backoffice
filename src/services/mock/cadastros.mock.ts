@@ -1,5 +1,6 @@
 import { registerMock } from "./mock-transport";
-import { agora, clonar, db, gerarId } from "./db";
+import { agora, clonar, db, gerarId, sincronizarAgregadosClientes } from "./db";
+import { vendasDoCliente } from "./clientes-vendas.seed";
 import { proximoCodigo } from "./sequencias";
 import { ApiError, type ApiFieldError } from "@/types/api";
 import type { Cliente, ClientePayload } from "@/types/cliente";
