@@ -1,11 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-  CalendarRange,
-  Image as ImageIcon,
-  LayoutPanelTop,
-  Package,
-  Sparkles,
-} from "lucide-react";
+import { CalendarRange, Image as ImageIcon, LayoutPanelTop, Package, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CodigoBadge } from "@/components/common/codigo-badge";
@@ -32,7 +26,9 @@ function Imagem({
       <p className="font-brand text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground">
         {titulo}
       </p>
-      <div className={`overflow-hidden rounded-xl border border-border bg-primary-soft/40 ${proporcao}`}>
+      <div
+        className={`overflow-hidden rounded-xl border border-border bg-primary-soft/40 ${proporcao}`}
+      >
         {url ? (
           <img src={url} alt={titulo} className="size-full object-cover" />
         ) : (

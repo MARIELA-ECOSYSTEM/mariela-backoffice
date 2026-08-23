@@ -206,7 +206,11 @@ export function PeriodoDialog({
                   hint="Formato editorial (retrato). Opcional."
                   erro={errors.fotoDestaque?.message}
                 >
-                  <Input id="fotoDestaque" placeholder="https://…" {...form.register("fotoDestaque")} />
+                  <Input
+                    id="fotoDestaque"
+                    placeholder="https://…"
+                    {...form.register("fotoDestaque")}
+                  />
                 </Field>
                 <PreviewImagem
                   url={form.watch("fotoDestaque")}
