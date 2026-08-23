@@ -97,7 +97,9 @@ export function PeriodoCard({
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-foreground/55 to-transparent" />
 
         <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
-          <Badge variant={tomStatus}>{LABEL_VIGENCIA[status]}</Badge>
+          <Badge variant={tomStatus} className="bg-background/90">
+            {LABEL_VIGENCIA[status]}
+          </Badge>
           {ehCampanha ? (
             <Badge variant="outline" className="border-white/40 bg-background/85 text-primary">
               Ação temporária
@@ -148,7 +150,7 @@ export function PeriodoCard({
         {item.destaque || item.banner ? (
           <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5">
             {item.destaque ? (
-              <Badge variant="gold">
+              <Badge variant="gold" className="bg-background/90">
                 <Sparkles aria-hidden className="size-3" />
                 Destaque
               </Badge>

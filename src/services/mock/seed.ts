@@ -688,7 +688,7 @@ export function seedCampanhas(): Campanha[] {
       ativo: true,
       destaque: true,
       banner: true,
-      fotoDestaque: "https://images.unsplash.com/photo-1520975916090-3105956dac38?auto=format&fit=crop&w=900&q=80",
+      fotoDestaque: "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80",
       fotoBanner: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=1600&q=80",
       criadoEm: iso(90),
     },
