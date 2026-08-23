@@ -55,6 +55,8 @@ export function registerEstoqueMocks(): void {
             quantidade: tamanho.quantidade,
           })),
         })),
+        colecaoId: produto.colecaoId ?? null,
+        campanhaId: produto.campanhaId ?? null,
         quantidadeTotal: produto.quantidadeTotal,
         totalVariantes: produto.variantes.length,
         estoqueZeradoEm: produto.estoqueZeradoEm ?? null,
