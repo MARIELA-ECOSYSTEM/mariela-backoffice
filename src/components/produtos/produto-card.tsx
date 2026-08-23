@@ -207,8 +207,8 @@ export function ProdutoCard({
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
           <div className="min-w-0">
-            <CodigoBadge codigo={produto.codProduto} tamanho="xs" />
-            <h3 className="mt-1 truncate font-display text-sm leading-snug">
+            <h3 className="truncate font-display text-[0.95rem] leading-snug">
+
               <Link
                 to="/produtos/$id"
                 params={{ id: produto.id }}
