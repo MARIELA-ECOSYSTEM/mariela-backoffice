@@ -72,3 +72,7 @@ export interface PromocaoRequest {
   ehPromocao: boolean;
   precoPromocional?: number | null;
 }
+
+export interface NovidadeRequest {
+  ehNovidade: boolean;
+}

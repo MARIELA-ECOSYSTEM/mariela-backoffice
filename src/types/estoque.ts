@@ -16,12 +16,24 @@ export interface SaidaEstoqueRequest {
   motivo: string;
 }
 
+/** Distribuição do estoque de uma cor (variante) por tamanho. */
+export interface EstoqueCorResumo {
+  varianteId: string;
+  cor: string;
+  quantidade: number;
+  tamanhos: { id: string; tamanho: string; quantidade: number }[];
+}
+
 export interface ResumoEstoqueProduto {
   produtoId: string;
   codProduto: string;
   nome: string;
   categoria: string;
   foto: string | null;
+  /** Todas as fotos do produto (uma por variante) para a miniatura com carrossel. */
+  fotos: string[];
+  /** Cores disponíveis com os tamanhos e quantidades de cada uma. */
+  cores: EstoqueCorResumo[];
   quantidadeTotal: number;
   totalVariantes: number;
   estoqueZeradoEm?: string | null;

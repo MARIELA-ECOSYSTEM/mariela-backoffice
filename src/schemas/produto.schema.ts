@@ -19,7 +19,6 @@ export const produtoSchema = z.object({
 export type ProdutoFormValues = z.infer<typeof produtoSchema>;
 
 export const varianteSchema = z.object({
-  codVariante: z.string().trim().min(1, "Código da variante é obrigatório.").max(40),
   cor: z.string().trim().min(1, "Cor é obrigatória."),
   foto: z.string().trim().max(500).optional(),
   video: z.string().trim().max(500).optional(),
