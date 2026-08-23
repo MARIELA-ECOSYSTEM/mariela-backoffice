@@ -54,3 +54,27 @@ export function sequenciaDoCodigo(codigo: string | null | undefined): number {
 
 /** Texto exibido no formulário de criação, onde o código ainda não existe. */
 export const CODIGO_AUTOMATICO = "Será gerado automaticamente";
+
+/**
+ * Normalização do segmento textual usado nos códigos (hoje: a COR da variante).
+ * MAIÚSCULAS, sem acentos, espaços → "-", sem caracteres especiais e sem "-"
+ * duplicados/nas pontas. O valor original salvo em `cor` NUNCA é alterado.
+ */
+export function normalizarSegmentoCodigo(valor: string): string {
+  return String(valor ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
+ * Código da variante: `PROD-0001-AZUL-MARINHO`.
+ * Gerado pelo backend (mock hoje, NestJS amanhã); o frontend apenas pré-visualiza.
+ */
+export function formatarCodigoVariante(codProduto: string, cor: string): string {
+  const segmento = normalizarSegmentoCodigo(cor);
+  return segmento ? `${codProduto}-${segmento}` : codProduto;
+}
