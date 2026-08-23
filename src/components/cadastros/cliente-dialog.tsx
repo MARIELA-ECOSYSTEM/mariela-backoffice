@@ -16,12 +16,17 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/common/field";
 import { CodigoBadge } from "@/components/common/codigo-badge";
+import { formatarTelefone, telefoneValido } from "@/utils/cliente";
 
 const clienteSchema = z.object({
   nome: z.string().trim().min(1, "Nome é obrigatório.").max(120),
   foto: z.string().trim().max(400),
-  telefone: z.string().trim().min(1, "Telefone é obrigatório.").max(20),
-  whatsapp: z.string().trim().max(20),
+  telefone: z
+    .string()
+    .trim()
+    .min(1, "Telefone é obrigatório.")
+    .max(20)
+    .refine(telefoneValido, "Informe DDD + número, ex.: (83) 99999-9999."),
   dataNascimento: z.string().trim(),
   observacao: z.string().trim().max(400),
 });
@@ -32,7 +37,6 @@ export const CLIENTE_VALORES_PADRAO: ClienteFormValues = {
   nome: "",
   foto: "",
   telefone: "",
-  whatsapp: "",
   dataNascimento: "",
   observacao: "",
 };
@@ -74,8 +78,8 @@ export function ClienteDialog({
             {edicao && codigo ? <CodigoBadge codigo={codigo} /> : null}
           </DialogTitle>
           <DialogDescription>
-            Nome, contato, WhatsApp, data de nascimento e observações. O código é gerado
-            automaticamente pelo sistema.
+            Nome, telefone (usado também no WhatsApp), data de nascimento e observações. O código
+            é gerado automaticamente pelo sistema.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -90,14 +94,23 @@ export function ClienteDialog({
           <Field id="foto" label="Foto (URL)" erro={errors.foto?.message}>
             <Input id="foto" placeholder="https://…" {...form.register("foto")} />
           </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="telefone" label="Telefone" erro={errors.telefone?.message}>
-              <Input id="telefone" placeholder="(00) 00000-0000" {...form.register("telefone")} />
-            </Field>
-            <Field id="whatsapp" label="WhatsApp" erro={errors.whatsapp?.message}>
-              <Input id="whatsapp" placeholder="(00) 00000-0000" {...form.register("whatsapp")} />
-            </Field>
-          </div>
+          <Field
+            id="telefone"
+            label="Telefone (WhatsApp)"
+            erro={errors.telefone?.message}
+          >
+            <Input
+              id="telefone"
+              inputMode="tel"
+              placeholder="(83) 99999-9999"
+              {...form.register("telefone")}
+              onChange={(evento) =>
+                form.setValue("telefone", formatarTelefone(evento.target.value), {
+                  shouldValidate: form.formState.isSubmitted,
+                })
+              }
+            />
+          </Field>
           <Field
             id="dataNascimento"
             label="Data de nascimento"
