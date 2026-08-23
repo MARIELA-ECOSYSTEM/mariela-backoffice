@@ -81,11 +81,7 @@ export function registerIntegracoesMocks(): void {
     if (!payload.mensagem?.trim())
       errors.push({ field: "mensagem", message: "Mensagem é obrigatória." });
     if (errors.length > 0) {
-      throw new ApiError({
-        statusCode: 422,
-        message: "Não foi possível preparar a mensagem.",
-        errors,
-      });
+      throw ApiError.validation("Não foi possível preparar a mensagem.", errors);
     }
 
     sequenciaMensagem += 1;
