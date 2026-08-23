@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   Boxes,
+  ChevronLeft,
+  ChevronRight,
   Eye,
   Image as ImageIcon,
   MoreHorizontal,
@@ -13,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CodigoBadge } from "@/components/common/codigo-badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,42 +26,142 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useDefinirPromocao } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
-import { formatarMoeda } from "@/utils/format";
-import { precoFinal, statusEstoque } from "@/utils/produto";
+import { formatarMoeda, formatarPercentual } from "@/utils/format";
+import { fotosDoProduto, lucroFinal, margemVigente, precoFinal } from "@/utils/produto";
 import type { Produto } from "@/types/produto";
 
 export function ProdutoCardSkeleton() {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
-      <Skeleton className="aspect-[3/4] w-full rounded-none" />
-      <div className="space-y-2 p-4">
-        <Skeleton className="h-3 w-20" />
+      <Skeleton className="aspect-[4/3] w-full rounded-none" />
+      <div className="space-y-2 p-3">
+        <Skeleton className="h-3 w-16" />
         <Skeleton className="h-4 w-4/5" />
-        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-10 w-full" />
       </div>
     </div>
   );
 }
 
-function FotoProduto({ produto }: { produto: Produto }) {
-  const foto = produto.variantes.find((variante) => variante.foto)?.foto ?? null;
+/** Carrossel leve: só troca o índice, sem bibliotecas nem animações pesadas. */
+function GaleriaCard({ produto }: { produto: Produto }) {
+  const fotos = fotosDoProduto(produto);
+  const [indice, setIndice] = useState(0);
+  const atual = fotos[Math.min(indice, fotos.length - 1)];
 
-  if (foto) {
+  if (!atual) {
     return (
-      <img
-        src={foto}
-        alt={produto.nome}
-        loading="lazy"
-        className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-      />
+      <div className="flex size-full flex-col items-center justify-center gap-1 bg-primary-soft/70 text-primary/60">
+        <ImageIcon aria-hidden className="size-6" />
+        <span className="font-brand text-[0.55rem] uppercase tracking-[0.18em]">Sem foto</span>
+      </div>
     );
   }
 
+  function mover(passo: number, event: React.MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIndice((anterior) => (anterior + passo + fotos.length) % fotos.length);
+  }
+
   return (
-    <div className="flex size-full flex-col items-center justify-center gap-2 bg-primary-soft/70 text-primary/60">
-      <ImageIcon aria-hidden className="size-7" />
-      <span className="font-brand text-[0.6rem] uppercase tracking-[0.18em]">Sem foto</span>
-      <span aria-hidden className="h-px w-8 bg-primary/20" />
+    <>
+      <img
+        src={atual.url}
+        alt={`${produto.nome} — ${atual.cor}`}
+        loading="lazy"
+        className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+      />
+      {fotos.length > 1 ? (
+        <>
+          <button
+            type="button"
+            aria-label="Foto anterior"
+            onClick={(event) => mover(-1, event)}
+            className="absolute left-1 top-1/2 -translate-y-1/2 rounded-full bg-card/85 p-1 text-foreground opacity-0 shadow-card transition-opacity hover:bg-card focus-visible:opacity-100 group-hover:opacity-100"
+          >
+            <ChevronLeft aria-hidden className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Próxima foto"
+            onClick={(event) => mover(1, event)}
+            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-card/85 p-1 text-foreground opacity-0 shadow-card transition-opacity hover:bg-card focus-visible:opacity-100 group-hover:opacity-100"
+          >
+            <ChevronRight aria-hidden className="size-3.5" />
+          </button>
+          <div className="pointer-events-none absolute inset-x-0 bottom-1 flex justify-center gap-1">
+            {fotos.map((foto, posicao) => (
+              <span
+                key={foto.varianteId}
+                className={
+                  posicao === Math.min(indice, fotos.length - 1)
+                    ? "size-1.5 rounded-full bg-primary"
+                    : "size-1.5 rounded-full bg-card/80"
+                }
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function LinhaFinanceira({
+  label,
+  valor,
+  destaque,
+  riscado,
+}: {
+  label: string;
+  valor: string;
+  destaque?: boolean;
+  riscado?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-[0.68rem] text-muted-foreground">{label}</span>
+      <span
+        className={[
+          "tabular-nums",
+          destaque ? "font-display text-sm text-foreground" : "text-[0.72rem]",
+          riscado ? "line-through text-muted-foreground" : "",
+        ].join(" ")}
+      >
+        {valor}
+      </span>
+    </div>
+  );
+}
+
+/** Estoque compacto: COR → TAMANHO(QTD), derivado apenas das variantes. */
+function EstoqueCompacto({ produto }: { produto: Produto }) {
+  const comEstoque = produto.variantes.filter((variante) => variante.quantidadeVariante > 0);
+  if (!comEstoque.length) {
+    return <p className="text-[0.68rem] text-muted-foreground">Nenhuma variante com estoque.</p>;
+  }
+  const visiveis = comEstoque.slice(0, 3);
+  const restantes = comEstoque.length - visiveis.length;
+
+  return (
+    <div className="space-y-0.5">
+      {visiveis.map((variante) => (
+        <div key={variante.id} className="flex items-baseline gap-1.5 text-[0.68rem] leading-tight">
+          <span className="min-w-0 shrink-0 truncate font-medium text-foreground">
+            {variante.cor}
+          </span>
+          <span className="truncate tabular-nums text-muted-foreground">
+            {variante.tamanhos
+              .filter((tamanho) => tamanho.quantidade > 0)
+              .map((tamanho) => `${tamanho.tamanho}(${tamanho.quantidade})`)
+              .join(" ")}
+          </span>
+        </div>
+      ))}
+      {restantes > 0 ? (
+        <p className="text-[0.65rem] text-muted-foreground">+{restantes} cor(es)</p>
+      ) : null}
     </div>
   );
 }
@@ -72,9 +176,10 @@ export function ProdutoCard({
   onPromocao: (produto: Produto) => void;
 }) {
   const desativarPromocao = useDefinirPromocao(produto.id);
-  const status = statusEstoque(produto.quantidadeTotal);
   const semEstoque = produto.quantidadeTotal === 0;
   const preco = precoFinal(produto);
+  const lucro = lucroFinal(produto);
+  const margem = margemVigente(produto);
 
   async function desativar() {
     try {
@@ -87,39 +192,44 @@ export function ProdutoCard({
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-raised">
-      <Link
-        to="/produtos/$id"
-        params={{ id: produto.id }}
-        aria-label={`Abrir ${produto.nome}`}
-        className="relative block aspect-[3/4] overflow-hidden bg-surface"
-      >
-        <FotoProduto produto={produto} />
+      <div className="relative aspect-[4/3] overflow-hidden bg-surface">
+        <Link
+          to="/produtos/$id"
+          params={{ id: produto.id }}
+          aria-label={`Abrir ${produto.nome}`}
+          className="absolute inset-0"
+        >
+          <span className="sr-only">{produto.nome}</span>
+        </Link>
+        <GaleriaCard produto={produto} />
 
-        <div className="pointer-events-none absolute left-2.5 top-2.5 flex flex-col items-start gap-1.5">
+        <div className="pointer-events-none absolute left-1.5 top-1.5 flex flex-wrap items-start gap-1">
           {produto.ehNovidade ? (
-            <Badge variant="outline" className="border-primary/30 bg-card/90 text-primary">
+            <Badge
+              variant="outline"
+              className="border-primary/30 bg-card/90 px-1.5 py-0 text-[0.6rem] text-primary"
+            >
               Novidade
             </Badge>
           ) : null}
           {produto.ehPromocao ? (
-            <Badge className="bg-primary text-primary-foreground">Promoção</Badge>
+            <Badge className="bg-primary px-1.5 py-0 text-[0.6rem] text-primary-foreground">
+              Promoção
+            </Badge>
+          ) : null}
+          {semEstoque ? (
+            <Badge variant="destructive" className="px-1.5 py-0 text-[0.6rem]">
+              Sem estoque
+            </Badge>
           ) : null}
         </div>
+      </div>
 
-        {semEstoque ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-foreground/60 py-1.5 text-center font-brand text-[0.6rem] uppercase tracking-[0.16em] text-background">
-            Sem estoque
-          </div>
-        ) : null}
-      </Link>
-
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex items-start justify-between gap-2">
+      <div className="flex flex-1 flex-col gap-2 p-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
           <div className="min-w-0">
-            <p className="font-brand text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-              {produto.codProduto}
-            </p>
-            <h3 className="truncate font-display text-base leading-snug">
+            <CodigoBadge codigo={produto.codProduto} tamanho="xs" />
+            <h3 className="mt-1 truncate font-display text-sm leading-snug">
               <Link
                 to="/produtos/$id"
                 params={{ id: produto.id }}
@@ -128,7 +238,7 @@ export function ProdutoCard({
                 {produto.nome}
               </Link>
             </h3>
-            <p className="truncate text-xs text-muted-foreground">{produto.categoria}</p>
+            <p className="truncate text-[0.68rem] text-muted-foreground">{produto.categoria}</p>
           </div>
 
           <DropdownMenu>
@@ -136,7 +246,7 @@ export function ProdutoCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="-mr-1 -mt-1 shrink-0"
+                className="-mr-1 -mt-1 size-7 shrink-0"
                 aria-label={`Ações de ${produto.nome}`}
               >
                 <MoreHorizontal aria-hidden className="size-4" />
@@ -184,34 +294,52 @@ export function ProdutoCard({
           </DropdownMenu>
         </div>
 
-        <div className="mt-auto space-y-3">
-          <div className="flex items-baseline gap-2 tabular-nums">
-            <span className="font-display text-lg text-foreground">{formatarMoeda(preco)}</span>
-            {produto.ehPromocao && preco !== produto.precoVenda ? (
-              <span className="text-xs text-muted-foreground line-through">
-                {formatarMoeda(produto.precoVenda)}
-              </span>
-            ) : null}
+        <div className="rounded-lg border border-border bg-surface/60 px-2 py-1.5">
+          <LinhaFinanceira label="Custo" valor={formatarMoeda(produto.precoCusto)} />
+          <LinhaFinanceira
+            label={produto.ehPromocao ? "Preço normal" : "Venda"}
+            valor={formatarMoeda(produto.precoVenda)}
+            riscado={produto.ehPromocao}
+            destaque={!produto.ehPromocao}
+          />
+          {produto.ehPromocao ? (
+            <LinhaFinanceira label="Promocional" valor={formatarMoeda(preco)} destaque />
+          ) : null}
+          <div className="mt-1 flex items-baseline justify-between gap-2 border-t border-border pt-1">
+            <span className="text-[0.68rem] text-muted-foreground">
+              Lucro{" "}
+              <span className="tabular-nums text-foreground">{formatarMoeda(lucro)}</span>
+            </span>
+            <Badge
+              variant="outline"
+              className="border-primary/25 bg-primary-soft/50 px-1.5 py-0 text-[0.6rem] tabular-nums text-primary"
+            >
+              {formatarPercentual(margem)}
+            </Badge>
           </div>
+        </div>
 
-          <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+        <div className="mt-auto space-y-1.5 border-t border-border pt-2">
+          <div className="flex items-baseline justify-between gap-2">
             <span
               className={
-                status === "sem-estoque"
-                  ? "font-brand text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground"
-                  : "font-brand text-[0.65rem] uppercase tracking-[0.14em] text-primary"
+                semEstoque
+                  ? "font-brand text-[0.62rem] uppercase tracking-[0.14em] text-destructive"
+                  : "font-brand text-[0.62rem] uppercase tracking-[0.14em] text-primary"
               }
             >
               {semEstoque ? "Sem estoque" : "Em estoque"}
               <span className="ml-1.5 tabular-nums text-foreground">{produto.quantidadeTotal}</span>
             </span>
-
-            <Button asChild size="sm" variant="outline">
-              <Link to="/produtos/$id" params={{ id: produto.id }}>
-                Abrir
-              </Link>
-            </Button>
+            <Link
+              to="/produtos/$id"
+              params={{ id: produto.id }}
+              className="text-[0.68rem] text-primary underline-offset-4 hover:underline"
+            >
+              Abrir
+            </Link>
           </div>
+          <EstoqueCompacto produto={produto} />
         </div>
       </div>
     </article>
