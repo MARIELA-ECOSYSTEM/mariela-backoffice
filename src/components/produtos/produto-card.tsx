@@ -16,7 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CodigoBadge } from "@/components/common/codigo-badge";
+import { corVisual } from "@/utils/cores";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,10 +33,10 @@ import type { Produto } from "@/types/produto";
 export function ProdutoCardSkeleton() {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
-      <Skeleton className="aspect-[4/3] w-full rounded-none" />
+      <Skeleton className="aspect-[3/4] w-full rounded-none" />
       <div className="space-y-2 p-3">
-        <Skeleton className="h-3 w-16" />
         <Skeleton className="h-4 w-4/5" />
+        <Skeleton className="h-6 w-24" />
         <Skeleton className="h-10 w-full" />
       </div>
     </div>
@@ -70,8 +70,9 @@ function GaleriaCard({ produto }: { produto: Produto }) {
         src={atual.url}
         alt={`${produto.nome} — ${atual.cor}`}
         loading="lazy"
-        className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+        className="size-full object-contain p-1 transition-transform duration-500 ease-out group-hover:scale-[1.02]"
       />
+
       {fotos.length > 1 ? (
         <>
           <button
@@ -108,49 +109,25 @@ function GaleriaCard({ produto }: { produto: Produto }) {
   );
 }
 
-function LinhaFinanceira({
-  label,
-  valor,
-  destaque,
-  riscado,
-}: {
-  label: string;
-  valor: string;
-  destaque?: boolean;
-  riscado?: boolean;
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-2">
-      <span className="text-[0.68rem] text-muted-foreground">{label}</span>
-      <span
-        className={[
-          "tabular-nums",
-          destaque ? "font-display text-sm text-foreground" : "text-[0.72rem]",
-          riscado ? "line-through text-muted-foreground" : "",
-        ].join(" ")}
-      >
-        {valor}
-      </span>
-    </div>
-  );
-}
-
-/** Estoque compacto: COR → TAMANHO(QTD), derivado apenas das variantes. */
+/** Estoque compacto: bolinha da cor → COR → TAMANHO(QTD). */
 function EstoqueCompacto({ produto }: { produto: Produto }) {
   const comEstoque = produto.variantes.filter((variante) => variante.quantidadeVariante > 0);
   if (!comEstoque.length) {
-    return <p className="text-[0.68rem] text-muted-foreground">Nenhuma variante com estoque.</p>;
+    return <p className="text-[0.7rem] text-muted-foreground">Nenhuma variante com estoque.</p>;
   }
   const visiveis = comEstoque.slice(0, 3);
   const restantes = comEstoque.length - visiveis.length;
 
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-1">
       {visiveis.map((variante) => (
-        <div key={variante.id} className="flex items-baseline gap-1.5 text-[0.68rem] leading-tight">
-          <span className="min-w-0 shrink-0 truncate font-medium text-foreground">
-            {variante.cor}
-          </span>
+        <div key={variante.id} className="flex items-center gap-1.5 text-[0.7rem] leading-tight">
+          <span
+            aria-hidden
+            className="size-2.5 shrink-0 rounded-full border border-border shadow-[inset_0_0_0_1px_hsl(0_0%_100%/0.35)]"
+            style={{ backgroundColor: corVisual(variante.cor) }}
+          />
+          <span className="shrink-0 truncate font-medium text-foreground">{variante.cor}</span>
           <span className="truncate tabular-nums text-muted-foreground">
             {variante.tamanhos
               .filter((tamanho) => tamanho.quantidade > 0)
@@ -160,7 +137,7 @@ function EstoqueCompacto({ produto }: { produto: Produto }) {
         </div>
       ))}
       {restantes > 0 ? (
-        <p className="text-[0.65rem] text-muted-foreground">+{restantes} cor(es)</p>
+        <p className="text-[0.68rem] text-muted-foreground">+{restantes} cor(es)</p>
       ) : null}
     </div>
   );
@@ -192,7 +169,7 @@ export function ProdutoCard({
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-raised">
-      <div className="relative aspect-[4/3] overflow-hidden bg-surface">
+      <div className="relative aspect-[3/4] overflow-hidden bg-surface">
         <Link
           to="/produtos/$id"
           params={{ id: produto.id }}
@@ -228,8 +205,7 @@ export function ProdutoCard({
       <div className="flex flex-1 flex-col gap-2 p-3">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
           <div className="min-w-0">
-            <CodigoBadge codigo={produto.codProduto} tamanho="xs" />
-            <h3 className="mt-1 truncate font-display text-sm leading-snug">
+            <h3 className="truncate font-display text-[0.95rem] leading-snug">
               <Link
                 to="/produtos/$id"
                 params={{ id: produto.id }}
@@ -294,27 +270,29 @@ export function ProdutoCard({
           </DropdownMenu>
         </div>
 
-        <div className="rounded-lg border border-border bg-surface/60 px-2 py-1.5">
-          <LinhaFinanceira label="Custo" valor={formatarMoeda(produto.precoCusto)} />
-          <LinhaFinanceira
-            label={produto.ehPromocao ? "Preço normal" : "Venda"}
-            valor={formatarMoeda(produto.precoVenda)}
-            riscado={produto.ehPromocao}
-            destaque={!produto.ehPromocao}
-          />
-          {produto.ehPromocao ? (
-            <LinhaFinanceira label="Promocional" valor={formatarMoeda(preco)} destaque />
-          ) : null}
-          <div className="mt-1 flex items-baseline justify-between gap-2 border-t border-border pt-1">
-            <span className="text-[0.68rem] text-muted-foreground">
-              Lucro <span className="tabular-nums text-foreground">{formatarMoeda(lucro)}</span>
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="font-display text-xl leading-none tabular-nums text-foreground">
+              {formatarMoeda(preco)}
             </span>
-            <Badge
-              variant="outline"
-              className="border-primary/25 bg-primary-soft/50 px-1.5 py-0 text-[0.6rem] tabular-nums text-primary"
-            >
-              {formatarPercentual(margem)}
-            </Badge>
+            {produto.ehPromocao ? (
+              <span className="text-[0.72rem] tabular-nums text-muted-foreground line-through">
+                {formatarMoeda(produto.precoVenda)}
+              </span>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-baseline gap-x-2 text-[0.68rem] text-muted-foreground">
+            <span>
+              Custo <span className="tabular-nums">{formatarMoeda(produto.precoCusto)}</span>
+            </span>
+            <span aria-hidden>·</span>
+            <span>
+              Lucro <span className="tabular-nums">{formatarMoeda(lucro)}</span>
+            </span>
+            <span aria-hidden>·</span>
+            <span>
+              Margem <span className="tabular-nums">{formatarPercentual(margem)}</span>
+            </span>
           </div>
         </div>
 
