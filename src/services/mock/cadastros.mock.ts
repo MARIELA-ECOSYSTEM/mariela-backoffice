@@ -25,13 +25,17 @@ function encontrar<T extends { id: string }>(lista: T[], id: string, rotulo: str
   return item;
 }
 
-/** Valida nome + período (inicio/fim) usado por coleções e campanhas. */
+/** Valida nome + período + dados de vitrine usados por coleções e campanhas. */
 function validarPeriodo(body: unknown): {
   nome: string;
   descricao: string;
   inicio: string;
   fim: string;
   ativo: boolean;
+  destaque: boolean;
+  banner: boolean;
+  fotoDestaque: string | null;
+  fotoBanner: string | null;
 } {
   const payload = (body ?? {}) as Partial<ColecaoPayload>;
   const errors: ApiFieldError[] = [];
@@ -46,7 +50,21 @@ function validarPeriodo(body: unknown): {
     errors.push({ field: "fim", message: "A data de fim deve ser posterior ao início." });
   validar(errors);
 
-  return { nome, descricao: texto(payload.descricao), inicio, fim, ativo: booleano(payload.ativo) };
+  const destaque = booleano(payload.destaque, false);
+  const banner = booleano(payload.banner, false);
+
+  return {
+    nome,
+    descricao: texto(payload.descricao),
+    inicio,
+    fim,
+    ativo: booleano(payload.ativo),
+    destaque,
+    banner,
+    // As imagens só fazem sentido quando o respectivo uso está habilitado.
+    fotoDestaque: destaque ? texto(payload.fotoDestaque) || null : null,
+    fotoBanner: banner ? texto(payload.fotoBanner) || null : null,
+  };
 }
 
 function registrarClientes(): void {
@@ -220,6 +238,13 @@ function registrarColecoes(): void {
     return { data: clonar(colecao) };
   });
 
+  registerMock("PATCH", "/colecoes/:id/status", ({ params, body }) => {
+    const colecao = encontrar(db.colecoes, params["id"]!, "Coleção");
+    const payload = (body ?? {}) as { ativo?: boolean };
+    colecao.ativo = typeof payload.ativo === "boolean" ? payload.ativo : !colecao.ativo;
+    return { data: clonar(colecao) };
+  });
+
   registerMock("DELETE", "/colecoes/:id", ({ params }) => {
     const colecao = encontrar(db.colecoes, params["id"]!, "Coleção");
     const vinculados = db.produtos.filter((p) => p.colecaoId === colecao.id).length;
@@ -257,6 +282,13 @@ function registrarCampanhas(): void {
   registerMock("PUT", "/campanhas/:id", ({ params, body }) => {
     const campanha = encontrar(db.campanhas, params["id"]!, "Campanha");
     Object.assign(campanha, validarPeriodo(body as Partial<CampanhaPayload>));
+    return { data: clonar(campanha) };
+  });
+
+  registerMock("PATCH", "/campanhas/:id/status", ({ params, body }) => {
+    const campanha = encontrar(db.campanhas, params["id"]!, "Campanha");
+    const payload = (body ?? {}) as { ativo?: boolean };
+    campanha.ativo = typeof payload.ativo === "boolean" ? payload.ativo : !campanha.ativo;
     return { data: clonar(campanha) };
   });
 

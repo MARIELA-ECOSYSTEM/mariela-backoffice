@@ -133,6 +133,15 @@ export function useRemoverColecao() {
   });
 }
 
+export function useAlterarStatusColecao() {
+  const invalidar = useInvalidar(colecoesKeys.todos);
+  return useMutation({
+    mutationFn: (vars: { id: string; ativo: boolean }) =>
+      colecoesApi.alterarStatus(vars.id, vars.ativo),
+    onSuccess: () => void invalidar(),
+  });
+}
+
 export function useCampanhas() {
   return useQuery({
     queryKey: campanhasKeys.todos,
@@ -162,6 +171,15 @@ export function useRemoverCampanha() {
   const invalidar = useInvalidar(campanhasKeys.todos);
   return useMutation({
     mutationFn: (id: string) => campanhasApi.remover(id),
+    onSuccess: () => void invalidar(),
+  });
+}
+
+export function useAlterarStatusCampanha() {
+  const invalidar = useInvalidar(campanhasKeys.todos);
+  return useMutation({
+    mutationFn: (vars: { id: string; ativo: boolean }) =>
+      campanhasApi.alterarStatus(vars.id, vars.ativo),
     onSuccess: () => void invalidar(),
   });
 }
