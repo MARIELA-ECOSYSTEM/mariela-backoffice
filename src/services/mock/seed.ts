@@ -7,6 +7,10 @@ import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
 import { formatarCodigo } from "@/lib/codigos";
+import vestido1 from "@/assets/produtos/vestido-1.jpg";
+import vestido2 from "@/assets/produtos/vestido-2.jpg";
+import blusa1 from "@/assets/produtos/blusa-1.jpg";
+import calca1 from "@/assets/produtos/calca-1.jpg";
 
 export const CATEGORIAS = [
   "Vestidos",
@@ -55,6 +59,8 @@ function margem(custo: number, venda: number): number {
 
 interface VarianteSeed {
   cor: string;
+  /** Foto da variante (uma por cor). O card monta a galeria com todas elas. */
+  foto?: string;
   tamanhos: [string, number][];
 }
 
@@ -91,6 +97,7 @@ const SEEDS: ProdutoSeed[] = [
     variantes: [
       {
         cor: "Preto",
+        foto: vestido1,
         tamanhos: [
           ["P", 4],
           ["M", 6],
@@ -99,6 +106,7 @@ const SEEDS: ProdutoSeed[] = [
       },
       {
         cor: "Terracota",
+        foto: vestido2,
         tamanhos: [
           ["P", 2],
           ["M", 5],
@@ -128,6 +136,7 @@ const SEEDS: ProdutoSeed[] = [
     variantes: [
       {
         cor: "Rosé",
+        foto: blusa1,
         tamanhos: [
           ["PP", 5],
           ["P", 8],
@@ -477,7 +486,7 @@ export function seedProdutos(): Produto[] {
         codVariante: `${seed.cod}-${String(indexVariante + 1).padStart(2, "0")}`,
         cor: variante.cor,
         quantidadeVariante: tamanhos.reduce((total, t) => total + t.quantidade, 0),
-        foto: null,
+        foto: variante.foto ?? null,
         video: null,
         tamanhos,
       };
