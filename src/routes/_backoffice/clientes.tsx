@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CalendarHeart, Pencil, Phone, Plus, Power, Trash2 } from "lucide-react";
+import { Cake, CalendarHeart, MessageCircle, Pencil, Phone, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
@@ -11,44 +11,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
-  AtivoBadge,
-  DataToolbar,
-  NotaDemonstracao,
-  Paginacao,
-} from "@/components/common/data-toolbar";
+import { DataToolbar, Paginacao } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import { OPCOES_STATUS, type GrupoFacetaDef } from "@/lib/filtros/facetas";
-import {
-  AvatarPessoa,
-  GridSkeleton,
-  PessoaCard,
-  PessoaGrid,
-} from "@/components/common/pessoa-card";
+import type { GrupoFacetaDef } from "@/lib/filtros/facetas";
+import { GridSkeleton, PessoaCard, PessoaGrid } from "@/components/common/pessoa-card";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
   CLIENTE_VALORES_PADRAO,
   ClienteDialog,
   type ClienteFormValues,
 } from "@/components/cadastros/cliente-dialog";
-import {
-  useAlterarStatusCliente,
-  useAtualizarCliente,
-  useClientes,
-  useCriarCliente,
-  useRemoverCliente,
-} from "@/hooks/use-cadastros";
+import { AniversariantesDialog } from "@/components/cadastros/aniversariantes-dialog";
+import { BotaoWhatsapp } from "@/components/cadastros/botao-whatsapp";
+import { ClienteDetalhe } from "@/components/cadastros/cliente-detalhe";
+import { useAtualizarCliente, useClientes, useCriarCliente, useRemoverCliente } from "@/hooks/use-cadastros";
 import { mensagemDeErro } from "@/services/api/client";
-import { formatarData } from "@/utils/format";
+import { formatarData, formatarMoeda } from "@/utils/format";
+import {
+  OPCOES_ORDENACAO,
+  OPCOES_SEM_COMPRA,
+  aniversarioNoPeriodo,
+  janelaSemCompra,
+  numeroWhatsapp,
+  ordenarClientes,
+  rotuloUltimaCompra,
+  semCompraDesde,
+  type OrdenacaoCliente,
+} from "@/utils/cliente";
 import type { Cliente } from "@/types/cliente";
 
 export const Route = createFileRoute("/_backoffice/clientes")({
@@ -66,29 +57,17 @@ export const Route = createFileRoute("/_backoffice/clientes")({
 
 const POR_PAGINA = 12;
 
-type Ordenacao = "nome" | "recentes" | "nascimento";
-
-function ordenar(lista: Cliente[], ordem: Ordenacao): Cliente[] {
-  const copia = [...lista];
-  if (ordem === "nome") return copia.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  if (ordem === "recentes") return copia.sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
-  return copia.sort((a, b) =>
-    (a.dataNascimento ?? "9999").localeCompare(b.dataNascimento ?? "9999"),
-  );
-}
-
 function ClientesPage() {
   const { data: clientes, isPending, isError, error, refetch } = useClientes();
   const criar = useCriarCliente();
   const atualizar = useAtualizarCliente();
-  const alterarStatus = useAlterarStatusCliente();
   const remover = useRemoverCliente();
 
   const [busca, setBusca] = useState("");
-
-  const [ordem, setOrdem] = useState<Ordenacao>("nome");
+  const [ordem, setOrdem] = useState<OrdenacaoCliente>("nome-asc");
   const [pagina, setPagina] = useState(1);
   const [dialogAberto, setDialogAberto] = useState(false);
+  const [aniversariantesAberto, setAniversariantesAberto] = useState(false);
   const [emEdicao, setEmEdicao] = useState<Cliente | null>(null);
   const [paraExcluir, setParaExcluir] = useState<Cliente | null>(null);
   const [detalhe, setDetalhe] = useState<Cliente | null>(null);
@@ -96,20 +75,40 @@ function ClientesPage() {
   const grupos = useMemo<GrupoFacetaDef<Cliente>[]>(
     () => [
       {
-        id: "status",
-        label: "Status",
-        opcoes: OPCOES_STATUS,
-        corresponde: (cliente, valor) => (valor === "ativos" ? cliente.ativo : !cliente.ativo),
+        id: "recencia",
+        label: "Sem compra recente",
+        opcoes: OPCOES_SEM_COMPRA.map((opcao) => ({ valor: opcao.valor, label: opcao.label })),
+        corresponde: (cliente, valor) => semCompraDesde(cliente, janelaSemCompra(valor)),
       },
       {
-        id: "nascimento",
+        id: "historico",
+        label: "Histórico",
+        opcoes: [
+          { valor: "com", label: "Já comprou" },
+          { valor: "sem", label: "Nunca comprou" },
+          { valor: "recorrente", label: "Recorrente (2+ compras)" },
+        ],
+        corresponde: (cliente, valor) =>
+          valor === "com"
+            ? cliente.compras > 0
+            : valor === "sem"
+              ? cliente.compras === 0
+              : cliente.compras >= 2,
+      },
+      {
+        id: "aniversario",
         label: "Aniversário",
         opcoes: [
+          { valor: "mes", label: "Neste mês" },
+          { valor: "semana", label: "Nesta semana" },
           { valor: "com", label: "Com data cadastrada" },
           { valor: "sem", label: "Sem data cadastrada" },
         ],
-        corresponde: (cliente, valor) =>
-          valor === "com" ? Boolean(cliente.dataNascimento) : !cliente.dataNascimento,
+        corresponde: (cliente, valor) => {
+          if (valor === "com") return Boolean(cliente.dataNascimento);
+          if (valor === "sem") return !cliente.dataNascimento;
+          return aniversarioNoPeriodo(cliente.dataNascimento, valor === "mes" ? "mes" : "semana");
+        },
       },
       {
         id: "observacao",
@@ -131,13 +130,14 @@ function ClientesPage() {
       (cliente) =>
         !termo ||
         cliente.nome.toLowerCase().includes(termo) ||
-        cliente.telefone.toLowerCase().includes(termo),
+        cliente.telefone.toLowerCase().includes(termo) ||
+        cliente.whatsapp.toLowerCase().includes(termo),
     );
   }, [clientes, busca]);
 
   const filtragem = useFiltrosFacetados({ itens: buscados, grupos });
   const filtrados = useMemo(
-    () => ordenar(filtragem.itensFiltrados, ordem),
+    () => ordenarClientes(filtragem.itensFiltrados, ordem),
     [filtragem.itensFiltrados, ordem],
   );
 
@@ -150,9 +150,9 @@ function ClientesPage() {
         nome: emEdicao.nome,
         foto: emEdicao.foto ?? "",
         telefone: emEdicao.telefone,
+        whatsapp: emEdicao.whatsapp,
         dataNascimento: emEdicao.dataNascimento ?? "",
         observacao: emEdicao.observacao,
-        ativo: emEdicao.ativo,
       }
     : CLIENTE_VALORES_PADRAO;
 
@@ -166,9 +166,9 @@ function ClientesPage() {
       nome: valores.nome,
       foto: valores.foto || null,
       telefone: valores.telefone,
+      whatsapp: valores.whatsapp,
       dataNascimento: valores.dataNascimento || null,
       observacao: valores.observacao,
-      ativo: valores.ativo,
     };
     try {
       if (emEdicao) await atualizar.mutateAsync({ id: emEdicao.id, payload });
@@ -178,15 +178,6 @@ function ClientesPage() {
       setEmEdicao(null);
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível salvar o cliente."));
-    }
-  }
-
-  async function alternarStatus(cliente: Cliente) {
-    try {
-      await alterarStatus.mutateAsync({ id: cliente.id, ativo: !cliente.ativo });
-      toast.success(cliente.ativo ? "Cliente inativada." : "Cliente ativada.");
-    } catch (err) {
-      toast.error(mensagemDeErro(err, "Não foi possível alterar o status."));
     }
   }
 
@@ -205,12 +196,18 @@ function ClientesPage() {
     <Page
       titulo="Clientes"
       breadcrumbs={[{ label: "Cadastros" }, { label: "Clientes" }]}
-      descricao="Base de clientes da loja com telefone, data de nascimento, observações e status."
+      descricao="Base de clientes com contato, aniversário e histórico de compras."
       acoes={
-        <Button onClick={abrirNovo}>
-          <Plus aria-hidden className="size-4" />
-          Nova cliente
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setAniversariantesAberto(true)}>
+            <Cake aria-hidden className="size-4" />
+            Aniversariantes
+          </Button>
+          <Button onClick={abrirNovo}>
+            <Plus aria-hidden className="size-4" />
+            Nova cliente
+          </Button>
+        </div>
       }
     >
       <DataToolbar
@@ -219,16 +216,18 @@ function ClientesPage() {
           setBusca(valor);
           setPagina(1);
         }}
-        placeholder="Buscar por nome ou telefone…"
+        placeholder="Buscar por nome, telefone ou WhatsApp…"
       >
-        <Select value={ordem} onValueChange={(valor) => setOrdem(valor as Ordenacao)}>
-          <SelectTrigger className="w-52" aria-label="Ordenar clientes">
+        <Select value={ordem} onValueChange={(valor) => setOrdem(valor as OrdenacaoCliente)}>
+          <SelectTrigger className="w-60" aria-label="Ordenar clientes">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="nome">Nome (A–Z)</SelectItem>
-            <SelectItem value="recentes">Cadastro mais recente</SelectItem>
-            <SelectItem value="nascimento">Aniversário</SelectItem>
+            {OPCOES_ORDENACAO.map((opcao) => (
+              <SelectItem key={opcao.valor} value={opcao.valor}>
+                {opcao.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </DataToolbar>
@@ -242,7 +241,6 @@ function ClientesPage() {
         }}
         onLimparGrupo={filtragem.limparGrupo}
         onLimparTudo={filtragem.limparTudo}
-        colunas={3}
         resultado={
           <span className="text-sm text-muted-foreground">
             {filtrados.length} cliente(s) encontrada(s)
@@ -272,17 +270,33 @@ function ClientesPage() {
               key={cliente.id}
               nome={cliente.nome}
               foto={cliente.foto}
-              ativo={cliente.ativo}
               subtitulo={`Cliente desde ${formatarData(cliente.criadoEm)}`}
               campos={[
                 { icon: Phone, label: "Telefone", valor: cliente.telefone },
                 {
+                  icon: MessageCircle,
+                  label: "WhatsApp",
+                  valor: cliente.whatsapp || cliente.telefone,
+                },
+                {
                   icon: CalendarHeart,
                   label: "Nascimento",
-                  valor: formatarData(cliente.dataNascimento),
+                  valor: cliente.dataNascimento ? formatarData(cliente.dataNascimento) : "—",
                 },
               ]}
+              metricas={[
+                { label: "Compras", valor: String(cliente.compras) },
+                {
+                  label: "Total comprado",
+                  valor: formatarMoeda(cliente.totalComprado),
+                  destaque: true,
+                },
+                { label: "Última compra", valor: rotuloUltimaCompra(cliente.ultimaCompra) },
+              ]}
               observacao={cliente.observacao}
+              acaoRapida={
+                <BotaoWhatsapp nome={cliente.nome} numero={numeroWhatsapp(cliente)} />
+              }
               onVisualizar={() => setDetalhe(cliente)}
               acoes={[
                 {
@@ -292,11 +306,6 @@ function ClientesPage() {
                     setEmEdicao(cliente);
                     setDialogAberto(true);
                   },
-                },
-                {
-                  label: cliente.ativo ? "Inativar" : "Ativar",
-                  icon: Power,
-                  onClick: () => void alternarStatus(cliente),
                 },
                 {
                   label: "Excluir",
@@ -326,9 +335,16 @@ function ClientesPage() {
           if (!aberto) setEmEdicao(null);
         }}
         edicao={emEdicao !== null}
+        codigo={emEdicao?.codigo}
         valoresIniciais={valoresIniciais}
         salvando={criar.isPending || atualizar.isPending}
         onSubmit={(valores) => void salvar(valores)}
+      />
+
+      <AniversariantesDialog
+        open={aniversariantesAberto}
+        onOpenChange={setAniversariantesAberto}
+        clientes={clientes ?? []}
       />
 
       <ConfirmDialog
@@ -348,55 +364,12 @@ function ClientesPage() {
         }}
       />
 
-      <Sheet
-        open={detalhe !== null}
+      <ClienteDetalhe
+        cliente={detalhe}
         onOpenChange={(aberto) => {
           if (!aberto) setDetalhe(null);
         }}
-      >
-        <SheetContent className="w-full sm:max-w-lg">
-          <SheetHeader>
-            <SheetTitle className="font-display text-3xl">{detalhe?.nome}</SheetTitle>
-            <SheetDescription>Ficha da cliente e histórico de relacionamento.</SheetDescription>
-          </SheetHeader>
-
-          {detalhe ? (
-            <div className="space-y-6 px-4 pb-6">
-              <div className="flex items-center gap-4">
-                <AvatarPessoa nome={detalhe.nome} foto={detalhe.foto} className="size-16" />
-                <AtivoBadge ativo={detalhe.ativo} />
-              </div>
-
-              <dl className="space-y-3 text-sm">
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Telefone</dt>
-                  <dd>{detalhe.telefone || "—"}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Nascimento</dt>
-                  <dd>{formatarData(detalhe.dataNascimento)}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Cadastro</dt>
-                  <dd>{formatarData(detalhe.criadoEm)}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Observação</dt>
-                  <dd className="max-w-[60%] text-right">{detalhe.observacao || "—"}</dd>
-                </div>
-              </dl>
-
-              <div>
-                <p className="text-eyebrow mb-3">Histórico de compras</p>
-                <NotaDemonstracao>
-                  O histórico de vendas será exibido aqui quando o módulo de Vendas do PDV estiver
-                  integrado à API.
-                </NotaDemonstracao>
-              </div>
-            </div>
-          ) : null}
-        </SheetContent>
-      </Sheet>
+      />
     </Page>
   );
 }
