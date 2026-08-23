@@ -1,5 +1,7 @@
 export interface Vendedor {
   id: string;
+  /** Código sequencial gerado pela API (`VEN-0001`). Somente leitura. */
+  codigo: string;
   nome: string;
   /** URL da foto do vendedor ou null. */
   foto: string | null;

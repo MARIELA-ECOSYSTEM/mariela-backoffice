@@ -1,5 +1,7 @@
 export interface Colecao {
   id: string;
+  /** Código sequencial gerado pela API (`COL-0001`). Somente leitura. */
+  codigo: string;
   nome: string;
   descricao: string;
   /** Início da coleção em ISO (YYYY-MM-DD). */

@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { produtosApi } from "@/services/api/produtos.api";
-import type { Produto, ProdutoFiltros, ProdutoPayload, PromocaoRequest } from "@/types/produto";
+import type {
+  FotoPrincipalRequest,
+  Produto,
+  ProdutoFiltros,
+  ProdutoPayload,
+  PromocaoRequest,
+} from "@/types/produto";
 
 export const produtosKeys = {
   todos: ["produtos"] as const,
@@ -60,6 +66,14 @@ export function useDefinirPromocao(id: string) {
   const invalidar = useInvalidarProdutos();
   return useMutation({
     mutationFn: (payload: PromocaoRequest) => produtosApi.definirPromocao(id, payload),
+    onSuccess: () => invalidar(id),
+  });
+}
+
+export function useDefinirFotoPrincipal(id: string) {
+  const invalidar = useInvalidarProdutos();
+  return useMutation({
+    mutationFn: (payload: FotoPrincipalRequest) => produtosApi.definirFotoPrincipal(id, payload),
     onSuccess: () => invalidar(id),
   });
 }

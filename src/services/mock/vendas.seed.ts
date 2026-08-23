@@ -1,3 +1,4 @@
+import { formatarCodigoVenda } from "@/lib/codigos";
 import type { Cliente } from "@/types/cliente";
 import type { Produto } from "@/types/produto";
 import type { Vendedor } from "@/types/vendedor";
@@ -74,6 +75,7 @@ export function seedVendas(
       vendas.push({
         id: `vnd_${sequencia}`,
         numero: String(sequencia).padStart(6, "0"),
+        codigo: formatarCodigoVenda(dataVenda, sequencia),
         dataVenda: dataVenda.toISOString(),
         clienteId: cliente?.id ?? null,
         clienteNome: cliente?.nome ?? "Consumidor final",

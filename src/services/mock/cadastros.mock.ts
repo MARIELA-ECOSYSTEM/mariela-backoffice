@@ -1,5 +1,6 @@
 import { registerMock } from "./mock-transport";
 import { agora, clonar, db, gerarId } from "./db";
+import { proximoCodigo } from "./sequencias";
 import { ApiError, type ApiFieldError } from "@/types/api";
 import type { Cliente, ClientePayload } from "@/types/cliente";
 import type { Fornecedor, FornecedorPayload } from "@/types/fornecedor";
@@ -69,6 +70,8 @@ function registrarClientes(): void {
 
     const cliente: Cliente = {
       id: gerarId("cli"),
+      // Código gerado pela camada de dados — nunca enviado pelo formulário.
+      codigo: proximoCodigo("cliente"),
       nome,
       foto: texto(payload.foto) || null,
       telefone,
@@ -136,6 +139,7 @@ function registrarFornecedores(): void {
 
     const fornecedor: Fornecedor = {
       id: gerarId("for"),
+      codigo: proximoCodigo("fornecedor"),
       nome,
       foto: texto(payload.foto) || null,
       contato: texto(payload.contato),
@@ -200,7 +204,12 @@ function registrarColecoes(): void {
   }));
 
   registerMock("POST", "/colecoes", ({ body }) => {
-    const colecao: Colecao = { id: gerarId("col"), ...validarPeriodo(body), criadoEm: agora() };
+    const colecao: Colecao = {
+      id: gerarId("col"),
+      codigo: proximoCodigo("colecao"),
+      ...validarPeriodo(body),
+      criadoEm: agora(),
+    };
     db.colecoes.unshift(colecao);
     return { data: clonar(colecao) };
   });
@@ -235,7 +244,12 @@ function registrarCampanhas(): void {
   }));
 
   registerMock("POST", "/campanhas", ({ body }) => {
-    const campanha: Campanha = { id: gerarId("cam"), ...validarPeriodo(body), criadoEm: agora() };
+    const campanha: Campanha = {
+      id: gerarId("cam"),
+      codigo: proximoCodigo("campanha"),
+      ...validarPeriodo(body),
+      criadoEm: agora(),
+    };
     db.campanhas.unshift(campanha);
     return { data: clonar(campanha) };
   });

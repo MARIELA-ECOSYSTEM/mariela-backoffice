@@ -1,5 +1,7 @@
 export interface Campanha {
   id: string;
+  /** Código sequencial gerado pela API (`CAM-0001`). Somente leitura. */
+  codigo: string;
   nome: string;
   descricao: string;
   /** Início da campanha em ISO (YYYY-MM-DD). */

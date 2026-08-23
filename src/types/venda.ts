@@ -8,6 +8,8 @@ export type StatusVenda = "concluida" | "pendente" | "cancelada";
 
 export interface VendaResumo {
   id: string;
+  /** Código da venda gerado pela API (`VENDA-2026-08-23-0001`). */
+  codigo: string;
   /** Número sequencial exibido ao operador (ex.: "000123"). */
   numero: string;
   /** Data/hora da venda em ISO. */

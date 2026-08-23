@@ -1,7 +1,13 @@
 import { apiClient } from "./client";
 import type { ApiFacets, ApiMeta, QueryParams } from "@/types/api";
 import { selecaoParaQuery } from "@/lib/filtros/facetas-servidor";
-import type { Produto, ProdutoFiltros, ProdutoPayload, PromocaoRequest } from "@/types/produto";
+import type {
+  FotoPrincipalRequest,
+  Produto,
+  ProdutoFiltros,
+  ProdutoPayload,
+  PromocaoRequest,
+} from "@/types/produto";
 
 export interface ListaProdutos {
   produtos: Produto[];
@@ -47,6 +53,11 @@ export const produtosApi = {
 
   async excluir(id: string): Promise<void> {
     await apiClient.delete<{ id: string }>(`/produtos/${id}`);
+  },
+
+  async definirFotoPrincipal(id: string, payload: FotoPrincipalRequest): Promise<Produto> {
+    const { data } = await apiClient.patch<Produto>(`/produtos/${id}/foto-principal`, payload);
+    return data;
   },
 
   async definirPromocao(id: string, payload: PromocaoRequest): Promise<Produto> {
