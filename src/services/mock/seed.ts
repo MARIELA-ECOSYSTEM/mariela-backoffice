@@ -641,8 +641,10 @@ export function seedColecoes(): Colecao[] {
       ativo: true,
       destaque: true,
       banner: true,
-      fotoDestaque: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&q=80",
-      fotoBanner: "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80",
+      fotoDestaque:
+        "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&q=80",
+      fotoBanner:
+        "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80",
       criadoEm: iso(120),
     },
     {
@@ -655,7 +657,8 @@ export function seedColecoes(): Colecao[] {
       ativo: true,
       destaque: true,
       banner: false,
-      fotoDestaque: "https://images.unsplash.com/photo-1509319117193-57bab727e09d?auto=format&fit=crop&w=900&q=80",
+      fotoDestaque:
+        "https://images.unsplash.com/photo-1509319117193-57bab727e09d?auto=format&fit=crop&w=900&q=80",
       fotoBanner: null,
       criadoEm: iso(300),
     },
@@ -688,8 +691,10 @@ export function seedCampanhas(): Campanha[] {
       ativo: true,
       destaque: true,
       banner: true,
-      fotoDestaque: "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80",
-      fotoBanner: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=1600&q=80",
+      fotoDestaque:
+        "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80",
+      fotoBanner:
+        "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=1600&q=80",
       criadoEm: iso(90),
     },
     {
@@ -703,7 +708,8 @@ export function seedCampanhas(): Campanha[] {
       destaque: false,
       banner: true,
       fotoDestaque: null,
-      fotoBanner: "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1600&q=80",
+      fotoBanner:
+        "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1600&q=80",
       criadoEm: iso(150),
     },
     {
@@ -933,7 +939,6 @@ export function seedClientes(): Cliente[] {
     ultimaCompra: null,
   }));
 }
-
 
 export function seedVendedores(): Vendedor[] {
   const base: [string, string, string, string, string, boolean, number][] = [

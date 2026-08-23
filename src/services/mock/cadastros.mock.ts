@@ -143,7 +143,6 @@ function registrarClientes(): void {
   });
 }
 
-
 function registrarFornecedores(): void {
   registerMock("GET", "/fornecedores", () => ({
     data: clonar(db.fornecedores),

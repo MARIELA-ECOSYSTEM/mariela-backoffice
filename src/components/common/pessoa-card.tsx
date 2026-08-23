@@ -203,7 +203,6 @@ export function PessoaCard({
   );
 }
 
-
 /** Grid responsivo padrão de cards de pessoa: 2 / 3 / 4 colunas. */
 export function PessoaGrid({ children }: { children: ReactNode }) {
   return <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{children}</div>;
