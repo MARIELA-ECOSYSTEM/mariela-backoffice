@@ -116,7 +116,7 @@ function EstoquePage() {
             />
             <Input
               aria-label="Buscar produto no estoque"
-              placeholder="Buscar por nome ou código…"
+              placeholder="Buscar por nome…"
               className="pl-9"
               value={busca}
               onChange={(event) => setBusca(event.target.value)}
