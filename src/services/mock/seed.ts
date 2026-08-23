@@ -6,6 +6,7 @@ import type { Fornecedor } from "@/types/fornecedor";
 import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
+import { formatarCodigo } from "@/lib/codigos";
 
 export const CATEGORIAS = [
   "Vestidos",
@@ -76,7 +77,7 @@ interface ProdutoSeed {
 
 const SEEDS: ProdutoSeed[] = [
   {
-    cod: "PRD-0001",
+    cod: "PROD-0001",
     nome: "Vestido Midi Amalfi",
     descricao: "Vestido midi em viscose com decote V e amarração na cintura.",
     categoria: "Vestidos",
@@ -113,7 +114,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0002",
+    cod: "PROD-0002",
     nome: "Blusa Cropped Nice",
     descricao: "Blusa cropped canelada de manga curta.",
     categoria: "Blusas",
@@ -144,7 +145,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0003",
+    cod: "PROD-0003",
     nome: "Calça Pantalona Sorrento",
     descricao: "Pantalona de alfaiataria com pregas frontais.",
     categoria: "Calças",
@@ -171,7 +172,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0004",
+    cod: "PROD-0004",
     nome: "Camisa Linho Positano",
     descricao: "Camisa em linho leve com botões de madrepérola.",
     categoria: "Camisas",
@@ -193,7 +194,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0005",
+    cod: "PROD-0005",
     nome: "Saia Plissada Verona",
     descricao: "Saia plissada midi com cós elástico.",
     categoria: "Saias",
@@ -222,7 +223,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0006",
+    cod: "PROD-0006",
     nome: "Macacão Capri",
     descricao: "Macacão pantalona com alças finas.",
     categoria: "Macacões",
@@ -242,7 +243,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0007",
+    cod: "PROD-0007",
     nome: "Lenço de Seda Bellagio",
     descricao: "Lenço quadrado em seda com estampa exclusiva.",
     categoria: "Acessórios",
@@ -257,7 +258,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0008",
+    cod: "PROD-0008",
     nome: "Casaco Trench Milano",
     descricao: "Trench coat com cinto e forro acetinado.",
     categoria: "Casacos",
@@ -277,7 +278,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0009",
+    cod: "PROD-0009",
     nome: "Short Alfaiataria Riviera",
     descricao: "Short de alfaiataria com bolsos embutidos.",
     categoria: "Shorts",
@@ -288,7 +289,7 @@ const SEEDS: ProdutoSeed[] = [
     variantes: [],
   },
   {
-    cod: "PRD-0010",
+    cod: "PROD-0010",
     nome: "Vestido Longo Sicília",
     descricao: "Vestido longo fluido com fenda lateral.",
     categoria: "Vestidos",
@@ -322,7 +323,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0011",
+    cod: "PROD-0011",
     nome: "Biquíni Ipanema",
     descricao: "Biquíni cortininha com bojo removível.",
     categoria: "Praia",
@@ -350,7 +351,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0012",
+    cod: "PROD-0012",
     nome: "Blusa Tricot Como",
     descricao: "Tricot leve de gola alta.",
     categoria: "Blusas",
@@ -370,7 +371,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0013",
+    cod: "PROD-0013",
     nome: "Cinto Couro Firenze",
     descricao: "Cinto de couro legítimo com fivela dourada.",
     categoria: "Acessórios",
@@ -381,7 +382,7 @@ const SEEDS: ProdutoSeed[] = [
     variantes: [{ cor: "Preto", tamanhos: [["U", 1]] }],
   },
   {
-    cod: "PRD-0014",
+    cod: "PROD-0014",
     nome: "Calça Wide Leg Genova",
     descricao: "Calça wide leg em sarja com barra desfiada.",
     categoria: "Calças",
@@ -408,7 +409,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0015",
+    cod: "PROD-0015",
     nome: "Saída de Praia Búzios",
     descricao: "Saída de praia em tecido vazado, tamanho único.",
     categoria: "Praia",
@@ -422,7 +423,7 @@ const SEEDS: ProdutoSeed[] = [
     variantes: [{ cor: "Off White", tamanhos: [["U", 10]] }],
   },
   {
-    cod: "PRD-0016",
+    cod: "PROD-0016",
     nome: "Vestido Curto Portofino",
     descricao: "Vestido curto com manga bufante.",
     categoria: "Vestidos",
@@ -451,7 +452,7 @@ const SEEDS: ProdutoSeed[] = [
     ],
   },
   {
-    cod: "PRD-0017",
+    cod: "PROD-0017",
     nome: "Camisa Oversized Bolonha",
     descricao: "Camisa oversized em tricoline.",
     categoria: "Camisas",
@@ -595,8 +596,9 @@ export function seedFornecedores(): Fornecedor[] {
     ],
   ];
   return base.map(
-    ([id, nome, contato, telefone, email, cnpj, instagram, ativo, dias]): Fornecedor => ({
+    ([id, nome, contato, telefone, email, cnpj, instagram, ativo, dias], indice): Fornecedor => ({
       id,
+      codigo: formatarCodigo("fornecedor", indice + 1),
       nome,
       foto: null,
       contato,
@@ -619,6 +621,7 @@ export function seedColecoes(): Colecao[] {
   return [
     {
       id: "col_001",
+      codigo: formatarCodigo("colecao", 1),
       nome: "Alta Estação",
       descricao: "Peças-chave do verão com cartela clara e tecidos fluidos.",
       inicio: dia(120),
@@ -628,6 +631,7 @@ export function seedColecoes(): Colecao[] {
     },
     {
       id: "col_002",
+      codigo: formatarCodigo("colecao", 2),
       nome: "Essenciais Mariela",
       descricao: "Coleção atemporal de básicos sofisticados de reposição contínua.",
       inicio: dia(300),
@@ -637,6 +641,7 @@ export function seedColecoes(): Colecao[] {
     },
     {
       id: "col_003",
+      codigo: formatarCodigo("colecao", 3),
       nome: "Riviera",
       descricao: "Cápsula resort com alfaiataria leve e praia.",
       inicio: dia(60),
@@ -651,6 +656,7 @@ export function seedCampanhas(): Campanha[] {
   return [
     {
       id: "cam_001",
+      codigo: formatarCodigo("campanha", 1),
       nome: "Lançamento Verão",
       descricao: "Divulgação das novidades de verão nas redes e vitrine.",
       inicio: dia(90),
@@ -660,6 +666,7 @@ export function seedCampanhas(): Campanha[] {
     },
     {
       id: "cam_002",
+      codigo: formatarCodigo("campanha", 2),
       nome: "Liquida Inverno",
       descricao: "Queima de estoque das peças de inverno.",
       inicio: dia(150),
@@ -669,6 +676,7 @@ export function seedCampanhas(): Campanha[] {
     },
     {
       id: "cam_003",
+      codigo: formatarCodigo("campanha", 3),
       nome: "Semana da Praia",
       descricao: "Ação focada em praia e saídas de praia.",
       inicio: dia(40),
@@ -711,8 +719,9 @@ export function seedClientes(): Cliente[] {
     ],
     ["cli_005", "Patrícia Lima", "(11) 97333-4545", "", "Cadastro incompleto.", false, 5],
   ];
-  return base.map(([id, nome, telefone, dataNascimento, observacao, ativo, dias]) => ({
+  return base.map(([id, nome, telefone, dataNascimento, observacao, ativo, dias], indice) => ({
     id,
+    codigo: formatarCodigo("cliente", indice + 1),
     nome,
     foto: null,
     telefone,
@@ -755,8 +764,9 @@ export function seedVendedores(): Vendedor[] {
       30,
     ],
   ];
-  return base.map(([id, nome, telefone, dataNascimento, observacao, ativo, dias]): Vendedor => ({
+  return base.map(([id, nome, telefone, dataNascimento, observacao, ativo, dias], indice): Vendedor => ({
     id,
+    codigo: formatarCodigo("vendedor", indice + 1),
     nome,
     foto: null,
     telefone,
