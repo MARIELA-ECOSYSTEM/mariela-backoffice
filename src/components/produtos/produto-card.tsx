@@ -273,29 +273,32 @@ export function ProdutoCard({
           </DropdownMenu>
         </div>
 
-        <div className="rounded-lg border border-border bg-surface/60 px-2 py-1.5">
-          <LinhaFinanceira label="Custo" valor={formatarMoeda(produto.precoCusto)} />
-          <LinhaFinanceira
-            label={produto.ehPromocao ? "Preço normal" : "Venda"}
-            valor={formatarMoeda(produto.precoVenda)}
-            riscado={produto.ehPromocao}
-            destaque={!produto.ehPromocao}
-          />
-          {produto.ehPromocao ? (
-            <LinhaFinanceira label="Promocional" valor={formatarMoeda(preco)} destaque />
-          ) : null}
-          <div className="mt-1 flex items-baseline justify-between gap-2 border-t border-border pt-1">
-            <span className="text-[0.68rem] text-muted-foreground">
-              Lucro <span className="tabular-nums text-foreground">{formatarMoeda(lucro)}</span>
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="font-display text-xl leading-none tabular-nums text-foreground">
+              {formatarMoeda(preco)}
             </span>
-            <Badge
-              variant="outline"
-              className="border-primary/25 bg-primary-soft/50 px-1.5 py-0 text-[0.6rem] tabular-nums text-primary"
-            >
-              {formatarPercentual(margem)}
-            </Badge>
+            {produto.ehPromocao ? (
+              <span className="text-[0.72rem] tabular-nums text-muted-foreground line-through">
+                {formatarMoeda(produto.precoVenda)}
+              </span>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-baseline gap-x-2 text-[0.68rem] text-muted-foreground">
+            <span>
+              Custo <span className="tabular-nums">{formatarMoeda(produto.precoCusto)}</span>
+            </span>
+            <span aria-hidden>·</span>
+            <span>
+              Lucro <span className="tabular-nums">{formatarMoeda(lucro)}</span>
+            </span>
+            <span aria-hidden>·</span>
+            <span>
+              Margem <span className="tabular-nums">{formatarPercentual(margem)}</span>
+            </span>
           </div>
         </div>
+
 
         <div className="mt-auto space-y-1.5 border-t border-border pt-2">
           <div className="flex items-baseline justify-between gap-2">
