@@ -71,8 +71,9 @@ function GaleriaCard({ produto }: { produto: Produto }) {
         src={atual.url}
         alt={`${produto.nome} — ${atual.cor}`}
         loading="lazy"
-        className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+        className="size-full object-contain p-1 transition-transform duration-500 ease-out group-hover:scale-[1.02]"
       />
+
       {fotos.length > 1 ? (
         <>
           <button
