@@ -1,5 +1,8 @@
 import { registerMock } from "./mock-transport";
+import { ApiError, type ApiFieldError } from "@/types/api";
 import type { Integracao } from "@/types/integracao";
+
+let sequenciaMensagem = 0;
 
 const INTEGRACOES: Integracao[] = [
   {
@@ -58,4 +61,40 @@ export function registerIntegracoesMocks(): void {
     data: INTEGRACOES.map((integracao) => ({ ...integracao })),
     meta: { total: INTEGRACOES.length },
   }));
+
+  /**
+   * SIMULAÇÃO — nenhuma mensagem é realmente enviada ao WhatsApp.
+   * Contrato: POST /integracoes/whatsapp/mensagens
+   * Body: { clienteId, telefone, mensagem }
+   */
+  registerMock("POST", "/integracoes/whatsapp/mensagens", ({ body }) => {
+    const payload = (body ?? {}) as Partial<{
+      clienteId: string;
+      telefone: string;
+      mensagem: string;
+    }>;
+    const errors: ApiFieldError[] = [];
+    if (!payload.clienteId?.trim())
+      errors.push({ field: "clienteId", message: "Cliente é obrigatório." });
+    if (!payload.telefone?.trim())
+      errors.push({ field: "telefone", message: "Telefone é obrigatório." });
+    if (!payload.mensagem?.trim())
+      errors.push({ field: "mensagem", message: "Mensagem é obrigatória." });
+    if (errors.length > 0) {
+      throw new ApiError({
+        statusCode: 422,
+        message: "Não foi possível preparar a mensagem.",
+        errors,
+      });
+    }
+
+    sequenciaMensagem += 1;
+    return {
+      data: {
+        id: `wam_${sequenciaMensagem}`,
+        status: "preparada" as const,
+        simulado: true,
+      },
+    };
+  });
 }
