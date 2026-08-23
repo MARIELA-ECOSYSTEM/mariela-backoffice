@@ -171,7 +171,7 @@ export function ProdutoCard({
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-raised">
-      <div className="relative aspect-[4/3] overflow-hidden bg-surface">
+      <div className="relative aspect-[3/4] overflow-hidden bg-surface">
         <Link
           to="/produtos/$id"
           params={{ id: produto.id }}
