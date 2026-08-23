@@ -71,7 +71,7 @@ export function AniversariantesDialog({
     return mapa;
   }, [clientes]);
 
-  const lista = porPeriodo[periodo] ?? [];
+  const lista = useMemo(() => porPeriodo[periodo] ?? [], [porPeriodo, periodo]);
   const elegiveis = useMemo(() => lista.filter((c) => numeroWhatsapp(c) !== ""), [lista]);
   const todosSelecionados = elegiveis.length > 0 && selecionados.length === elegiveis.length;
 
@@ -190,11 +190,7 @@ export function AniversariantesDialog({
                           disabled={semTelefone}
                           onCheckedChange={() => alternar(cliente.id)}
                         />
-                        <AvatarPessoa
-                          nome={cliente.nome}
-                          foto={cliente.foto}
-                          className="size-9"
-                        />
+                        <AvatarPessoa nome={cliente.nome} foto={cliente.foto} className="size-9" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-foreground">
                             {cliente.nome}
