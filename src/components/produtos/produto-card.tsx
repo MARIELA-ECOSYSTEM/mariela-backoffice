@@ -17,7 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { corVisual } from "@/utils/cores";
+import { IndicadorCor } from "@/components/common/indicador-cor";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -123,11 +123,7 @@ function EstoqueCompacto({ produto }: { produto: Produto }) {
     <div className="space-y-1">
       {visiveis.map((variante) => (
         <div key={variante.id} className="flex items-center gap-1.5 text-[0.7rem] leading-tight">
-          <span
-            aria-hidden
-            className="size-2.5 shrink-0 rounded-full border border-border shadow-[inset_0_0_0_1px_hsl(0_0%_100%/0.35)]"
-            style={{ backgroundColor: corVisual(variante.cor) }}
-          />
+          <IndicadorCor cor={variante.cor} />
           <span className="shrink-0 truncate font-medium text-foreground">{variante.cor}</span>
           <span className="truncate tabular-nums text-muted-foreground">
             {variante.tamanhos

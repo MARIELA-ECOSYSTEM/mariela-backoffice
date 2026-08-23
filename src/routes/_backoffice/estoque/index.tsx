@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/table";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/common/states";
 import { StatusEstoqueBadge } from "@/components/common/status-badge";
+import { MiniaturaProduto } from "@/components/estoque/miniatura-produto";
+import { CoresTamanhos } from "@/components/estoque/cores-tamanhos";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
 import { opcoesDeValores, type GrupoFacetaDef } from "@/lib/filtros/facetas";
@@ -147,7 +149,7 @@ function EstoquePage() {
                 <TableHead>Código</TableHead>
                 <TableHead>Produto</TableHead>
                 <TableHead>Categoria</TableHead>
-                <TableHead>Variantes</TableHead>
+                <TableHead>Cores e tamanhos</TableHead>
                 <TableHead>Quantidade total</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Zerado em</TableHead>
@@ -157,12 +159,19 @@ function EstoquePage() {
             <TableBody>
               {itens.map((item) => (
                 <TableRow key={item.produtoId}>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {item.codProduto}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {item.codProduto}
+                      </span>
+                      <MiniaturaProduto fotos={item.fotos ?? []} alt={item.nome} />
+                    </div>
                   </TableCell>
                   <TableCell className="font-medium">{item.nome}</TableCell>
                   <TableCell className="text-sm">{item.categoria}</TableCell>
-                  <TableCell className="tabular-nums">{item.totalVariantes}</TableCell>
+                  <TableCell className="min-w-56 py-2">
+                    <CoresTamanhos cores={item.cores ?? []} />
+                  </TableCell>
                   <TableCell className="tabular-nums">{item.quantidadeTotal}</TableCell>
                   <TableCell>
                     <StatusEstoqueBadge quantidadeTotal={item.quantidadeTotal} />
