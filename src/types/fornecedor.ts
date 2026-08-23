@@ -1,5 +1,7 @@
 export interface Fornecedor {
   id: string;
+  /** Código sequencial gerado pela API (`FOR-0001`). Somente leitura. */
+  codigo: string;
   nome: string;
   /** URL da logo/foto do fornecedor ou null. */
   foto: string | null;

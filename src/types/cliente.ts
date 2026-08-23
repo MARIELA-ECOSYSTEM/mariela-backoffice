@@ -1,5 +1,7 @@
 export interface Cliente {
   id: string;
+  /** Código sequencial gerado pela API (`CLI-0001`). Somente leitura. */
+  codigo: string;
   nome: string;
   /** URL da foto/avatar da cliente ou null. */
   foto: string | null;
