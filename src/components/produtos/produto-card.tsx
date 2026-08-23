@@ -110,49 +110,25 @@ function GaleriaCard({ produto }: { produto: Produto }) {
   );
 }
 
-function LinhaFinanceira({
-  label,
-  valor,
-  destaque,
-  riscado,
-}: {
-  label: string;
-  valor: string;
-  destaque?: boolean;
-  riscado?: boolean;
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-2">
-      <span className="text-[0.68rem] text-muted-foreground">{label}</span>
-      <span
-        className={[
-          "tabular-nums",
-          destaque ? "font-display text-sm text-foreground" : "text-[0.72rem]",
-          riscado ? "line-through text-muted-foreground" : "",
-        ].join(" ")}
-      >
-        {valor}
-      </span>
-    </div>
-  );
-}
-
-/** Estoque compacto: COR → TAMANHO(QTD), derivado apenas das variantes. */
+/** Estoque compacto: bolinha da cor → COR → TAMANHO(QTD). */
 function EstoqueCompacto({ produto }: { produto: Produto }) {
   const comEstoque = produto.variantes.filter((variante) => variante.quantidadeVariante > 0);
   if (!comEstoque.length) {
-    return <p className="text-[0.68rem] text-muted-foreground">Nenhuma variante com estoque.</p>;
+    return <p className="text-[0.7rem] text-muted-foreground">Nenhuma variante com estoque.</p>;
   }
   const visiveis = comEstoque.slice(0, 3);
   const restantes = comEstoque.length - visiveis.length;
 
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-1">
       {visiveis.map((variante) => (
-        <div key={variante.id} className="flex items-baseline gap-1.5 text-[0.68rem] leading-tight">
-          <span className="min-w-0 shrink-0 truncate font-medium text-foreground">
-            {variante.cor}
-          </span>
+        <div key={variante.id} className="flex items-center gap-1.5 text-[0.7rem] leading-tight">
+          <span
+            aria-hidden
+            className="size-2.5 shrink-0 rounded-full border border-border shadow-[inset_0_0_0_1px_hsl(0_0%_100%/0.35)]"
+            style={{ backgroundColor: corVisual(variante.cor) }}
+          />
+          <span className="shrink-0 truncate font-medium text-foreground">{variante.cor}</span>
           <span className="truncate tabular-nums text-muted-foreground">
             {variante.tamanhos
               .filter((tamanho) => tamanho.quantidade > 0)
@@ -162,11 +138,12 @@ function EstoqueCompacto({ produto }: { produto: Produto }) {
         </div>
       ))}
       {restantes > 0 ? (
-        <p className="text-[0.65rem] text-muted-foreground">+{restantes} cor(es)</p>
+        <p className="text-[0.68rem] text-muted-foreground">+{restantes} cor(es)</p>
       ) : null}
     </div>
   );
 }
+
 
 export function ProdutoCard({
   produto,
