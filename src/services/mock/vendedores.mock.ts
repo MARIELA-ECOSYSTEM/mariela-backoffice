@@ -1,5 +1,6 @@
 import { registerMock } from "./mock-transport";
 import { agora, clonar, db, gerarId } from "./db";
+import { proximoCodigo } from "./sequencias";
 import { ApiError, type ApiFieldError } from "@/types/api";
 import type { Vendedor, VendedorPayload } from "@/types/vendedor";
 
@@ -56,6 +57,7 @@ export function registerVendedoresMocks(): void {
     const dados = validarDados(body, true);
     const vendedor: Vendedor = {
       id: gerarId("ven"),
+      codigo: proximoCodigo("vendedor"),
       nome: dados.nome,
       foto: dados.foto,
       telefone: dados.telefone,
