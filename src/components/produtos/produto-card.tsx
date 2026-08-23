@@ -43,7 +43,6 @@ export function ProdutoCardSkeleton() {
   );
 }
 
-
 /** Carrossel leve: só troca o índice, sem bibliotecas nem animações pesadas. */
 function GaleriaCard({ produto }: { produto: Produto }) {
   const fotos = fotosDoProduto(produto);
@@ -144,7 +143,6 @@ function EstoqueCompacto({ produto }: { produto: Produto }) {
   );
 }
 
-
 export function ProdutoCard({
   produto,
   onExcluir,
@@ -208,7 +206,6 @@ export function ProdutoCard({
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
           <div className="min-w-0">
             <h3 className="truncate font-display text-[0.95rem] leading-snug">
-
               <Link
                 to="/produtos/$id"
                 params={{ id: produto.id }}
@@ -298,7 +295,6 @@ export function ProdutoCard({
             </span>
           </div>
         </div>
-
 
         <div className="mt-auto space-y-1.5 border-t border-border pt-2">
           <div className="flex items-baseline justify-between gap-2">
