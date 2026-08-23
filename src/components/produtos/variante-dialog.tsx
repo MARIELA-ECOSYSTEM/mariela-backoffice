@@ -20,7 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Field } from "@/components/common/field";
+import { CODIGO_AUTOMATICO, formatarCodigoVariante } from "@/lib/codigos";
 import { varianteSchema, type VarianteFormValues } from "@/schemas/produto.schema";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useAtualizarVariante, useCriarVariante } from "@/hooks/use-variantes";
@@ -30,11 +32,14 @@ import type { Variante } from "@/types/variante";
 
 export function VarianteDialog({
   produtoId,
+  codProduto,
   variante,
   open,
   onOpenChange,
 }: {
   produtoId: string;
+  /** Código do produto: base do código automático da variante (`PROD-0001-AZUL`). */
+  codProduto: string;
   variante?: Variante | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -46,13 +51,12 @@ export function VarianteDialog({
 
   const form = useForm<VarianteFormValues>({
     resolver: zodResolver(varianteSchema),
-    defaultValues: { codVariante: "", cor: "", foto: "", video: "" },
+    defaultValues: { cor: "", foto: "", video: "" },
   });
 
   useEffect(() => {
     if (!open) return;
     form.reset({
-      codVariante: variante?.codVariante ?? "",
       cor: variante?.cor ?? "",
       foto: variante?.foto ?? "",
       video: variante?.video ?? "",
@@ -61,7 +65,7 @@ export function VarianteDialog({
 
   async function onSubmit(values: VarianteFormValues) {
     const payload = {
-      codVariante: values.codVariante,
+      // O código é gerado pelo backend a partir do código do produto + cor.
       cor: values.cor,
       foto: values.foto ?? null,
       video: values.video ?? null,
@@ -74,8 +78,8 @@ export function VarianteDialog({
     } catch (error) {
       if (error instanceof ApiError && error.errors.length) {
         error.errors.forEach((campo) => {
-          if (campo.field === "cor" || campo.field === "codVariante") {
-            form.setError(campo.field, { message: campo.message });
+          if (campo.field === "cor") {
+            form.setError("cor", { message: campo.message });
           }
         });
       }
@@ -83,6 +87,8 @@ export function VarianteDialog({
     }
   }
 
+  const corAtual = form.watch("cor");
+  const codigoPrevisto = corAtual ? formatarCodigoVariante(codProduto, corAtual) : "";
   const enviando = criar.isPending || atualizar.isPending;
 
   return (
@@ -98,13 +104,20 @@ export function VarianteDialog({
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
-          <Field
-            id="codVariante"
-            label="Código da variante"
-            erro={form.formState.errors.codVariante?.message}
-          >
-            <Input id="codVariante" placeholder="PRD-0001-01" {...form.register("codVariante")} />
-          </Field>
+          <div className="space-y-2">
+            <Label htmlFor="codVariante">Código da variante</Label>
+            <Input
+              id="codVariante"
+              readOnly
+              tabIndex={-1}
+              aria-describedby="codVariante-hint"
+              className="bg-muted/40 font-mono text-xs"
+              value={codigoPrevisto || CODIGO_AUTOMATICO}
+            />
+            <p id="codVariante-hint" className="text-xs text-muted-foreground">
+              Gerado automaticamente pelo sistema a partir do código do produto e da cor.
+            </p>
+          </div>
 
           <Field id="cor" label="Cor" erro={form.formState.errors.cor?.message}>
             <Select

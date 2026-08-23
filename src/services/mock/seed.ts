@@ -11,6 +11,7 @@ import vestido1 from "@/assets/produtos/vestido-1.jpg";
 import vestido2 from "@/assets/produtos/vestido-2.jpg";
 import blusa1 from "@/assets/produtos/blusa-1.jpg";
 import calca1 from "@/assets/produtos/calca-1.jpg";
+import { formatarCodigoVariante } from "@/lib/codigos";
 
 export const CATEGORIAS = [
   "Vestidos",
@@ -484,7 +485,7 @@ export function seedProdutos(): Produto[] {
       }));
       return {
         id: `var_${indexProduto + 1}_${indexVariante + 1}`,
-        codVariante: `${seed.cod}-${String(indexVariante + 1).padStart(2, "0")}`,
+        codVariante: formatarCodigoVariante(seed.cod, variante.cor),
         cor: variante.cor,
         quantidadeVariante: tamanhos.reduce((total, t) => total + t.quantidade, 0),
         foto: variante.foto ?? null,

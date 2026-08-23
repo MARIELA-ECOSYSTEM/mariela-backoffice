@@ -3,6 +3,7 @@ import type { ApiFacets, ApiMeta, QueryParams } from "@/types/api";
 import { selecaoParaQuery } from "@/lib/filtros/facetas-servidor";
 import type {
   FotoPrincipalRequest,
+  NovidadeRequest,
   Produto,
   ProdutoFiltros,
   ProdutoPayload,
@@ -57,6 +58,11 @@ export const produtosApi = {
 
   async definirFotoPrincipal(id: string, payload: FotoPrincipalRequest): Promise<Produto> {
     const { data } = await apiClient.patch<Produto>(`/produtos/${id}/foto-principal`, payload);
+    return data;
+  },
+
+  async definirNovidade(id: string, payload: NovidadeRequest): Promise<Produto> {
+    const { data } = await apiClient.patch<Produto>(`/produtos/${id}/novidade`, payload);
     return data;
   },
 

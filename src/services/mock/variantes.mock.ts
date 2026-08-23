@@ -2,6 +2,7 @@ import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
 import type { ApiFieldError } from "@/types/api";
 import { clonar, db, gerarId, recalcularProduto } from "./db";
+import { formatarCodigoVariante } from "@/lib/codigos";
 import type { Produto } from "@/types/produto";
 import { conflitoTamanhoUnico, normalizarTamanho, tamanhosDaVariante } from "@/utils/tamanho";
 import type { AdicionarTamanhoRequest, CriarVarianteRequest, Variante } from "@/types/variante";
@@ -24,8 +25,6 @@ function validarVariante(
   idAtual?: string,
 ): void {
   const errors: ApiFieldError[] = [];
-  if (!payload.codVariante?.trim())
-    errors.push({ field: "codVariante", message: "Código da variante é obrigatório." });
   if (!payload.cor?.trim()) errors.push({ field: "cor", message: "Cor é obrigatória." });
   if (errors.length) throw ApiError.validation("Dados inválidos.", errors);
 
@@ -57,7 +56,8 @@ export function registerVariantesMocks(): void {
     validarVariante(produto, payload);
     const variante: Variante = {
       id: gerarId("var"),
-      codVariante: payload.codVariante.trim(),
+      // O código NÃO vem do cliente: é derivado do código do produto + cor.
+      codVariante: formatarCodigoVariante(produto.codProduto, payload.cor.trim()),
       cor: payload.cor.trim(),
       quantidadeVariante: 0,
       foto: payload.foto?.trim() || null,
@@ -74,8 +74,8 @@ export function registerVariantesMocks(): void {
     const variante = encontrarVariante(produto, params["varianteId"]!);
     const payload = (body ?? {}) as CriarVarianteRequest;
     validarVariante(produto, payload, variante.id);
-    variante.codVariante = payload.codVariante.trim();
     variante.cor = payload.cor.trim();
+    variante.codVariante = formatarCodigoVariante(produto.codProduto, variante.cor);
     variante.foto = payload.foto?.trim() || null;
     variante.video = payload.video?.trim() || null;
     recalcularProduto(produto);

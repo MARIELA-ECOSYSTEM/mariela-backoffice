@@ -15,7 +15,11 @@ export interface Variante {
 }
 
 export interface CriarVarianteRequest {
-  codVariante: string;
+  /**
+   * Código gerado pelo backend (`PROD-0001-AZUL`). Não é enviado pelo cliente;
+   * fica aqui apenas para compatibilidade de leitura da resposta.
+   */
+  codVariante?: string | undefined;
   cor: string;
   foto?: string | null;
   video?: string | null;

@@ -42,6 +42,19 @@ export function registerEstoqueMocks(): void {
         nome: produto.nome,
         categoria: produto.categoria,
         foto: produto.variantes[0]?.foto ?? null,
+        fotos: produto.variantes
+          .map((variante) => variante.foto)
+          .filter((foto): foto is string => Boolean(foto)),
+        cores: produto.variantes.map((variante) => ({
+          varianteId: variante.id,
+          cor: variante.cor,
+          quantidade: variante.quantidadeVariante,
+          tamanhos: variante.tamanhos.map((tamanho) => ({
+            id: tamanho.id,
+            tamanho: tamanho.tamanho,
+            quantidade: tamanho.quantidade,
+          })),
+        })),
         quantidadeTotal: produto.quantidadeTotal,
         totalVariantes: produto.variantes.length,
         estoqueZeradoEm: produto.estoqueZeradoEm ?? null,

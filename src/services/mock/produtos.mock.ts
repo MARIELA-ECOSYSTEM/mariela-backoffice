@@ -11,6 +11,7 @@ import { agora, calcularMargem, clonar, db, gerarId, precoFinal, recalcularProdu
 import { proximoCodigo } from "./sequencias";
 import type {
   FotoPrincipalRequest,
+  NovidadeRequest,
   Produto,
   ProdutoPayload,
   PromocaoRequest,
@@ -168,6 +169,14 @@ export function registerProdutosMocks(): void {
         ]);
     }
     produto.fotoPrincipalVarianteId = varianteId;
+    produto.atualizadoEm = agora();
+    return { data: clonar(produto) };
+  });
+
+  registerMock("PATCH", "/produtos/:id/novidade", ({ params, body }) => {
+    const produto = encontrarProduto(params["id"]!);
+    const payload = (body ?? {}) as NovidadeRequest;
+    produto.ehNovidade = Boolean(payload.ehNovidade);
     produto.atualizadoEm = agora();
     return { data: clonar(produto) };
   });
