@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
@@ -8,11 +8,16 @@ import { CardsSkeleton, DataToolbar, NotaDemonstracao } from "@/components/commo
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import { OPCOES_STATUS, type GrupoFacetaDef } from "@/lib/filtros/facetas";
+import type { GrupoFacetaDef } from "@/lib/filtros/facetas";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PeriodoCard } from "@/components/cadastros/periodo-card";
-import { PeriodoDialog, type PeriodoFormValues } from "@/components/cadastros/periodo-dialog";
 import {
+  PERIODO_VALORES_PADRAO,
+  PeriodoDialog,
+  type PeriodoFormValues,
+} from "@/components/cadastros/periodo-dialog";
+import {
+  useAlterarStatusColecao,
   useAtualizarColecao,
   useColecoes,
   useCriarColecao,
@@ -20,6 +25,7 @@ import {
 } from "@/hooks/use-cadastros";
 import { useProdutos } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
+import { OPCOES_BANNER, OPCOES_DESTAQUE, OPCOES_VIGENCIA, statusVigencia } from "@/utils/vitrine";
 import type { Colecao } from "@/types/colecao";
 
 export const Route = createFileRoute("/_backoffice/colecoes/")({
@@ -27,30 +33,29 @@ export const Route = createFileRoute("/_backoffice/colecoes/")({
   head: () => ({
     meta: [
       { title: "Coleções — MARIELA Backoffice" },
-      { name: "description", content: "Coleções do catálogo Mariela com período e status." },
+      {
+        name: "description",
+        content: "Coleções do catálogo Mariela com período, destaque e banner da vitrine.",
+      },
       { property: "og:title", content: "Coleções — MARIELA Backoffice" },
       {
         property: "og:description",
-        content: "Coleções do catálogo Mariela com período e status.",
+        content: "Coleções do catálogo Mariela com período, destaque e banner da vitrine.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ColecoesPage,
 });
 
-const VALORES_PADRAO: PeriodoFormValues = {
-  nome: "",
-  descricao: "",
-  inicio: new Date().toISOString().slice(0, 10),
-  fim: new Date().toISOString().slice(0, 10),
-  ativo: true,
-};
-
 function ColecoesPage() {
+  const navigate = useNavigate();
   const { data: colecoes, isPending, isError, error, refetch } = useColecoes();
   const { data: produtos } = useProdutos({});
   const criar = useCriarColecao();
   const atualizar = useAtualizarColecao();
+  const alterarStatus = useAlterarStatusColecao();
   const remover = useRemoverColecao();
 
   const [busca, setBusca] = useState("");
@@ -63,25 +68,22 @@ function ColecoesPage() {
   const grupos = useMemo<GrupoFacetaDef<Colecao>[]>(
     () => [
       {
-        id: "status",
-        label: "Status",
-        opcoes: OPCOES_STATUS,
-        corresponde: (colecao, valor) => (valor === "ativos" ? colecao.ativo : !colecao.ativo),
+        id: "situacao",
+        label: "Situação",
+        opcoes: OPCOES_VIGENCIA,
+        corresponde: (colecao, valor) => statusVigencia(colecao) === valor,
       },
       {
-        id: "vigencia",
-        label: "Vigência",
-        opcoes: [
-          { valor: "vigente", label: "Em vigência" },
-          { valor: "futura", label: "Programada" },
-          { valor: "encerrada", label: "Encerrada" },
-        ],
-        corresponde: (colecao, valor) => {
-          const hoje = new Date().toISOString().slice(0, 10);
-          if (valor === "vigente") return colecao.inicio <= hoje && colecao.fim >= hoje;
-          if (valor === "futura") return colecao.inicio > hoje;
-          return colecao.fim < hoje;
-        },
+        id: "destaque",
+        label: "Destaque",
+        opcoes: OPCOES_DESTAQUE,
+        corresponde: (colecao, valor) => (valor === "sim" ? colecao.destaque : !colecao.destaque),
+      },
+      {
+        id: "banner",
+        label: "Banner",
+        opcoes: OPCOES_BANNER,
+        corresponde: (colecao, valor) => (valor === "sim" ? colecao.banner : !colecao.banner),
       },
       {
         id: "produtos",
@@ -107,7 +109,8 @@ function ColecoesPage() {
     return (colecoes ?? []).filter(
       (colecao) =>
         colecao.nome.toLowerCase().includes(termo) ||
-        colecao.descricao.toLowerCase().includes(termo),
+        colecao.descricao.toLowerCase().includes(termo) ||
+        colecao.codigo.toLowerCase().includes(termo),
     );
   }, [colecoes, busca]);
 
@@ -121,8 +124,12 @@ function ColecoesPage() {
         inicio: emEdicao.inicio,
         fim: emEdicao.fim,
         ativo: emEdicao.ativo,
+        destaque: emEdicao.destaque,
+        banner: emEdicao.banner,
+        fotoDestaque: emEdicao.fotoDestaque ?? "",
+        fotoBanner: emEdicao.fotoBanner ?? "",
       }
-    : VALORES_PADRAO;
+    : PERIODO_VALORES_PADRAO;
 
   function abrirNova() {
     setEmEdicao(null);
@@ -141,6 +148,15 @@ function ColecoesPage() {
     }
   }
 
+  async function alternarStatus(colecao: Colecao) {
+    try {
+      await alterarStatus.mutateAsync({ id: colecao.id, ativo: !colecao.ativo });
+      toast.success(colecao.ativo ? "Coleção inativada." : "Coleção ativada.");
+    } catch (err) {
+      toast.error(mensagemDeErro(err, "Não foi possível alterar o status."));
+    }
+  }
+
   async function excluir(colecao: Colecao) {
     try {
       await remover.mutateAsync(colecao.id);
@@ -153,14 +169,14 @@ function ColecoesPage() {
   }
 
   function contarProdutos(colecaoId: string): number {
-    return (produtos?.produtos ?? []).filter((produto) => produto.colecaoId === colecaoId).length;
+    return listaProdutos.filter((produto) => produto.colecaoId === colecaoId).length;
   }
 
   return (
     <Page
       titulo="Coleções"
       breadcrumbs={[{ label: "Catálogo" }, { label: "Coleções" }]}
-      descricao="Organize o catálogo em coleções com período de vigência. A relação com produtos acontece por produto.colecaoId."
+      descricao="Agrupamento comercial do catálogo com período de vigência e conteúdo preparado para a vitrine virtual."
       acoes={
         <Button onClick={abrirNova}>
           <Plus aria-hidden className="size-4" />
@@ -173,7 +189,11 @@ function ColecoesPage() {
         da futura API.
       </NotaDemonstracao>
 
-      <DataToolbar busca={busca} onBuscaChange={setBusca} placeholder="Buscar coleção…" />
+      <DataToolbar
+        busca={busca}
+        onBuscaChange={setBusca}
+        placeholder="Buscar por nome, descrição ou código…"
+      />
 
       <PainelFiltros
         grupos={filtragem.grupos}
@@ -181,7 +201,6 @@ function ColecoesPage() {
         onAlternar={filtragem.alternar}
         onLimparGrupo={filtragem.limparGrupo}
         onLimparTudo={filtragem.limparTudo}
-        colunas={3}
         resultado={
           <span className="text-sm text-muted-foreground">
             {filtradas.length} coleção(ões) encontrada(s)
@@ -205,16 +224,21 @@ function ColecoesPage() {
           }
         />
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {filtradas.map((colecao) => (
             <PeriodoCard
               key={colecao.id}
               item={colecao}
+              tipo="colecao"
               totalProdutos={contarProdutos(colecao.id)}
               onEditar={() => {
                 setEmEdicao(colecao);
                 setDialogAberto(true);
               }}
+              onAlternarStatus={() => void alternarStatus(colecao)}
+              onGerenciarProdutos={() =>
+                void navigate({ to: "/colecoes/$id", params: { id: colecao.id } })
+              }
               onExcluir={() => setParaExcluir(colecao)}
             />
           ))}
@@ -228,7 +252,8 @@ function ColecoesPage() {
           if (!aberto) setEmEdicao(null);
         }}
         titulo={emEdicao ? "Editar coleção" : "Nova coleção"}
-        descricaoDialog="Defina nome, descrição, período de vigência e se a coleção está ativa."
+        descricaoDialog="Defina nome, descrição, período de vigência, status e o conteúdo de vitrine."
+        codigo={emEdicao?.codigo ?? null}
         valoresIniciais={valoresIniciais}
         salvando={criar.isPending || atualizar.isPending}
         onSubmit={(valores) => void salvar(valores)}
