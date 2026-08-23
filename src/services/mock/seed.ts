@@ -513,6 +513,7 @@ export function seedProdutos(): Produto[] {
       ehPromocao: seed.promocao ?? false,
       precoPromocional: seed.precoPromocional ?? null,
       quantidadeTotal,
+      fotoPrincipalVarianteId: null,
       estoqueZeradoEm: quantidadeTotal === 0 ? iso(Math.min(seed.criadoDiasAtras, 10)) : null,
       variantes,
       criadoEm: iso(seed.criadoDiasAtras),

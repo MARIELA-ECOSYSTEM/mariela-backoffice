@@ -8,7 +8,8 @@ import {
 import { facetasProduto } from "@/lib/filtros/produtos-facetas";
 import type { ApiFieldError } from "@/types/api";
 import { agora, calcularMargem, clonar, db, gerarId, precoFinal, recalcularProduto } from "./db";
-import type { Produto, ProdutoPayload, PromocaoRequest } from "@/types/produto";
+import { proximoCodigo } from "./sequencias";
+import type { FotoPrincipalRequest, Produto, ProdutoPayload, PromocaoRequest } from "@/types/produto";
 
 function encontrarProduto(id: string): Produto {
   const produto = db.produtos.find((p) => p.id === id);
@@ -16,10 +17,12 @@ function encontrarProduto(id: string): Produto {
   return produto;
 }
 
-function validarPayload(payload: Partial<ProdutoPayload>, idAtual?: string): void {
+/**
+ * O código do produto NÃO vem do cliente: é gerado aqui (e amanhã no NestJS).
+ * Por isso não há validação de duplicidade de código no payload.
+ */
+function validarPayload(payload: Partial<ProdutoPayload>): void {
   const errors: ApiFieldError[] = [];
-  if (!payload.codProduto?.trim())
-    errors.push({ field: "codProduto", message: "Código é obrigatório." });
   if (!payload.nome?.trim()) errors.push({ field: "nome", message: "Nome é obrigatório." });
   if (!payload.categoria?.trim())
     errors.push({ field: "categoria", message: "Categoria é obrigatória." });
@@ -27,13 +30,6 @@ function validarPayload(payload: Partial<ProdutoPayload>, idAtual?: string): voi
     errors.push({ field: "precoCusto", message: "Preço de custo deve ser maior que zero." });
   if (!payload.precoVenda || payload.precoVenda <= 0)
     errors.push({ field: "precoVenda", message: "Preço de venda deve ser maior que zero." });
-
-  const duplicado = db.produtos.find(
-    (p) =>
-      p.codProduto.toLowerCase() === payload.codProduto?.trim().toLowerCase() && p.id !== idAtual,
-  );
-  if (duplicado)
-    errors.push({ field: "codProduto", message: "Já existe um produto com este código." });
 
   if (errors.length) throw ApiError.validation("Dados inválidos.", errors);
 }
@@ -62,8 +58,9 @@ export function registerProdutosMocks(): void {
       .trim()
       .toLowerCase();
     let lista = db.produtos.filter((produto) => {
-      if (busca && !`${produto.nome} ${produto.codProduto}`.toLowerCase().includes(busca))
-        return false;
+      // Busca livre: nome, código (PROD-0001) e categoria.
+      const alvoBusca = `${produto.nome} ${produto.codProduto} ${produto.categoria}`.toLowerCase();
+      if (busca && !alvoBusca.includes(busca)) return false;
       if (query["categoria"] && produto.categoria !== query["categoria"]) return false;
       if (query["colecaoId"] && produto.colecaoId !== query["colecaoId"]) return false;
       if (query["campanhaId"] && produto.campanhaId !== query["campanhaId"]) return false;
@@ -104,7 +101,8 @@ export function registerProdutosMocks(): void {
     validarPayload(payload);
     const produto: Produto = {
       id: gerarId("prd"),
-      codProduto: payload.codProduto.trim(),
+      // Sequência monotônica: códigos excluídos nunca são reaproveitados.
+      codProduto: proximoCodigo("produto"),
       nome: payload.nome.trim(),
       descricao: payload.descricao?.trim() ?? "",
       categoria: payload.categoria,
@@ -118,6 +116,7 @@ export function registerProdutosMocks(): void {
       ehPromocao: false,
       precoPromocional: null,
       quantidadeTotal: 0,
+      fotoPrincipalVarianteId: null,
       estoqueZeradoEm: agora(),
       variantes: [],
       criadoEm: agora(),
@@ -130,8 +129,8 @@ export function registerProdutosMocks(): void {
   registerMock("PUT", "/produtos/:id", ({ params, body }) => {
     const produto = encontrarProduto(params["id"]!);
     const payload = (body ?? {}) as ProdutoPayload;
-    validarPayload(payload, produto.id);
-    produto.codProduto = payload.codProduto.trim();
+    validarPayload(payload);
+    // O código é imutável: gerado na criação e nunca reeditado.
     produto.nome = payload.nome.trim();
     produto.descricao = payload.descricao?.trim() ?? "";
     produto.categoria = payload.categoria;
@@ -150,6 +149,22 @@ export function registerProdutosMocks(): void {
     if (index < 0) throw ApiError.notFound("Produto não encontrado.");
     db.produtos.splice(index, 1);
     return { data: { id: params["id"]! } };
+  });
+
+  registerMock("PATCH", "/produtos/:id/foto-principal", ({ params, body }) => {
+    const produto = encontrarProduto(params["id"]!);
+    const payload = (body ?? {}) as FotoPrincipalRequest;
+    const varianteId = payload.varianteId ?? null;
+    if (varianteId) {
+      const variante = produto.variantes.find((item) => item.id === varianteId);
+      if (!variante?.foto)
+        throw ApiError.validation("Dados inválidos.", [
+          { field: "varianteId", message: "A variante selecionada não possui foto." },
+        ]);
+    }
+    produto.fotoPrincipalVarianteId = varianteId;
+    produto.atualizadoEm = agora();
+    return { data: clonar(produto) };
   });
 
   registerMock("PATCH", "/produtos/:id/promocao", ({ params, body }) => {
