@@ -3,6 +3,7 @@ import type { Variante } from "./variante";
 
 export interface Produto {
   id: string;
+  /** Código sequencial gerado pela API (`PROD-0001`). Somente leitura. */
   codProduto: string;
   nome: string;
   descricao?: string;
@@ -17,14 +18,19 @@ export interface Produto {
   ehPromocao: boolean;
   precoPromocional?: number | null;
   quantidadeTotal: number;
+  /**
+   * Variante cuja foto é a imagem principal do produto (usada futuramente pela
+   * MARIELA Vitrine Virtual). Quando nulo, vale a primeira foto cadastrada.
+   */
+  fotoPrincipalVarianteId?: string | null;
   estoqueZeradoEm?: string | null;
   variantes: Variante[];
   criadoEm: string;
   atualizadoEm: string;
 }
 
+/** O código NÃO faz parte do payload: quem gera é a API. */
 export interface ProdutoPayload {
-  codProduto: string;
   nome: string;
   descricao?: string | undefined;
   categoria: string;
@@ -55,6 +61,11 @@ export interface ProdutoFiltros {
   novidade?: FiltroBooleano | undefined;
   ordenarPor?: OrdenarProdutoPor | undefined;
   ordem?: Ordem | undefined;
+}
+
+export interface FotoPrincipalRequest {
+  /** Id da variante cuja foto passa a ser a imagem principal. */
+  varianteId: string | null;
 }
 
 export interface PromocaoRequest {
