@@ -78,7 +78,7 @@ function GaleriaCard({ produto }: { produto: Produto }) {
             type="button"
             aria-label="Foto anterior"
             onClick={(event) => mover(-1, event)}
-            className="absolute left-1 top-1/2 -translate-y-1/2 rounded-full bg-card/85 p-1 text-foreground opacity-0 shadow-card transition-opacity hover:bg-card focus-visible:opacity-100 group-hover:opacity-100"
+            className="absolute left-1 top-1/2 z-20 -translate-y-1/2 rounded-full bg-card/85 p-1 text-foreground opacity-0 shadow-card transition-opacity hover:bg-card focus-visible:opacity-100 group-hover:opacity-100"
           >
             <ChevronLeft aria-hidden className="size-3.5" />
           </button>
@@ -86,11 +86,11 @@ function GaleriaCard({ produto }: { produto: Produto }) {
             type="button"
             aria-label="Próxima foto"
             onClick={(event) => mover(1, event)}
-            className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-card/85 p-1 text-foreground opacity-0 shadow-card transition-opacity hover:bg-card focus-visible:opacity-100 group-hover:opacity-100"
+            className="absolute right-1 top-1/2 z-20 -translate-y-1/2 rounded-full bg-card/85 p-1 text-foreground opacity-0 shadow-card transition-opacity hover:bg-card focus-visible:opacity-100 group-hover:opacity-100"
           >
             <ChevronRight aria-hidden className="size-3.5" />
           </button>
-          <div className="pointer-events-none absolute inset-x-0 bottom-1 flex justify-center gap-1">
+          <div className="pointer-events-none absolute inset-x-0 bottom-1 z-20 flex justify-center gap-1">
             {fotos.map((foto, posicao) => (
               <span
                 key={foto.varianteId}
@@ -197,13 +197,13 @@ export function ProdutoCard({
           to="/produtos/$id"
           params={{ id: produto.id }}
           aria-label={`Abrir ${produto.nome}`}
-          className="absolute inset-0"
+          className="absolute inset-0 z-10"
         >
           <span className="sr-only">{produto.nome}</span>
         </Link>
         <GaleriaCard produto={produto} />
 
-        <div className="pointer-events-none absolute left-1.5 top-1.5 flex flex-wrap items-start gap-1">
+        <div className="pointer-events-none absolute left-1.5 top-1.5 z-20 flex flex-wrap items-start gap-1">
           {produto.ehNovidade ? (
             <Badge
               variant="outline"
