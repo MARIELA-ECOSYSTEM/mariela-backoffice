@@ -103,7 +103,6 @@ function registrarClientes(): void {
       nome,
       foto: texto(payload.foto) || null,
       telefone,
-      whatsapp: texto(payload.whatsapp),
       dataNascimento: texto(payload.dataNascimento) || null,
       observacao: texto(payload.observacao),
       criadoEm: agora(),
@@ -129,7 +128,6 @@ function registrarClientes(): void {
     cliente.nome = nome;
     cliente.foto = texto(payload.foto) || null;
     cliente.telefone = telefone;
-    cliente.whatsapp = texto(payload.whatsapp);
     cliente.dataNascimento = texto(payload.dataNascimento) || null;
     cliente.observacao = texto(payload.observacao);
     cliente.atualizadoEm = agora();
