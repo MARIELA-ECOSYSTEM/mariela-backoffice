@@ -87,6 +87,7 @@ export function GerenciarVariantes({ produto }: { produto: Produto }) {
 
       <VarianteDialog
         produtoId={produto.id}
+        codProduto={produto.codProduto}
         variante={varianteDialog.variante}
         open={varianteDialog.open}
         onOpenChange={(aberto) =>
