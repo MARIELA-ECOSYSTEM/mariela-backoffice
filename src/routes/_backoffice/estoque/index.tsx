@@ -21,6 +21,8 @@ import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
 import { opcoesDeValores, type GrupoFacetaDef } from "@/lib/filtros/facetas";
 import { useEstoque } from "@/hooks/use-estoque";
+import { useCampanhas, useColecoes } from "@/hooks/use-cadastros";
+import { Badge } from "@/components/ui/badge";
 import { formatarData } from "@/utils/format";
 
 export const Route = createFileRoute("/_backoffice/estoque/")({
@@ -47,6 +49,19 @@ function EstoquePage() {
     busca: busca || undefined,
   });
   const dados = useMemo(() => data ?? [], [data]);
+  const { data: colecoes } = useColecoes();
+  const { data: campanhas } = useCampanhas();
+
+  const nomeColecao = useMemo(() => {
+    const mapa = new Map<string, string>();
+    (colecoes ?? []).forEach((colecao) => mapa.set(colecao.id, colecao.nome));
+    return mapa;
+  }, [colecoes]);
+  const nomeCampanha = useMemo(() => {
+    const mapa = new Map<string, string>();
+    (campanhas ?? []).forEach((campanha) => mapa.set(campanha.id, campanha.nome));
+    return mapa;
+  }, [campanhas]);
 
   const grupos = useMemo<GrupoFacetaDef<ItemEstoque>[]>(() => {
     const categorias = Array.from(new Set(dados.map((item) => item.categoria))).sort((a, b) =>
@@ -71,6 +86,34 @@ function EstoquePage() {
         placeholderBusca: "Buscar categoria…",
       },
       {
+        id: "colecao",
+        label: "Coleção",
+        opcoes: [
+          ...Array.from(nomeColecao.entries())
+            .filter(([id]) => dados.some((item) => item.colecaoId === id))
+            .map(([id, nome]) => ({ valor: id, label: nome }))
+            .sort((a, b) => a.label.localeCompare(b.label, "pt-BR")),
+          { valor: "__sem__", label: "Sem coleção" },
+        ],
+        corresponde: (item, valor) =>
+          valor === "__sem__" ? !item.colecaoId : item.colecaoId === valor,
+        placeholderBusca: "Buscar coleção…",
+      },
+      {
+        id: "campanha",
+        label: "Campanha",
+        opcoes: [
+          ...Array.from(nomeCampanha.entries())
+            .filter(([id]) => dados.some((item) => item.campanhaId === id))
+            .map(([id, nome]) => ({ valor: id, label: nome }))
+            .sort((a, b) => a.label.localeCompare(b.label, "pt-BR")),
+          { valor: "__sem__", label: "Sem campanha" },
+        ],
+        corresponde: (item, valor) =>
+          valor === "__sem__" ? !item.campanhaId : item.campanhaId === valor,
+        placeholderBusca: "Buscar campanha…",
+      },
+      {
         id: "variantes",
         label: "Variantes",
         opcoes: [
@@ -81,7 +124,7 @@ function EstoquePage() {
           valor === "com" ? item.totalVariantes > 0 : item.totalVariantes === 0,
       },
     ];
-  }, [dados]);
+  }, [dados, nomeColecao, nomeCampanha]);
 
   const filtragem = useFiltrosFacetados({ itens: dados, grupos });
   const itens = filtragem.itensFiltrados;
@@ -148,6 +191,7 @@ function EstoquePage() {
               <TableRow>
                 <TableHead className="w-36">Produto</TableHead>
                 <TableHead>Categoria</TableHead>
+                <TableHead>Coleção / Campanha</TableHead>
                 <TableHead>Cores e tamanhos</TableHead>
                 <TableHead>Quantidade total</TableHead>
                 <TableHead>Status</TableHead>
@@ -168,6 +212,23 @@ function EstoquePage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-sm">{item.categoria}</TableCell>
+                  <TableCell className="py-3">
+                    <div className="flex flex-col items-start gap-1">
+                      {item.colecaoId && nomeColecao.get(item.colecaoId) ? (
+                        <Badge variant="secondary" className="max-w-44 truncate">
+                          {nomeColecao.get(item.colecaoId)}
+                        </Badge>
+                      ) : null}
+                      {item.campanhaId && nomeCampanha.get(item.campanhaId) ? (
+                        <Badge variant="outline" className="max-w-44 truncate">
+                          {nomeCampanha.get(item.campanhaId)}
+                        </Badge>
+                      ) : null}
+                      {!item.colecaoId && !item.campanhaId ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : null}
+                    </div>
+                  </TableCell>
                   <TableCell className="min-w-56 py-3">
                     <CoresTamanhos cores={item.cores ?? []} />
                   </TableCell>
