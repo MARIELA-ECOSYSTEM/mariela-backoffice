@@ -34,6 +34,10 @@ export interface ResumoEstoqueProduto {
   fotos: string[];
   /** Cores disponíveis com os tamanhos e quantidades de cada uma. */
   cores: EstoqueCorResumo[];
+  /** Referência à coleção do produto (nome resolvido na UI). */
+  colecaoId?: string | null;
+  /** Referência à campanha do produto (nome resolvido na UI). */
+  campanhaId?: string | null;
   quantidadeTotal: number;
   totalVariantes: number;
   estoqueZeradoEm?: string | null;
