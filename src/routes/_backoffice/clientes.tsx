@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Cake, CalendarHeart, MessageCircle, Pencil, Phone, Plus, Trash2 } from "lucide-react";
+import { Cake, CalendarHeart, Pencil, Phone, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,10 @@ import { AniversariantesDialog } from "@/components/cadastros/aniversariantes-di
 import { BotaoWhatsapp } from "@/components/cadastros/botao-whatsapp";
 import { ClienteDetalhe } from "@/components/cadastros/cliente-detalhe";
 import {
+  DialogMensagemWhatsapp,
+  type AlvoMensagemWhatsapp,
+} from "@/components/cadastros/dialog-mensagem-whatsapp";
+import {
   useAtualizarCliente,
   useClientes,
   useCriarCliente,
@@ -38,6 +42,7 @@ import {
   OPCOES_ORDENACAO,
   OPCOES_SEM_COMPRA,
   aniversarioNoPeriodo,
+  formatarTelefone,
   janelaSemCompra,
   numeroWhatsapp,
   ordenarClientes,
@@ -76,6 +81,7 @@ function ClientesPage() {
   const [emEdicao, setEmEdicao] = useState<Cliente | null>(null);
   const [paraExcluir, setParaExcluir] = useState<Cliente | null>(null);
   const [detalhe, setDetalhe] = useState<Cliente | null>(null);
+  const [alvoMensagem, setAlvoMensagem] = useState<AlvoMensagemWhatsapp | null>(null);
 
   const grupos = useMemo<GrupoFacetaDef<Cliente>[]>(
     () => [
@@ -140,8 +146,7 @@ function ClientesPage() {
       (cliente) =>
         !termo ||
         cliente.nome.toLowerCase().includes(termo) ||
-        cliente.telefone.toLowerCase().includes(termo) ||
-        cliente.whatsapp.toLowerCase().includes(termo),
+        cliente.telefone.toLowerCase().includes(termo),
     );
   }, [clientes, busca]);
 
@@ -159,8 +164,7 @@ function ClientesPage() {
     ? {
         nome: emEdicao.nome,
         foto: emEdicao.foto ?? "",
-        telefone: emEdicao.telefone,
-        whatsapp: emEdicao.whatsapp,
+        telefone: formatarTelefone(emEdicao.telefone),
         dataNascimento: emEdicao.dataNascimento ?? "",
         observacao: emEdicao.observacao,
       }
@@ -176,7 +180,6 @@ function ClientesPage() {
       nome: valores.nome,
       foto: valores.foto || null,
       telefone: valores.telefone,
-      whatsapp: valores.whatsapp,
       dataNascimento: valores.dataNascimento || null,
       observacao: valores.observacao,
     };
@@ -226,7 +229,7 @@ function ClientesPage() {
           setBusca(valor);
           setPagina(1);
         }}
-        placeholder="Buscar por nome, telefone ou WhatsApp…"
+        placeholder="Buscar por nome ou telefone…"
       >
         <Select value={ordem} onValueChange={(valor) => setOrdem(valor as OrdenacaoCliente)}>
           <SelectTrigger className="w-60" aria-label="Ordenar clientes">
@@ -282,11 +285,10 @@ function ClientesPage() {
               foto={cliente.foto}
               subtitulo={`Cliente desde ${formatarData(cliente.criadoEm)}`}
               campos={[
-                { icon: Phone, label: "Telefone", valor: cliente.telefone },
                 {
-                  icon: MessageCircle,
-                  label: "WhatsApp",
-                  valor: cliente.whatsapp || cliente.telefone,
+                  icon: Phone,
+                  label: "Telefone",
+                  valor: formatarTelefone(cliente.telefone),
                 },
                 {
                   icon: CalendarHeart,
@@ -304,7 +306,13 @@ function ClientesPage() {
                 { label: "Última compra", valor: rotuloUltimaCompra(cliente.ultimaCompra) },
               ]}
               observacao={cliente.observacao}
-              acaoRapida={<BotaoWhatsapp nome={cliente.nome} numero={numeroWhatsapp(cliente)} />}
+              acaoRapida={
+                <BotaoWhatsapp
+                  nome={cliente.nome}
+                  numero={numeroWhatsapp(cliente)}
+                  onClick={() => setAlvoMensagem({ cliente, tipoMensagem: "geral" })}
+                />
+              }
               onVisualizar={() => setDetalhe(cliente)}
               acoes={[
                 {
@@ -353,6 +361,14 @@ function ClientesPage() {
         open={aniversariantesAberto}
         onOpenChange={setAniversariantesAberto}
         clientes={clientes ?? []}
+        onEnviarMensagem={(cliente) => setAlvoMensagem({ cliente, tipoMensagem: "aniversario" })}
+      />
+
+      <DialogMensagemWhatsapp
+        alvo={alvoMensagem}
+        onOpenChange={(aberto) => {
+          if (!aberto) setAlvoMensagem(null);
+        }}
       />
 
       <ConfirmDialog
@@ -377,6 +393,7 @@ function ClientesPage() {
         onOpenChange={(aberto) => {
           if (!aberto) setDetalhe(null);
         }}
+        onEnviarMensagem={(cliente) => setAlvoMensagem({ cliente, tipoMensagem: "geral" })}
       />
     </Page>
   );
