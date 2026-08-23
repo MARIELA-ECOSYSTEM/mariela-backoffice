@@ -54,4 +54,3 @@ export function MiniaturaProduto({ fotos, alt }: { fotos: string[]; alt: string 
     </span>
   );
 }
-
