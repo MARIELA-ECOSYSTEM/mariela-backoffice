@@ -173,6 +173,7 @@ const SEEDS: ProdutoSeed[] = [
       },
       {
         cor: "Bege",
+        foto: calca1,
         tamanhos: [
           ["36", 1],
           ["38", 2],
