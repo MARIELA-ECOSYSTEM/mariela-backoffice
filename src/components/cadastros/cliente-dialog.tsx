@@ -78,8 +78,8 @@ export function ClienteDialog({
             {edicao && codigo ? <CodigoBadge codigo={codigo} /> : null}
           </DialogTitle>
           <DialogDescription>
-            Nome, telefone (usado também no WhatsApp), data de nascimento e observações. O código
-            é gerado automaticamente pelo sistema.
+            Nome, telefone (usado também no WhatsApp), data de nascimento e observações. O código é
+            gerado automaticamente pelo sistema.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -94,11 +94,7 @@ export function ClienteDialog({
           <Field id="foto" label="Foto (URL)" erro={errors.foto?.message}>
             <Input id="foto" placeholder="https://…" {...form.register("foto")} />
           </Field>
-          <Field
-            id="telefone"
-            label="Telefone (WhatsApp)"
-            erro={errors.telefone?.message}
-          >
+          <Field id="telefone" label="Telefone (WhatsApp)" erro={errors.telefone?.message}>
             <Input
               id="telefone"
               inputMode="tel"
