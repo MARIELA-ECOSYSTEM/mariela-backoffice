@@ -747,7 +747,6 @@ interface SeedCliente {
   id: string;
   nome: string;
   telefone: string;
-  whatsapp: string;
   /** Offset em dias para o aniversário; null = sem data cadastrada. */
   aniversarioEmDias: number | null;
   anoNascimento: number;
@@ -762,7 +761,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_001",
     nome: "Ana Beatriz Souza",
     telefone: "(11) 99811-2233",
-    whatsapp: "(11) 99811-2233",
     aniversarioEmDias: 0,
     anoNascimento: 1992,
     observacao: "Prefere vestidos midi.",
@@ -773,7 +771,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_002",
     nome: "Camila Ferreira",
     telefone: "(11) 98444-9090",
-    whatsapp: "(11) 98444-9090",
     aniversarioEmDias: 1,
     anoNascimento: 1988,
     observacao: "Cliente de crediário.",
@@ -784,7 +781,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_003",
     nome: "Juliana Martins",
     telefone: "(21) 99700-1010",
-    whatsapp: "(21) 99700-1010",
     aniversarioEmDias: 3,
     anoNascimento: 1995,
     observacao: "",
@@ -795,7 +791,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_004",
     nome: "Larissa Nogueira",
     telefone: "(31) 98222-3131",
-    whatsapp: "(31) 98222-3131",
     aniversarioEmDias: 5,
     anoNascimento: 1990,
     observacao: "Sempre pede novidades de acessórios.",
@@ -806,7 +801,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_005",
     nome: "Patrícia Lima",
     telefone: "(11) 97333-4545",
-    whatsapp: "",
     aniversarioEmDias: null,
     anoNascimento: 1991,
     observacao: "Cadastro incompleto.",
@@ -817,7 +811,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_006",
     nome: "Bianca Rezende",
     telefone: "(11) 99120-7788",
-    whatsapp: "(11) 99120-7788",
     aniversarioEmDias: 12,
     anoNascimento: 1997,
     observacao: "Gosta de peças de festa.",
@@ -828,7 +821,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_007",
     nome: "Renata Andrade",
     telefone: "(11) 98511-2020",
-    whatsapp: "(11) 98511-2020",
     aniversarioEmDias: 20,
     anoNascimento: 1985,
     observacao: "",
@@ -839,7 +831,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_008",
     nome: "Gabriela Pontes",
     telefone: "(41) 99666-1414",
-    whatsapp: "(41) 99666-1414",
     aniversarioEmDias: 45,
     anoNascimento: 1993,
     observacao: "Compra para revenda ocasional.",
@@ -850,7 +841,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_009",
     nome: "Fernanda Sales",
     telefone: "(11) 97444-3322",
-    whatsapp: "(11) 97444-3322",
     aniversarioEmDias: 60,
     anoNascimento: 1999,
     observacao: "",
@@ -861,7 +851,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_010",
     nome: "Débora Castro",
     telefone: "(11) 98800-1177",
-    whatsapp: "(11) 98800-1177",
     aniversarioEmDias: 6,
     anoNascimento: 1980,
     observacao: "Prefere atendimento por WhatsApp.",
@@ -872,7 +861,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_011",
     nome: "Marina Teixeira",
     telefone: "(11) 99333-8181",
-    whatsapp: "(11) 99333-8181",
     aniversarioEmDias: 90,
     anoNascimento: 1996,
     observacao: "",
@@ -883,7 +871,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_012",
     nome: "Sabrina Duarte",
     telefone: "(11) 96555-4040",
-    whatsapp: "(11) 96555-4040",
     aniversarioEmDias: 14,
     anoNascimento: 1987,
     observacao: "Indicou várias amigas.",
@@ -894,7 +881,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_013",
     nome: "Aline Barros",
     telefone: "(11) 98122-6363",
-    whatsapp: "(11) 98122-6363",
     aniversarioEmDias: 200,
     anoNascimento: 1994,
     observacao: "",
@@ -905,7 +891,6 @@ const CLIENTES_SEED: SeedCliente[] = [
     id: "cli_014",
     nome: "Tatiane Moraes",
     telefone: "(11) 97711-9090",
-    whatsapp: "(11) 97711-9090",
     aniversarioEmDias: 2,
     anoNascimento: 2001,
     observacao: "Primeira compra pelo Instagram.",
@@ -925,7 +910,6 @@ export function seedClientes(): Cliente[] {
     nome: cliente.nome,
     foto: null,
     telefone: cliente.telefone,
-    whatsapp: cliente.whatsapp,
     dataNascimento:
       cliente.aniversarioEmDias === null
         ? null

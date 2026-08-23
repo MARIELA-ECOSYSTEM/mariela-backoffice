@@ -12,7 +12,7 @@ import { CodigoBadge } from "@/components/common/codigo-badge";
 import { BotaoWhatsapp } from "@/components/cadastros/botao-whatsapp";
 import { useVendasDoCliente } from "@/hooks/use-cadastros";
 import { formatarData, formatarMoeda } from "@/utils/format";
-import { idade, numeroWhatsapp, rotuloUltimaCompra } from "@/utils/cliente";
+import { formatarTelefone, idade, numeroWhatsapp, rotuloUltimaCompra } from "@/utils/cliente";
 import { LABEL_STATUS_VENDA } from "@/types/venda";
 import type { Cliente } from "@/types/cliente";
 
@@ -29,9 +29,11 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
 export function ClienteDetalhe({
   cliente,
   onOpenChange,
+  onEnviarMensagem,
 }: {
   cliente: Cliente | null;
   onOpenChange: (aberto: boolean) => void;
+  onEnviarMensagem: (cliente: Cliente) => void;
 }) {
   const vendas = useVendasDoCliente(cliente?.id ?? null);
   const anos = idade(cliente?.dataNascimento ?? null);
@@ -55,6 +57,7 @@ export function ClienteDetalhe({
                     nome={cliente.nome}
                     numero={numeroWhatsapp(cliente)}
                     variante="botao"
+                    onClick={() => onEnviarMensagem(cliente)}
                   />
                 </div>
               </div>
@@ -89,8 +92,7 @@ export function ClienteDetalhe({
             </div>
 
             <dl className="space-y-3 text-sm">
-              <Linha rotulo="Telefone" valor={cliente.telefone} />
-              <Linha rotulo="WhatsApp" valor={cliente.whatsapp || cliente.telefone} />
+              <Linha rotulo="Telefone" valor={formatarTelefone(cliente.telefone)} />
               <Linha
                 rotulo="Nascimento"
                 valor={

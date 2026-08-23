@@ -1,32 +1,24 @@
 import { MessageCircle } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 /**
- * Botão visual de WhatsApp.
+ * Botão de WhatsApp.
  *
- * IMPORTANTE: não existe integração com o WhatsApp neste momento — nenhuma API,
- * webhook ou autenticação. O clique apenas dá um retorno visual, deixando a UI
- * preparada para a futura funcionalidade.
+ * IMPORTANTE: não existe integração real com o WhatsApp. O clique apenas abre o
+ * Dialog de composição de mensagem (`DialogMensagemWhatsapp`), que simula o envio.
  */
 export function BotaoWhatsapp({
   nome,
   numero,
   variante = "icone",
+  onClick,
 }: {
   nome: string;
   numero: string;
   variante?: "icone" | "botao";
+  onClick: () => void;
 }) {
   const habilitado = numero.trim().length > 0;
-
-  function avisar() {
-    toast.info(
-      habilitado
-        ? `WhatsApp de ${nome} (${numero}) — integração será habilitada em breve.`
-        : `${nome} não possui WhatsApp cadastrado.`,
-    );
-  }
 
   if (variante === "botao") {
     return (
@@ -34,11 +26,13 @@ export function BotaoWhatsapp({
         type="button"
         variant="outline"
         size="sm"
-        onClick={avisar}
+        disabled={!habilitado}
+        onClick={onClick}
+        title={habilitado ? `Enviar mensagem para ${numero}` : "Sem telefone cadastrado"}
         className="border-success/40 text-success hover:bg-success/10 hover:text-success"
       >
         <MessageCircle aria-hidden className="size-4" />
-        WhatsApp
+        Enviar mensagem
       </Button>
     );
   }
@@ -48,9 +42,10 @@ export function BotaoWhatsapp({
       type="button"
       variant="ghost"
       size="icon"
-      onClick={avisar}
-      aria-label={`WhatsApp de ${nome}`}
-      title={habilitado ? `WhatsApp: ${numero}` : "Sem WhatsApp cadastrado"}
+      disabled={!habilitado}
+      onClick={onClick}
+      aria-label={`Enviar mensagem de WhatsApp para ${nome}`}
+      title={habilitado ? `Enviar mensagem para ${numero}` : "Sem telefone cadastrado"}
       className="text-success hover:bg-success/10 hover:text-success"
     >
       <MessageCircle aria-hidden className="size-4" />

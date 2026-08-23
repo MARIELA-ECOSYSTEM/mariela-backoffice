@@ -15,6 +15,7 @@ import {
   aniversarioNoPeriodo,
   diaMesNascimento,
   diasAteAniversario,
+  formatarTelefone,
   idade,
   numeroWhatsapp,
   type PeriodoAniversario,
@@ -26,10 +27,13 @@ export function AniversariantesDialog({
   open,
   onOpenChange,
   clientes,
+  onEnviarMensagem,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clientes: Cliente[];
+  /** Abre o mesmo DialogMensagemWhatsapp usado no card do cliente. */
+  onEnviarMensagem: (cliente: Cliente) => void;
 }) {
   const [periodo, setPeriodo] = useState<PeriodoAniversario>("hoje");
 
@@ -96,13 +100,14 @@ export function AniversariantesDialog({
                             <p className="truncate text-xs text-muted-foreground">
                               {anos === null ? "Idade não informada" : `${anos} anos`} ·{" "}
                               {diaMesNascimento(cliente.dataNascimento)} ·{" "}
-                              {numeroWhatsapp(cliente) || "sem telefone"}
+                              {formatarTelefone(cliente.telefone) || "sem telefone"}
                             </p>
                           </div>
                           <BotaoWhatsapp
                             nome={cliente.nome}
                             numero={numeroWhatsapp(cliente)}
                             variante="botao"
+                            onClick={() => onEnviarMensagem(cliente)}
                           />
                         </li>
                       );

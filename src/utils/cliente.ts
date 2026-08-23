@@ -112,9 +112,35 @@ export function diasAteAniversario(dataNascimento: string | null, hoje = new Dat
   return Math.round((proximo.getTime() - base.getTime()) / 86_400_000);
 }
 
-/** Número usado como referência visual do WhatsApp. */
-export function numeroWhatsapp(cliente: Pick<Cliente, "whatsapp" | "telefone">): string {
-  return cliente.whatsapp.trim() || cliente.telefone.trim();
+/**
+ * Telefone é o único número do cliente e serve também como WhatsApp.
+ * `numeroWhatsapp` existe apenas para deixar a intenção explícita na UI.
+ */
+export function numeroWhatsapp(cliente: Pick<Cliente, "telefone">): string {
+  return cliente.telefone.trim();
+}
+
+/** Somente dígitos — formato consistente para persistência/envio. */
+export function normalizarTelefone(valor: string): string {
+  return valor.replace(/\D/g, "").slice(0, 13);
+}
+
+/** Máscara de exibição/entrada: (83) 99999-9999. */
+export function formatarTelefone(valor: string): string {
+  const digitos = normalizarTelefone(valor);
+  if (digitos.length === 0) return "";
+  if (digitos.length <= 2) return `(${digitos}`;
+  const ddd = digitos.slice(0, 2);
+  const resto = digitos.slice(2);
+  if (resto.length <= 4) return `(${ddd}) ${resto}`;
+  const corte = resto.length > 8 ? 5 : 4;
+  return `(${ddd}) ${resto.slice(0, corte)}-${resto.slice(corte, corte + 4)}`;
+}
+
+/** Telefone válido para uso no WhatsApp: DDD + 8 ou 9 dígitos. */
+export function telefoneValido(valor: string): boolean {
+  const digitos = normalizarTelefone(valor);
+  return digitos.length === 10 || digitos.length === 11;
 }
 
 export type OrdenacaoCliente =
