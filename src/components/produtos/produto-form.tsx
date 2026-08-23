@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
@@ -60,6 +61,45 @@ export function ProdutoForm({
   const errors = form.formState.errors;
   const custo = Number(form.watch("precoCusto")) || 0;
   const venda = Number(form.watch("precoVenda")) || 0;
+
+  // Modo de preenchimento: custo + margem (calcula venda) ou custo + venda (calcula margem).
+  const [porMargem, setPorMargem] = useState(false);
+  const [margemInformada, setMargemInformada] = useState(() =>
+    String(calcularMargem(produto?.precoCusto ?? 0, produto?.precoVenda ?? 0)),
+  );
+  const margemCalculada = calcularMargem(custo, venda);
+
+  /** Inverso da regra oficial de margem: venda = custo * (1 + margem/100). */
+  function vendaPelaMargem(precoCusto: number, margem: number): number {
+    return Number((precoCusto * (1 + margem / 100)).toFixed(2));
+  }
+
+  function aplicarMargem(valor: string) {
+    setMargemInformada(valor);
+    const margem = Number(valor);
+    if (!Number.isFinite(margem) || custo <= 0) return;
+    form.setValue("precoVenda", vendaPelaMargem(custo, margem), { shouldValidate: true });
+  }
+
+  function aplicarCusto(valor: string) {
+    const novoCusto = Number(valor) || 0;
+    if (!porMargem) return;
+    const margem = Number(margemInformada);
+    if (!Number.isFinite(margem) || novoCusto <= 0) return;
+    form.setValue("precoVenda", vendaPelaMargem(novoCusto, margem), { shouldValidate: true });
+  }
+
+  function alternarModo(ativo: boolean) {
+    setPorMargem(ativo);
+    // Preserva os valores digitados e recalcula apenas o campo derivado.
+    if (ativo) {
+      const margem = margemCalculada;
+      setMargemInformada(String(margem));
+      if (custo > 0) form.setValue("precoVenda", vendaPelaMargem(custo, margem));
+    } else {
+      setMargemInformada(String(margemCalculada));
+    }
+  }
 
   function handleSubmit(values: ProdutoFormValues) {
     void onSubmit({
@@ -190,50 +230,83 @@ export function ProdutoForm({
         <CardHeader>
           <CardTitle className="font-display text-xl">Preços</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-5 md:grid-cols-3">
-          <Field id="precoCusto" label="Preço de custo (R$)" erro={errors.precoCusto?.message}>
-            <Input
-              id="precoCusto"
-              type="number"
-              step="0.01"
-              min="0"
-              {...form.register("precoCusto")}
+        <CardContent className="space-y-5">
+          <div className="flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5">
+            <Switch
+              id="porMargem"
+              checked={porMargem}
+              onCheckedChange={alternarModo}
+              aria-label="Calcular preço de venda pela margem"
             />
-          </Field>
-          <Field id="precoVenda" label="Preço de venda (R$)" erro={errors.precoVenda?.message}>
-            <Input
-              id="precoVenda"
-              type="number"
-              step="0.01"
-              min="0"
-              {...form.register("precoVenda")}
-            />
-          </Field>
-          <div className="space-y-2">
-            <Label>Margem calculada</Label>
-            <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm">
-              {formatarPercentual(calcularMargem(custo, venda))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              A promoção é ativada na tela do produto.
-            </p>
+            <Label htmlFor="porMargem" className="cursor-pointer text-sm font-medium">
+              Calcular preço de venda pela margem
+            </Label>
           </div>
-        </CardContent>
-      </Card>
 
-      <Card className="shadow-card">
-        <CardContent className="flex items-center justify-between gap-4 py-5">
-          <div>
-            <p className="text-sm font-medium">Marcar como novidade</p>
-            <p className="text-xs text-muted-foreground">
-              Produtos novos recebem destaque nas vitrines e relatórios.
-            </p>
+          <div className="grid gap-5 md:grid-cols-3">
+            <Field id="precoCusto" label="Preço de custo (R$)" erro={errors.precoCusto?.message}>
+              <Input
+                id="precoCusto"
+                type="number"
+                step="0.01"
+                min="0"
+                {...form.register("precoCusto", {
+                  onChange: (event) => aplicarCusto(event.target.value),
+                })}
+              />
+            </Field>
+
+            {porMargem ? (
+              <>
+                <Field id="margemLucro" label="Margem de lucro (%)">
+                  <Input
+                    id="margemLucro"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={margemInformada}
+                    onChange={(event) => aplicarMargem(event.target.value)}
+                  />
+                </Field>
+                <div className="space-y-2">
+                  <Label htmlFor="precoVendaCalculado">Preço de venda (R$)</Label>
+                  <Input
+                    id="precoVendaCalculado"
+                    readOnly
+                    tabIndex={-1}
+                    className="bg-muted/40 tabular-nums"
+                    value={venda ? venda.toFixed(2) : ""}
+                  />
+                  <p className="text-xs text-muted-foreground">Calculado automaticamente.</p>
+                  {errors.precoVenda?.message ? (
+                    <p className="text-xs text-destructive">{errors.precoVenda.message}</p>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <>
+                <Field id="precoVenda" label="Preço de venda (R$)" erro={errors.precoVenda?.message}>
+                  <Input
+                    id="precoVenda"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...form.register("precoVenda")}
+                  />
+                </Field>
+                <div className="space-y-2">
+                  <Label>Margem de lucro (%)</Label>
+                  <div className="flex h-9 items-center rounded-md border border-input bg-muted/40 px-3 text-sm tabular-nums">
+                    {formatarPercentual(margemCalculada)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Calculada automaticamente.</p>
+                </div>
+              </>
+            )}
           </div>
-          <Switch
-            checked={form.watch("ehNovidade")}
-            onCheckedChange={(valor) => form.setValue("ehNovidade", valor)}
-            aria-label="Marcar como novidade"
-          />
+          <p className="text-xs text-muted-foreground">
+            A promoção é ativada na tela do produto e não altera estes valores.
+          </p>
         </CardContent>
       </Card>
 
