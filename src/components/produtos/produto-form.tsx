@@ -285,7 +285,11 @@ export function ProdutoForm({
               </>
             ) : (
               <>
-                <Field id="precoVenda" label="Preço de venda (R$)" erro={errors.precoVenda?.message}>
+                <Field
+                  id="precoVenda"
+                  label="Preço de venda (R$)"
+                  erro={errors.precoVenda?.message}
+                >
                   <Input
                     id="precoVenda"
                     type="number"
