@@ -485,7 +485,7 @@ export function seedProdutos(): Produto[] {
       }));
       return {
         id: `var_${indexProduto + 1}_${indexVariante + 1}`,
-        codVariante: formatarCodigoVariante(seed.cod, seed.cor),
+        codVariante: formatarCodigoVariante(seed.cod, variante.cor),
         cor: variante.cor,
         quantidadeVariante: tamanhos.reduce((total, t) => total + t.quantidade, 0),
         foto: variante.foto ?? null,
