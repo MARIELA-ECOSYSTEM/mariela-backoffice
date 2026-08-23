@@ -59,7 +59,7 @@ export const Route = createFileRoute("/_backoffice/produtos/")({
   component: ProdutosPage,
 });
 
-const POR_PAGINA = 12;
+const POR_PAGINA = 20;
 
 type OrdenacaoValor =
   | "nome-asc"
@@ -250,8 +250,8 @@ function ProdutosPage() {
                 className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
               />
               <Input
-                aria-label="Buscar por nome ou código"
-                placeholder="Buscar por nome ou código…"
+                aria-label="Buscar por código, nome ou categoria"
+                placeholder="Buscar por código (PROD-0001), nome ou categoria…"
                 className="pl-9"
                 value={busca}
                 onChange={(event) => setBusca(event.target.value)}
@@ -279,8 +279,8 @@ function ProdutosPage() {
       />
 
       {isPending ? (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, indice) => (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          {Array.from({ length: 10 }).map((_, indice) => (
             <ProdutoCardSkeleton key={indice} />
           ))}
         </div>
@@ -306,7 +306,7 @@ function ProdutosPage() {
         />
       ) : (
         <div className="space-y-5">
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {visiveis.map((produto) => (
               <ProdutoCard
                 key={produto.id}
