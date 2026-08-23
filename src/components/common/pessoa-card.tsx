@@ -173,14 +173,14 @@ export function PessoaCard({
           <dl className="grid grid-cols-3 gap-2 rounded-lg border border-primary/15 bg-primary-soft/30 px-3 py-2.5">
             {metricas.map((metrica) => (
               <div key={metrica.label} className="min-w-0">
-                <dt className="truncate font-brand text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground">
+                <dt className="font-brand text-[0.58rem] uppercase leading-tight tracking-[0.1em] text-muted-foreground">
                   {metrica.label}
                 </dt>
                 <dd
                   className={
                     metrica.destaque
-                      ? "truncate font-display text-base leading-tight text-primary"
-                      : "truncate text-sm leading-tight text-foreground/90"
+                      ? "mt-0.5 font-display text-base leading-tight text-primary"
+                      : "mt-0.5 text-[0.8rem] leading-tight text-foreground/90"
                   }
                   title={metrica.valor}
                 >
