@@ -38,8 +38,7 @@ export function seedVendasClientes(
       const totalItens = 1 + ((indiceCliente + indiceCompra) % 3);
       let valorFinal = 0;
       for (let item = 0; item < totalItens; item += 1) {
-        const produto =
-          catalogo[(indiceCliente * 3 + indiceCompra * 2 + item) % catalogo.length]!;
+        const produto = catalogo[(indiceCliente * 3 + indiceCompra * 2 + item) % catalogo.length]!;
         valorFinal += precoFinal(produto);
       }
 

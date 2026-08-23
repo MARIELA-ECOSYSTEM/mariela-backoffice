@@ -26,7 +26,12 @@ import {
 import { AniversariantesDialog } from "@/components/cadastros/aniversariantes-dialog";
 import { BotaoWhatsapp } from "@/components/cadastros/botao-whatsapp";
 import { ClienteDetalhe } from "@/components/cadastros/cliente-detalhe";
-import { useAtualizarCliente, useClientes, useCriarCliente, useRemoverCliente } from "@/hooks/use-cadastros";
+import {
+  useAtualizarCliente,
+  useClientes,
+  useCriarCliente,
+  useRemoverCliente,
+} from "@/hooks/use-cadastros";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarData, formatarMoeda } from "@/utils/format";
 import {
@@ -294,9 +299,7 @@ function ClientesPage() {
                 { label: "Última compra", valor: rotuloUltimaCompra(cliente.ultimaCompra) },
               ]}
               observacao={cliente.observacao}
-              acaoRapida={
-                <BotaoWhatsapp nome={cliente.nome} numero={numeroWhatsapp(cliente)} />
-              }
+              acaoRapida={<BotaoWhatsapp nome={cliente.nome} numero={numeroWhatsapp(cliente)} />}
               onVisualizar={() => setDetalhe(cliente)}
               acoes={[
                 {
