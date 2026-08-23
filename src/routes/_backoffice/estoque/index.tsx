@@ -146,8 +146,7 @@ function EstoquePage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Código</TableHead>
-                <TableHead>Produto</TableHead>
+                <TableHead className="w-36">Produto</TableHead>
                 <TableHead>Categoria</TableHead>
                 <TableHead>Cores e tamanhos</TableHead>
                 <TableHead>Quantidade total</TableHead>
@@ -160,16 +159,16 @@ function EstoquePage() {
               {itens.map((item) => (
                 <TableRow key={item.produtoId}>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {item.codProduto}
-                      </span>
+                    <div className="flex items-center gap-4 py-2">
                       <MiniaturaProduto fotos={item.fotos ?? []} alt={item.nome} />
+                      <div className="flex min-w-0 flex-col">
+                        <span className="font-medium">{item.nome}</span>
+                        <span className="text-xs text-muted-foreground">{item.categoria}</span>
+                      </div>
                     </div>
                   </TableCell>
-                  <TableCell className="font-medium">{item.nome}</TableCell>
                   <TableCell className="text-sm">{item.categoria}</TableCell>
-                  <TableCell className="min-w-56 py-2">
+                  <TableCell className="min-w-56 py-3">
                     <CoresTamanhos cores={item.cores ?? []} />
                   </TableCell>
                   <TableCell className="tabular-nums">{item.quantidadeTotal}</TableCell>
