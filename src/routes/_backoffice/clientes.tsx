@@ -82,8 +82,13 @@ function ClientesPage() {
       {
         id: "recencia",
         label: "Sem compra recente",
-        opcoes: OPCOES_SEM_COMPRA.map((opcao) => ({ valor: opcao.valor, label: opcao.label })),
-        corresponde: (cliente, valor) => semCompraDesde(cliente, janelaSemCompra(valor)),
+        opcoes: [
+          { valor: "todos", label: "Todos" },
+          ...OPCOES_SEM_COMPRA.map((opcao) => ({ valor: opcao.valor, label: opcao.label })),
+        ],
+        // "Todos" não restringe nada: existe para deixar a contagem total visível.
+        corresponde: (cliente, valor) =>
+          valor === "todos" ? true : semCompraDesde(cliente, janelaSemCompra(valor)),
       },
       {
         id: "historico",
