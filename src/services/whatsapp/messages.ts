@@ -44,3 +44,21 @@ export function primeiroNome(nome: string): string {
 export function montarMensagem(tipo: TipoMensagemWhatsapp, nome: string): string {
   return TEMPLATES_WHATSAPP[tipo].corpo.replaceAll("{{nome}}", primeiroNome(nome));
 }
+
+/**
+ * Mensagem em lote de aniversário (Dialog de Aniversariantes).
+ * Não contém `{{nome}}`: a personalização com o primeiro nome de cada cliente é
+ * aplicada automaticamente no envio (ver `montarMensagemLote`).
+ */
+export const MENSAGEM_ANIVERSARIO_LOTE = `🎉 Feliz Aniversário! 🎂
+
+A Mariela Moda Feminina deseja um dia maravilhoso repleto de alegrias e conquistas! ✨
+
+Como presente especial, você ganhou 10% de desconto na sua próxima compra! 🎁
+
+Venha nos visitar! 💜`;
+
+/** Prefixa a saudação personalizada ao corpo escrito pelo administrador. */
+export function montarMensagemLote(corpo: string, nome: string): string {
+  return `Olá, ${primeiroNome(nome)}!\n\n${corpo.replaceAll("{{nome}}", primeiroNome(nome))}`;
+}
