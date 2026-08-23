@@ -22,7 +22,7 @@ import { useProdutos } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
 import type { Colecao } from "@/types/colecao";
 
-export const Route = createFileRoute("/_backoffice/colecoes")({
+export const Route = createFileRoute("/_backoffice/colecoes/")({
   ssr: false,
   head: () => ({
     meta: [

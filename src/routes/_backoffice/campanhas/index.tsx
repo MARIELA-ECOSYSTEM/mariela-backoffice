@@ -22,7 +22,7 @@ import { useProdutos } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
 import type { Campanha } from "@/types/campanha";
 
-export const Route = createFileRoute("/_backoffice/campanhas")({
+export const Route = createFileRoute("/_backoffice/campanhas/")({
   ssr: false,
   head: () => ({
     meta: [
