@@ -33,15 +33,16 @@ import type { Produto } from "@/types/produto";
 export function ProdutoCardSkeleton() {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
-      <Skeleton className="aspect-[4/3] w-full rounded-none" />
+      <Skeleton className="aspect-[3/4] w-full rounded-none" />
       <div className="space-y-2 p-3">
-        <Skeleton className="h-3 w-16" />
         <Skeleton className="h-4 w-4/5" />
+        <Skeleton className="h-6 w-24" />
         <Skeleton className="h-10 w-full" />
       </div>
     </div>
   );
 }
+
 
 /** Carrossel leve: só troca o índice, sem bibliotecas nem animações pesadas. */
 function GaleriaCard({ produto }: { produto: Produto }) {
