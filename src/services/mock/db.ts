@@ -6,7 +6,7 @@ import type { Fornecedor, FornecedorHistoricoItem } from "@/types/fornecedor";
 import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
-import type { VendaResumo } from "@/types/venda";
+import type { VendaDetalhe, VendaResumo } from "@/types/venda";
 import { calcularMargem, precoFinal } from "@/utils/produto";
 import {
   seedCampanhas,
@@ -18,6 +18,7 @@ import {
   seedProdutos,
 } from "./seed";
 import { seedVendas } from "./vendas.seed";
+import { seedVendasDetalhes } from "./vendas.detalhe.seed";
 import { agregadosDoCliente, seedVendasClientes } from "./clientes-vendas.seed";
 import { agregadosDoVendedor } from "./vendedores-vendas.seed";
 import { agregadosDoFornecedor, seedHistoricoFornecedores } from "./fornecedores-historico.seed";
