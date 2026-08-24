@@ -5,6 +5,7 @@ import type { Vendedor } from "@/types/vendedor";
 import type { VendaResumo } from "@/types/venda";
 import { precoFinal } from "@/utils/produto";
 import { FORMAS_PAGAMENTO, PLANO_COMPRAS_CLIENTES } from "./seed";
+import { financeiroInicial } from "./vendas.detalhe.seed";
 
 /**
  * Vendas determinísticas vinculadas às clientes do seed.
@@ -44,6 +45,8 @@ export function seedVendasClientes(
 
       const vendedor = equipe[(indiceCliente + indiceCompra) % equipe.length]!;
       sequencia += 1;
+      const formaPagamento =
+        FORMAS_PAGAMENTO[(indiceCliente + indiceCompra) % FORMAS_PAGAMENTO.length]!;
 
       vendas.push({
         id: `vnd_cli_${sequencia}`,
@@ -56,8 +59,9 @@ export function seedVendasClientes(
         vendedorNome: vendedor.nome,
         totalItens,
         valorFinal: Number(valorFinal.toFixed(2)),
-        formaPagamento: FORMAS_PAGAMENTO[(indiceCliente + indiceCompra) % FORMAS_PAGAMENTO.length]!,
+        formaPagamento,
         status: "concluida",
+        ...financeiroInicial(Number(valorFinal.toFixed(2)), formaPagamento),
       });
     });
   });

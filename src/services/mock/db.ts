@@ -6,7 +6,7 @@ import type { Fornecedor, FornecedorHistoricoItem } from "@/types/fornecedor";
 import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
-import type { VendaResumo } from "@/types/venda";
+import type { VendaDetalhe, VendaResumo } from "@/types/venda";
 import { calcularMargem, precoFinal } from "@/utils/produto";
 import {
   seedCampanhas,
@@ -18,6 +18,7 @@ import {
   seedProdutos,
 } from "./seed";
 import { seedVendas } from "./vendas.seed";
+import { seedVendasDetalhes } from "./vendas.detalhe.seed";
 import { agregadosDoCliente, seedVendasClientes } from "./clientes-vendas.seed";
 import { agregadosDoVendedor } from "./vendedores-vendas.seed";
 import { agregadosDoFornecedor, seedHistoricoFornecedores } from "./fornecedores-historico.seed";
@@ -34,6 +35,8 @@ export interface MockDatabase {
   campanhas: Campanha[];
   /** Vendas de leitura (fonte: MARIELA PDV) usadas pelos indicadores do Dashboard. */
   vendas: VendaResumo[];
+  /** Detalhamento das vendas (itens, pagamentos, parcelas, histórico). */
+  vendasDetalhes: VendaDetalhe[];
   /** Histórico de vínculos produto × fornecedor (somente leitura). */
   fornecedoresHistorico: FornecedorHistoricoItem[];
 }
@@ -48,6 +51,7 @@ export const db: MockDatabase = {
   colecoes: seedColecoes(),
   campanhas: seedCampanhas(),
   vendas: [],
+  vendasDetalhes: [],
   fornecedoresHistorico: [],
 };
 
@@ -56,6 +60,9 @@ db.vendas = [
   ...seedVendas(db.produtos, [], db.vendedores),
   ...seedVendasClientes(db.produtos, db.clientes, db.vendedores),
 ].sort((a, b) => b.dataVenda.localeCompare(a.dataVenda));
+
+// O detalhamento sincroniza os números do resumo (bruto, descontos, parcelas).
+db.vendasDetalhes = seedVendasDetalhes(db.vendas, db.produtos);
 
 db.fornecedoresHistorico = seedHistoricoFornecedores(db.produtos, db.fornecedores);
 

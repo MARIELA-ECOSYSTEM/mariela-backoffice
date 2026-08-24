@@ -52,7 +52,7 @@ export const NAV_GRUPOS: NavGrupo[] = [
   {
     titulo: "Operação",
     itens: [
-      { label: "Vendas", to: "/vendas", icon: ShoppingBag, emDesenvolvimento: true },
+      { label: "Vendas", to: "/vendas", icon: ShoppingBag },
       { label: "Caixa", to: "/caixa", icon: Landmark, emDesenvolvimento: true },
     ],
   },

@@ -5,7 +5,7 @@ import { formatarMoeda } from "@/utils/format";
 
 const VARIANTE_STATUS: Record<StatusVenda, "success" | "warning" | "destructive"> = {
   concluida: "success",
-  pendente: "warning",
+  em_pagamento: "warning",
   cancelada: "destructive",
 };
 
