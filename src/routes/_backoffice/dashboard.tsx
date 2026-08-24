@@ -355,17 +355,17 @@ function DashboardPage() {
                   icone={Store}
                 />
                 <Metrica
-                  rotulo="Fornecedores ativos"
+                  rotulo="Com produtos vinculados"
                   valor={data.fornecedores.ativos}
                   tipo="quantidade"
-                  unidade={pluralizar(data.fornecedores.ativos, "ativo", "ativos")}
+                  unidade={pluralizar(data.fornecedores.ativos, "fornecedor", "fornecedores")}
                   icone={Store}
                 />
                 <Metrica
-                  rotulo="Fornecedores inativos"
+                  rotulo="Sem produtos vinculados"
                   valor={data.fornecedores.inativos}
                   tipo="quantidade"
-                  unidade={pluralizar(data.fornecedores.inativos, "inativo", "inativos")}
+                  unidade={pluralizar(data.fornecedores.inativos, "fornecedor", "fornecedores")}
                   icone={CircleSlash}
                 />
               </div>

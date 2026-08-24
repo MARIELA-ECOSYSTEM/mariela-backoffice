@@ -192,12 +192,16 @@ function resumoFornecedores(): DashboardFornecedores {
   const fornecedores = db.fornecedores;
   return {
     cadastrados: fornecedores.length,
-    ativos: fornecedores.filter((f) => f.ativo).length,
-    inativos: fornecedores.filter((f) => !f.ativo).length,
-    recentes: recentes(fornecedores, (id) => {
-      const produtos = db.produtos.filter((produto) => produto.fornecedorId === id).length;
-      return `${produtos} ${produtos === 1 ? "produto" : "produtos"}`;
-    }),
+    // Fornecedor não possui status: o indicador passa a medir vínculo com produtos.
+    ativos: fornecedores.filter((f) => f.produtosVinculados > 0).length,
+    inativos: fornecedores.filter((f) => f.produtosVinculados === 0).length,
+    recentes: recentes(
+      fornecedores.map((fornecedor) => ({ ...fornecedor, ativo: true })),
+      (id) => {
+        const produtos = db.produtos.filter((produto) => produto.fornecedorId === id).length;
+        return `${produtos} ${produtos === 1 ? "produto" : "produtos"}`;
+      },
+    ),
   };
 }
 
