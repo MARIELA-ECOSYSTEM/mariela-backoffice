@@ -8,6 +8,7 @@ import {
   sincronizarAgregadosClientes,
   sincronizarAgregadosVendedores,
 } from "./db";
+import { registrarDevolucao, registrarRecebimentoParcela } from "./caixas.lancamentos";
 import { ApiError } from "@/types/api";
 import type {
   CancelamentoPayload,
@@ -130,6 +131,9 @@ export function registerVendasMocks(): void {
       autor: "Backoffice",
     });
 
+    // O valor recebido entra no caixa aberto (regra financeira do módulo Caixa).
+    registrarRecebimentoParcela(venda, parcela, forma);
+
     sincronizarResumo(venda);
     return { data: clonar(venda) };
   });
@@ -230,6 +234,9 @@ export function registerVendasMocks(): void {
         venda.valorPendente = 0;
       }
     }
+
+    // Valor devolvido sai do caixa aberto, limitado ao que foi recebido.
+    registrarDevolucao(venda, tipo, valorDevolvido, motivo);
 
     sincronizarResumo(venda);
     return { data: clonar(venda) };
