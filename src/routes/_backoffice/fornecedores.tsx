@@ -312,29 +312,19 @@ function FornecedoresPage() {
                   : "Sem contato responsável informado"
               }
               badgeExtra={<CodigoBadge codigo={fornecedor.codigo} />}
+              // Campos vazios são omitidos para o card não virar uma coluna de "—".
               campos={[
                 { icon: Building2, label: "CNPJ", valor: fornecedor.cnpj },
                 { icon: Phone, label: "Telefone", valor: formatarTelefone(fornecedor.telefone) },
                 { icon: Mail, label: "E-mail", valor: fornecedor.email },
                 { icon: MapPin, label: "Cidade/UF", valor: cidadeUf(fornecedor.endereco) },
-                {
-                  icon: Instagram,
-                  label: "Instagram",
-                  valor: fornecedor.instagram,
-                },
+                { icon: Instagram, label: "Instagram", valor: fornecedor.instagram },
                 {
                   icon: CalendarDays,
                   label: "Parceria desde",
                   valor: `Parceria desde ${formatarData(fornecedor.criadoEm)}`,
                 },
-                {
-                  icon: History,
-                  label: "Última entrada",
-                  valor: fornecedor.ultimaEntrada
-                    ? `Última entrada em ${formatarData(fornecedor.ultimaEntrada)}`
-                    : "Sem entradas registradas",
-                },
-              ]}
+              ].filter((campo) => campo.valor.trim().length > 0)}
               metricas={[
                 { label: "Produtos", valor: String(fornecedor.produtosVinculados) },
                 {
