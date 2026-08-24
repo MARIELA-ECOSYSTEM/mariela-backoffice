@@ -6,6 +6,7 @@ import { registerConfiguracoesMocks } from "./configuracoes.mock";
 import { registerCadastrosMocks } from "./cadastros.mock";
 import { registerVendedoresMocks } from "./vendedores.mock";
 import { registerVendasMocks } from "./vendas.mock";
+import { registerCaixasMocks } from "./caixas.mock";
 import { registerRelatoriosMocks } from "./relatorios.mock";
 import { registerDashboardMocks } from "./dashboard.mock";
 import { registerIntegracoesMocks } from "./integracoes.mock";
@@ -33,6 +34,7 @@ export function registrarMocks(): void {
   registerCadastrosMocks();
   registerVendedoresMocks();
   registerVendasMocks();
+  registerCaixasMocks();
   registerRelatoriosMocks();
   registerDashboardMocks();
   registerIntegracoesMocks();

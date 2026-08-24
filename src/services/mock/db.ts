@@ -7,6 +7,7 @@ import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
 import type { VendaDetalhe, VendaResumo } from "@/types/venda";
+import type { Caixa, MovimentacaoCaixa, RecebimentoCaixa } from "@/types/caixa";
 import { calcularMargem, precoFinal } from "@/utils/produto";
 import {
   seedCampanhas,
@@ -19,6 +20,7 @@ import {
 } from "./seed";
 import { seedVendas } from "./vendas.seed";
 import { seedVendasDetalhes } from "./vendas.detalhe.seed";
+import { seedCaixas } from "./caixas.seed";
 import { agregadosDoCliente, seedVendasClientes } from "./clientes-vendas.seed";
 import { agregadosDoVendedor } from "./vendedores-vendas.seed";
 import { agregadosDoFornecedor, seedHistoricoFornecedores } from "./fornecedores-historico.seed";
@@ -39,6 +41,12 @@ export interface MockDatabase {
   vendasDetalhes: VendaDetalhe[];
   /** Histórico de vínculos produto × fornecedor (somente leitura). */
   fornecedoresHistorico: FornecedorHistoricoItem[];
+  /** Caixas (abertura/fechamento) — registro financeiro independente. */
+  caixas: Caixa[];
+  /** Movimentações financeiras dos caixas — imutáveis após criadas. */
+  caixasMovimentacoes: MovimentacaoCaixa[];
+  /** Recebimentos de fiado vinculados a vendas/parcelas. */
+  caixasRecebimentos: RecebimentoCaixa[];
 }
 
 export const db: MockDatabase = {
@@ -53,6 +61,9 @@ export const db: MockDatabase = {
   vendas: [],
   vendasDetalhes: [],
   fornecedoresHistorico: [],
+  caixas: [],
+  caixasMovimentacoes: [],
+  caixasRecebimentos: [],
 };
 
 // Vendas anônimas (consumidor final) + vendas determinísticas vinculadas às clientes.
@@ -65,6 +76,12 @@ db.vendas = [
 db.vendasDetalhes = seedVendasDetalhes(db.vendas, db.produtos);
 
 db.fornecedoresHistorico = seedHistoricoFornecedores(db.produtos, db.fornecedores);
+
+// Caixas derivados das vendas: um caixa por dia de operação, o último ABERTO.
+const caixasSeed = seedCaixas(db.vendas, db.vendasDetalhes, db.vendedores);
+db.caixas = caixasSeed.caixas;
+db.caixasMovimentacoes = caixasSeed.movimentacoes;
+db.caixasRecebimentos = caixasSeed.recebimentos;
 
 /** Reaplica os agregados de compras em todas as clientes do banco mock. */
 export function sincronizarAgregadosClientes(): void {

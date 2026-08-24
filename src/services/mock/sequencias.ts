@@ -40,7 +40,7 @@ function inicial(entidade: EntidadeCodificada): number {
     case "venda":
       return maiorSequencia(db.vendas.map((item) => item.codigo));
     case "caixa":
-      return 0;
+      return maiorSequencia(db.caixas.map((item) => item.codigo));
   }
 }
 
