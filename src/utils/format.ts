@@ -17,6 +17,18 @@ export function formatarData(iso: string | null | undefined): string {
   });
 }
 
+/** Data + hora curta (usada em históricos de venda). */
+export function formatarDataHora(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function iniciais(texto: string): string {
   return texto
     .split(" ")
