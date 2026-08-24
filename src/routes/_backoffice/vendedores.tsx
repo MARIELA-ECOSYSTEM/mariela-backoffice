@@ -523,6 +523,11 @@ function VendedoresPage() {
                   <dt className="text-muted-foreground">Vendas</dt>
                   <dd>
                     {detalhe.vendas} · {formatarMoeda(detalhe.totalVendido)}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Última venda</dt>
+                  <dd>{formatarData(detalhe.ultimaVenda)}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted-foreground">Nascimento</dt>
