@@ -49,7 +49,7 @@ import {
 } from "@/hooks/use-cadastros";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarData, formatarMoeda } from "@/utils/format";
-import { formatarTelefone, somenteDigitos } from "@/utils/cliente";
+import { formatarTelefone, normalizarTelefone } from "@/utils/cliente";
 import {
   ENDERECO_VAZIO,
   OPCOES_FAIXA_PRODUTOS,
@@ -204,7 +204,7 @@ function FornecedoresPage() {
       nome: valores.nome,
       foto: valores.foto || null,
       contato: valores.contato,
-      telefone: somenteDigitos(valores.telefone),
+      telefone: normalizarTelefone(valores.telefone),
       email: valores.email,
       cnpj: valores.cnpj,
       instagram: valores.instagram,

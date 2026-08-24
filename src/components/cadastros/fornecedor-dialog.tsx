@@ -129,7 +129,7 @@ export function FornecedorDialog({
               id="telefone"
               label="Telefone / WhatsApp"
               erro={errors.telefone?.message}
-              descricao="Mesmo número usado para mensagens."
+              hint="Mesmo número usado para mensagens."
             >
               <Input
                 id="telefone"
