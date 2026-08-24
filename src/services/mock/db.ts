@@ -40,6 +40,12 @@ export interface MockDatabase {
   vendasDetalhes: VendaDetalhe[];
   /** Histórico de vínculos produto × fornecedor (somente leitura). */
   fornecedoresHistorico: FornecedorHistoricoItem[];
+  /** Caixas (abertura/fechamento) — registro financeiro independente. */
+  caixas: Caixa[];
+  /** Movimentações financeiras dos caixas — imutáveis após criadas. */
+  caixasMovimentacoes: MovimentacaoCaixa[];
+  /** Recebimentos de fiado vinculados a vendas/parcelas. */
+  caixasRecebimentos: RecebimentoCaixa[];
 }
 
 export const db: MockDatabase = {
