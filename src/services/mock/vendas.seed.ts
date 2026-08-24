@@ -5,6 +5,7 @@ import type { Vendedor } from "@/types/vendedor";
 import type { StatusVenda, VendaResumo } from "@/types/venda";
 import { precoFinal } from "@/utils/produto";
 import { FORMAS_PAGAMENTO } from "./seed";
+import { financeiroInicial } from "./vendas.detalhe.seed";
 
 /** PRNG determinístico — a demonstração precisa ser estável entre recarregamentos. */
 function prng(semente: number): () => number {
