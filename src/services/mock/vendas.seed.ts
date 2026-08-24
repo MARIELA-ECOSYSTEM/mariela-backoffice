@@ -62,16 +62,14 @@ export function seedVendas(
         : null;
       const sorteioStatus = aleatorio();
       const status: StatusVenda =
-        diasAtras <= 2 && sorteioStatus > 0.9
-          ? "pendente"
-          : sorteioStatus > 0.97
-            ? "cancelada"
-            : "concluida";
+        sorteioStatus > 0.86 ? "em_pagamento" : sorteioStatus > 0.82 ? "cancelada" : "concluida";
 
       const dataVenda = new Date(base);
       dataVenda.setHours(9 + Math.floor(aleatorio() * 11), Math.floor(aleatorio() * 60), 0, 0);
 
       sequencia += 1;
+      const formaPagamento =
+        FORMAS_PAGAMENTO[Math.floor(aleatorio() * FORMAS_PAGAMENTO.length)]!;
       vendas.push({
         id: `vnd_${sequencia}`,
         numero: String(sequencia).padStart(6, "0"),
@@ -83,8 +81,9 @@ export function seedVendas(
         vendedorNome: vendedor.nome,
         totalItens: itens,
         valorFinal: Number(valorFinal.toFixed(2)),
-        formaPagamento: FORMAS_PAGAMENTO[Math.floor(aleatorio() * FORMAS_PAGAMENTO.length)]!,
+        formaPagamento,
         status,
+        ...financeiroInicial(Number(valorFinal.toFixed(2)), formaPagamento),
       });
     }
   }
