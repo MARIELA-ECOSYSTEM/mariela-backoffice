@@ -13,10 +13,19 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/common/field";
+import { CodigoBadge } from "@/components/common/codigo-badge";
+import { formatarTelefone } from "@/utils/cliente";
 
+/**
+ * Cadastro de fornecedor.
+ *
+ * REGRAS:
+ * - Fornecedor NÃO tem status ativo/inativo.
+ * - Código é gerado pela API (somente leitura, exibido na edição).
+ * - Telefone único (serve como WhatsApp) e endereço 100% opcional.
+ */
 const fornecedorSchema = z.object({
   nome: z.string().trim().min(1, "Nome é obrigatório.").max(120),
   foto: z.string().trim().max(400),
@@ -31,7 +40,14 @@ const fornecedorSchema = z.object({
     }),
   cnpj: z.string().trim().max(20),
   instagram: z.string().trim().max(60),
-  ativo: z.boolean(),
+  observacao: z.string().trim().max(500),
+  cep: z.string().trim().max(12),
+  logradouro: z.string().trim().max(160),
+  numero: z.string().trim().max(20),
+  complemento: z.string().trim().max(80),
+  bairro: z.string().trim().max(80),
+  cidade: z.string().trim().max(80),
+  estado: z.string().trim().max(2),
 });
 
 export type FornecedorFormValues = z.infer<typeof fornecedorSchema>;
@@ -44,13 +60,21 @@ export const FORNECEDOR_VALORES_PADRAO: FornecedorFormValues = {
   email: "",
   cnpj: "",
   instagram: "",
-  ativo: true,
+  observacao: "",
+  cep: "",
+  logradouro: "",
+  numero: "",
+  complemento: "",
+  bairro: "",
+  cidade: "",
+  estado: "",
 };
 
 export function FornecedorDialog({
   open,
   onOpenChange,
   edicao,
+  codigo,
   valoresIniciais,
   salvando,
   onSubmit,
@@ -58,6 +82,7 @@ export function FornecedorDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   edicao: boolean;
+  codigo?: string | undefined;
   valoresIniciais: FornecedorFormValues;
   salvando: boolean;
   onSubmit: (valores: FornecedorFormValues) => void;
@@ -74,11 +99,14 @@ export function FornecedorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{edicao ? "Editar fornecedor" : "Novo fornecedor"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-3 font-display text-3xl">
+            {edicao ? "Editar fornecedor" : "Novo fornecedor"}
+            {codigo ? <CodigoBadge codigo={codigo} /> : null}
+          </DialogTitle>
           <DialogDescription>
-            Nome, contato responsável, telefone, e-mail, CNPJ, Instagram e status.
+            Dados de contato, documento e endereço. O código é gerado automaticamente.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -97,8 +125,22 @@ export function FornecedorDialog({
             <Field id="contato" label="Contato" erro={errors.contato?.message}>
               <Input id="contato" {...form.register("contato")} />
             </Field>
-            <Field id="telefone" label="Telefone" erro={errors.telefone?.message}>
-              <Input id="telefone" placeholder="(00) 00000-0000" {...form.register("telefone")} />
+            <Field
+              id="telefone"
+              label="Telefone / WhatsApp"
+              erro={errors.telefone?.message}
+              hint="Mesmo número usado para mensagens."
+            >
+              <Input
+                id="telefone"
+                placeholder="(00) 00000-0000"
+                value={form.watch("telefone")}
+                onChange={(evento) =>
+                  form.setValue("telefone", formatarTelefone(evento.target.value), {
+                    shouldDirty: true,
+                  })
+                }
+              />
             </Field>
           </div>
           <Field id="email" label="E-mail" erro={errors.email?.message}>
@@ -112,14 +154,47 @@ export function FornecedorDialog({
               <Input id="instagram" placeholder="@perfil" {...form.register("instagram")} />
             </Field>
           </div>
-          <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-            <Label htmlFor="ativo">Fornecedor ativo</Label>
-            <Switch
-              id="ativo"
-              checked={form.watch("ativo")}
-              onCheckedChange={(valor) => form.setValue("ativo", valor)}
-            />
-          </div>
+
+          <fieldset className="space-y-4 rounded-lg border border-border p-4">
+            <legend className="px-1 font-brand text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+              Endereço (opcional)
+            </legend>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field id="cep" label="CEP" erro={errors.cep?.message}>
+                <Input id="cep" placeholder="00000-000" {...form.register("cep")} />
+              </Field>
+              <div className="sm:col-span-2">
+                <Field id="logradouro" label="Logradouro" erro={errors.logradouro?.message}>
+                  <Input id="logradouro" {...form.register("logradouro")} />
+                </Field>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field id="numero" label="Número" erro={errors.numero?.message}>
+                <Input id="numero" {...form.register("numero")} />
+              </Field>
+              <Field id="complemento" label="Complemento" erro={errors.complemento?.message}>
+                <Input id="complemento" {...form.register("complemento")} />
+              </Field>
+              <Field id="bairro" label="Bairro" erro={errors.bairro?.message}>
+                <Input id="bairro" {...form.register("bairro")} />
+              </Field>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <Field id="cidade" label="Cidade" erro={errors.cidade?.message}>
+                  <Input id="cidade" {...form.register("cidade")} />
+                </Field>
+              </div>
+              <Field id="estado" label="UF" erro={errors.estado?.message}>
+                <Input id="estado" maxLength={2} placeholder="SP" {...form.register("estado")} />
+              </Field>
+            </div>
+          </fieldset>
+
+          <Field id="observacao" label="Observação" erro={errors.observacao?.message}>
+            <Textarea id="observacao" rows={3} {...form.register("observacao")} />
+          </Field>
         </form>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

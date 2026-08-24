@@ -17,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Field } from "@/components/common/field";
+import { CodigoBadge } from "@/components/common/codigo-badge";
+import { formatarTelefone } from "@/utils/cliente";
 
 const vendedorSchema = z
   .object({
@@ -63,6 +65,7 @@ export function VendedorDialog({
   open,
   onOpenChange,
   edicao,
+  codigo,
   valoresIniciais,
   salvando,
   onSubmit,
@@ -70,6 +73,8 @@ export function VendedorDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   edicao: boolean;
+  /** Código gerado pela API (`VEN-0001`), somente leitura. */
+  codigo?: string | undefined;
   valoresIniciais: VendedorFormValues;
   salvando: boolean;
   onSubmit: (valores: VendedorFormValues) => void;
@@ -96,7 +101,10 @@ export function VendedorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{edicao ? "Editar vendedor(a)" : "Novo vendedor(a)"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-3 font-display text-3xl">
+            {edicao ? "Editar vendedor(a)" : "Novo vendedor(a)"}
+            {codigo ? <CodigoBadge codigo={codigo} /> : null}
+          </DialogTitle>
           <DialogDescription>
             Usuário do MARIELA PDV. A senha é enviada à API, que gera o hash — o backoffice nunca
             exibe senhas.
@@ -115,8 +123,22 @@ export function VendedorDialog({
             <Input id="foto" placeholder="https://…" {...form.register("foto")} />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="telefone" label="Telefone" erro={errors.telefone?.message}>
-              <Input id="telefone" placeholder="(00) 00000-0000" {...form.register("telefone")} />
+            <Field
+              id="telefone"
+              label="Telefone / WhatsApp"
+              erro={errors.telefone?.message}
+              hint="Mesmo número usado para mensagens."
+            >
+              <Input
+                id="telefone"
+                placeholder="(00) 00000-0000"
+                value={form.watch("telefone")}
+                onChange={(evento) =>
+                  form.setValue("telefone", formatarTelefone(evento.target.value), {
+                    shouldDirty: true,
+                  })
+                }
+              />
             </Field>
             <Field
               id="dataNascimento"

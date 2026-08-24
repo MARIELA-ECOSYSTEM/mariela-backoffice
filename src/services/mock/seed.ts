@@ -2,7 +2,7 @@ import type { Produto } from "@/types/produto";
 import type { Variante } from "@/types/variante";
 import type { Configuracoes } from "@/types/configuracoes";
 import type { Cliente } from "@/types/cliente";
-import type { Fornecedor } from "@/types/fornecedor";
+import type { EnderecoFornecedor, Fornecedor } from "@/types/fornecedor";
 import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
@@ -607,8 +607,57 @@ export function seedFornecedores(): Fornecedor[] {
       80,
     ],
   ];
+  /**
+   * Endereço é OPCIONAL: alguns fornecedores nascem sem endereço de propósito
+   * para exercitar as facetas "Com endereço" / "Sem endereço".
+   */
+  const enderecos: Record<string, EnderecoFornecedor> = {
+    for_001: {
+      cep: "01310-100",
+      logradouro: "Av. Paulista",
+      numero: "1200",
+      complemento: "Sala 42",
+      bairro: "Bela Vista",
+      cidade: "São Paulo",
+      estado: "SP",
+    },
+    for_002: {
+      cep: "03010-050",
+      logradouro: "Rua da Mooca",
+      numero: "870",
+      complemento: "",
+      bairro: "Mooca",
+      cidade: "São Paulo",
+      estado: "SP",
+    },
+    for_003: {
+      cep: "22041-080",
+      logradouro: "Rua Barata Ribeiro",
+      numero: "310",
+      complemento: "Loja 3",
+      bairro: "Copacabana",
+      cidade: "Rio de Janeiro",
+      estado: "RJ",
+    },
+    for_005: {
+      cep: "30140-071",
+      logradouro: "Av. Afonso Pena",
+      numero: "1500",
+      complemento: "",
+      bairro: "Centro",
+      cidade: "Belo Horizonte",
+      estado: "MG",
+    },
+  };
+
+  const observacoes: Record<string, string> = {
+    for_001: "Produção sob medida com prazo médio de 20 dias.",
+    for_002: "Melhor custo em malha; pedido mínimo de 30 peças.",
+    for_004: "Contato apenas por telefone comercial.",
+  };
+
   return base.map(
-    ([id, nome, contato, telefone, email, cnpj, instagram, ativo, dias], indice): Fornecedor => ({
+    ([id, nome, contato, telefone, email, cnpj, instagram, , dias], indice): Fornecedor => ({
       id,
       codigo: formatarCodigo("fornecedor", indice + 1),
       nome,
@@ -618,9 +667,14 @@ export function seedFornecedores(): Fornecedor[] {
       email,
       cnpj,
       instagram,
-      ativo,
+      observacao: observacoes[id] ?? "",
+      endereco: enderecos[id] ?? null,
       criadoEm: iso(dias),
       atualizadoEm: iso(Math.max(0, dias - 5)),
+      // Agregados recalculados pela camada de dados a partir dos produtos.
+      produtosVinculados: 0,
+      valorEmCusto: 0,
+      ultimaEntrada: null,
     }),
   );
 }
@@ -967,6 +1021,10 @@ export function seedVendedores(): Vendedor[] {
       ativo,
       criadoEm: iso(dias),
       atualizadoEm: iso(Math.max(0, dias - 3)),
+      // Agregados recalculados pela camada de dados a partir das vendas.
+      vendas: 0,
+      totalVendido: 0,
+      ultimaVenda: null,
     }),
   );
 }

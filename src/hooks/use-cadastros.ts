@@ -91,14 +91,16 @@ export function useRemoverFornecedor() {
   });
 }
 
-export function useAlterarStatusFornecedor() {
-  const invalidar = useInvalidar(fornecedoresKeys.todos);
-  return useMutation({
-    mutationFn: (vars: { id: string; ativo: boolean }) =>
-      fornecedoresApi.alterarStatus(vars.id, vars.ativo),
-    onSuccess: () => void invalidar(),
+/** Histórico de produtos do fornecedor (somente leitura). */
+export function useHistoricoFornecedor(id: string | null) {
+  return useQuery({
+    queryKey: [...fornecedoresKeys.todos, id, "historico"],
+    queryFn: () => fornecedoresApi.listarHistorico(id!),
+    enabled: Boolean(id),
   });
 }
+
+
 
 export function useColecoes() {
   return useQuery({

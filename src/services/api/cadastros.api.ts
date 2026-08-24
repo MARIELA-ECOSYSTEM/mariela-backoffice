@@ -1,6 +1,10 @@
 import { apiClient } from "./client";
 import type { Cliente, ClientePayload } from "@/types/cliente";
-import type { Fornecedor, FornecedorPayload } from "@/types/fornecedor";
+import type {
+  Fornecedor,
+  FornecedorHistoricoItem,
+  FornecedorPayload,
+} from "@/types/fornecedor";
 import type { Colecao, ColecaoPayload } from "@/types/colecao";
 import type { Campanha, CampanhaPayload } from "@/types/campanha";
 import type { VendaResumo } from "@/types/venda";
@@ -41,8 +45,11 @@ export const fornecedoresApi = {
     const { data } = await apiClient.put<Fornecedor>(`/fornecedores/${id}`, payload);
     return data;
   },
-  async alterarStatus(id: string, ativo: boolean): Promise<Fornecedor> {
-    const { data } = await apiClient.patch<Fornecedor>(`/fornecedores/${id}/status`, { ativo });
+  /** Histórico de produtos vinculados/desvinculados — agregado pelo backend. */
+  async listarHistorico(id: string): Promise<FornecedorHistoricoItem[]> {
+    const { data } = await apiClient.get<FornecedorHistoricoItem[]>(
+      `/fornecedores/${id}/historico`,
+    );
     return data;
   },
   async remover(id: string): Promise<void> {

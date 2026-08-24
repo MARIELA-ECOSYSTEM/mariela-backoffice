@@ -5,6 +5,7 @@ import type {
   VendedorSenhaPayload,
   VendedorStatusPayload,
 } from "@/types/vendedor";
+import type { VendaResumo } from "@/types/venda";
 
 export const vendedoresApi = {
   async listar(): Promise<Vendedor[]> {
@@ -29,6 +30,11 @@ export const vendedoresApi = {
   },
   async redefinirSenha(id: string, payload: VendedorSenhaPayload): Promise<void> {
     await apiClient.patch(`/vendedores/${id}/senha`, payload);
+  },
+  /** Histórico de vendas do vendedor (somente leitura — origem: MARIELA PDV). */
+  async listarVendas(id: string): Promise<VendaResumo[]> {
+    const { data } = await apiClient.get<VendaResumo[]>(`/vendedores/${id}/vendas`);
+    return data;
   },
   async remover(id: string): Promise<void> {
     await apiClient.delete(`/vendedores/${id}`);

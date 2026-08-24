@@ -3,7 +3,7 @@ import { Page } from "@/components/layout/page";
 import { NotaDemonstracao } from "@/components/common/data-toolbar";
 import { EmDesenvolvimento } from "@/components/common/states";
 
-export const Route = createFileRoute("/_backoffice/vendas")({
+export const Route = createFileRoute("/_backoffice/vendas/")({
   ssr: false,
   head: () => ({
     meta: [

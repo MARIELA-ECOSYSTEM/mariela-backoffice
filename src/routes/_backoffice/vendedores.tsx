@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CalendarDays, KeyRound, Pencil, Phone, Plus, Power, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  History,
+  KeyRound,
+  Pencil,
+  Phone,
+  Plus,
+  Power,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
@@ -41,6 +50,13 @@ import {
   type VendedorFormValues,
 } from "@/components/cadastros/vendedor-dialog";
 import { SenhaDialog, type SenhaFormValues } from "@/components/cadastros/senha-dialog";
+import { CodigoBadge } from "@/components/common/codigo-badge";
+import { BotaoWhatsapp } from "@/components/cadastros/botao-whatsapp";
+import { VendedorVendasDialog } from "@/components/cadastros/vendedor-vendas-dialog";
+import {
+  DialogMensagemWhatsapp,
+  type AlvoMensagemWhatsapp,
+} from "@/components/cadastros/dialog-mensagem-whatsapp";
 import {
   useAlterarStatusVendedor,
   useAtualizarVendedor,
@@ -50,7 +66,20 @@ import {
   useVendedores,
 } from "@/hooks/use-vendedores";
 import { mensagemDeErro } from "@/services/api/client";
-import { formatarData } from "@/utils/format";
+import { formatarData, formatarMoeda } from "@/utils/format";
+import { formatarTelefone, normalizarTelefone } from "@/utils/cliente";
+import {
+  OPCOES_FAIXA_VALOR,
+  OPCOES_FAIXA_VENDAS,
+  OPCOES_ORDENACAO_VENDEDOR,
+  OPCOES_ULTIMA_VENDA,
+  nascimentoNoMes,
+  naFaixaDeValor,
+  naFaixaDeVendas,
+  ordenarVendedores,
+  ultimaVendaNoPeriodo,
+  type OrdenacaoVendedor,
+} from "@/utils/vendedor";
 import type { Vendedor, VendedorPayload } from "@/types/vendedor";
 
 export const Route = createFileRoute("/_backoffice/vendedores")({
@@ -74,8 +103,6 @@ export const Route = createFileRoute("/_backoffice/vendedores")({
 
 const POR_PAGINA = 12;
 
-type Ordenacao = "nome" | "recentes";
-
 function VendedoresPage() {
   const { data: vendedores, isPending, isError, error, refetch } = useVendedores();
   const criar = useCriarVendedor();
@@ -86,13 +113,15 @@ function VendedoresPage() {
 
   const [busca, setBusca] = useState("");
 
-  const [ordem, setOrdem] = useState<Ordenacao>("nome");
+  const [ordem, setOrdem] = useState<OrdenacaoVendedor>("nome-asc");
   const [pagina, setPagina] = useState(1);
   const [dialogAberto, setDialogAberto] = useState(false);
   const [emEdicao, setEmEdicao] = useState<Vendedor | null>(null);
   const [paraSenha, setParaSenha] = useState<Vendedor | null>(null);
   const [paraExcluir, setParaExcluir] = useState<Vendedor | null>(null);
   const [detalhe, setDetalhe] = useState<Vendedor | null>(null);
+  const [vendasDe, setVendasDe] = useState<Vendedor | null>(null);
+  const [alvoMensagem, setAlvoMensagem] = useState<AlvoMensagemWhatsapp | null>(null);
 
   const grupos = useMemo<GrupoFacetaDef<Vendedor>[]>(
     () => [
@@ -103,14 +132,37 @@ function VendedoresPage() {
         corresponde: (vendedor, valor) => (valor === "ativos" ? vendedor.ativo : !vendedor.ativo),
       },
       {
+        id: "vendas",
+        label: "Vendas",
+        opcoes: OPCOES_FAIXA_VENDAS.map((opcao) => ({ valor: opcao.valor, label: opcao.label })),
+        corresponde: (vendedor, valor) => naFaixaDeVendas(vendedor.vendas, valor),
+      },
+      {
+        id: "valor",
+        label: "Total vendido",
+        opcoes: OPCOES_FAIXA_VALOR.map((opcao) => ({ valor: opcao.valor, label: opcao.label })),
+        corresponde: (vendedor, valor) => naFaixaDeValor(vendedor.totalVendido, valor),
+      },
+      {
+        id: "ultima-venda",
+        label: "Última venda",
+        opcoes: OPCOES_ULTIMA_VENDA.map((opcao) => ({ valor: opcao.valor, label: opcao.label })),
+        corresponde: (vendedor, valor) => ultimaVendaNoPeriodo(vendedor, valor),
+      },
+      {
         id: "nascimento",
         label: "Aniversário",
         opcoes: [
+          { valor: "mes", label: "Neste mês" },
           { valor: "com", label: "Com data cadastrada" },
           { valor: "sem", label: "Sem data cadastrada" },
         ],
         corresponde: (vendedor, valor) =>
-          valor === "com" ? Boolean(vendedor.dataNascimento) : !vendedor.dataNascimento,
+          valor === "mes"
+            ? nascimentoNoMes(vendedor.dataNascimento)
+            : valor === "com"
+              ? Boolean(vendedor.dataNascimento)
+              : !vendedor.dataNascimento,
       },
       {
         id: "observacao",
@@ -132,18 +184,17 @@ function VendedoresPage() {
       (vendedor) =>
         !termo ||
         vendedor.nome.toLowerCase().includes(termo) ||
+        vendedor.codigo.toLowerCase().includes(termo) ||
         vendedor.telefone.toLowerCase().includes(termo),
     );
   }, [vendedores, busca]);
 
   const filtragem = useFiltrosFacetados({ itens: buscados, grupos });
 
-  const filtrados = useMemo(() => {
-    const copia = [...filtragem.itensFiltrados];
-    return ordem === "nome"
-      ? copia.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
-      : copia.sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
-  }, [filtragem.itensFiltrados, ordem]);
+  const filtrados = useMemo(
+    () => ordenarVendedores(filtragem.itensFiltrados, ordem),
+    [filtragem.itensFiltrados, ordem],
+  );
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -153,7 +204,7 @@ function VendedoresPage() {
     ? {
         nome: emEdicao.nome,
         foto: emEdicao.foto ?? "",
-        telefone: emEdicao.telefone,
+        telefone: formatarTelefone(emEdicao.telefone),
         dataNascimento: emEdicao.dataNascimento ?? "",
         observacao: emEdicao.observacao,
         senha: "",
@@ -171,7 +222,7 @@ function VendedoresPage() {
     const payload: VendedorPayload = {
       nome: valores.nome,
       foto: valores.foto || null,
-      telefone: valores.telefone,
+      telefone: normalizarTelefone(valores.telefone),
       dataNascimento: valores.dataNascimento || null,
       observacao: valores.observacao,
       ativo: valores.ativo,
@@ -242,15 +293,18 @@ function VendedoresPage() {
           setBusca(valor);
           setPagina(1);
         }}
-        placeholder="Buscar por nome ou telefone…"
+        placeholder="Buscar por nome, código ou telefone…"
       >
-        <Select value={ordem} onValueChange={(valor) => setOrdem(valor as Ordenacao)}>
-          <SelectTrigger className="w-52" aria-label="Ordenar vendedores">
+        <Select value={ordem} onValueChange={(valor) => setOrdem(valor as OrdenacaoVendedor)}>
+          <SelectTrigger className="w-60" aria-label="Ordenar vendedores">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="nome">Nome (A–Z)</SelectItem>
-            <SelectItem value="recentes">Cadastro mais recente</SelectItem>
+            {OPCOES_ORDENACAO_VENDEDOR.map((opcao) => (
+              <SelectItem key={opcao.valor} value={opcao.valor}>
+                {opcao.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </DataToolbar>
@@ -296,17 +350,52 @@ function VendedoresPage() {
               foto={vendedor.foto}
               ativo={vendedor.ativo}
               subtitulo="Usuário do MARIELA PDV"
+              badgeExtra={<CodigoBadge codigo={vendedor.codigo} />}
               campos={[
-                { icon: Phone, label: "Telefone", valor: vendedor.telefone },
+                { icon: Phone, label: "Telefone", valor: formatarTelefone(vendedor.telefone) },
                 {
                   icon: CalendarDays,
-                  label: "Cadastro",
-                  valor: `Cadastro em ${formatarData(vendedor.criadoEm)}`,
+                  label: "Nascimento",
+                  valor: vendedor.dataNascimento
+                    ? `Nascimento em ${formatarData(vendedor.dataNascimento)}`
+                    : "Nascimento não informado",
+                },
+              ]}
+              metricas={[
+                { label: "Vendas", valor: String(vendedor.vendas) },
+                {
+                  label: "Total vendido",
+                  valor: formatarMoeda(vendedor.totalVendido),
+                  destaque: true,
+                },
+                {
+                  label: "Última venda",
+                  valor: vendedor.ultimaVenda ? formatarData(vendedor.ultimaVenda) : "—",
                 },
               ]}
               observacao={vendedor.observacao}
+              acaoRapida={
+                <BotaoWhatsapp
+                  nome={vendedor.nome}
+                  numero={vendedor.telefone}
+                  onClick={() =>
+                    setAlvoMensagem({
+                      id: vendedor.id,
+                      nome: vendedor.nome,
+                      telefone: vendedor.telefone,
+                      tipoMensagem: "vendedor",
+                      papel: "Vendedor(a)",
+                    })
+                  }
+                />
+              }
               onVisualizar={() => setDetalhe(vendedor)}
               acoes={[
+                {
+                  label: "Ver vendas",
+                  icon: History,
+                  onClick: () => setVendasDe(vendedor),
+                },
                 {
                   label: "Editar",
                   icon: Pencil,
@@ -353,9 +442,24 @@ function VendedoresPage() {
           if (!aberto) setEmEdicao(null);
         }}
         edicao={emEdicao !== null}
+        codigo={emEdicao?.codigo}
         valoresIniciais={valoresIniciais}
         salvando={criar.isPending || atualizar.isPending}
         onSubmit={(valores) => void salvar(valores)}
+      />
+
+      <VendedorVendasDialog
+        vendedor={vendasDe}
+        onOpenChange={(aberto) => {
+          if (!aberto) setVendasDe(null);
+        }}
+      />
+
+      <DialogMensagemWhatsapp
+        alvo={alvoMensagem}
+        onOpenChange={(aberto) => {
+          if (!aberto) setAlvoMensagem(null);
+        }}
       />
 
       <SenhaDialog
@@ -406,8 +510,24 @@ function VendedoresPage() {
 
               <dl className="space-y-3 text-sm">
                 <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Código</dt>
+                  <dd>
+                    <CodigoBadge codigo={detalhe.codigo} />
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
                   <dt className="text-muted-foreground">Telefone</dt>
-                  <dd>{detalhe.telefone || "—"}</dd>
+                  <dd>{formatarTelefone(detalhe.telefone) || "—"}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Vendas</dt>
+                  <dd>
+                    {detalhe.vendas} · {formatarMoeda(detalhe.totalVendido)}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Última venda</dt>
+                  <dd>{formatarData(detalhe.ultimaVenda)}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted-foreground">Nascimento</dt>
@@ -427,10 +547,16 @@ function VendedoresPage() {
                 </div>
               </dl>
 
-              <Button variant="outline" className="w-full" onClick={() => setParaSenha(detalhe)}>
-                <KeyRound aria-hidden className="size-4" />
-                Redefinir senha do PDV
-              </Button>
+              <div className="space-y-2">
+                <Button variant="outline" className="w-full" onClick={() => setVendasDe(detalhe)}>
+                  <History aria-hidden className="size-4" />
+                  Ver vendas vinculadas
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => setParaSenha(detalhe)}>
+                  <KeyRound aria-hidden className="size-4" />
+                  Redefinir senha do PDV
+                </Button>
+              </div>
             </div>
           ) : null}
         </SheetContent>

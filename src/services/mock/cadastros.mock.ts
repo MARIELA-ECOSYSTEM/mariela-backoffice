@@ -1,10 +1,22 @@
 import { registerMock } from "./mock-transport";
-import { agora, clonar, db, gerarId, sincronizarAgregadosClientes } from "./db";
+import {
+  agora,
+  clonar,
+  db,
+  gerarId,
+  sincronizarAgregadosClientes,
+  sincronizarAgregadosFornecedores,
+} from "./db";
+import { historicoDoFornecedor } from "./fornecedores-historico.seed";
 import { vendasDoCliente } from "./clientes-vendas.seed";
 import { proximoCodigo } from "./sequencias";
 import { ApiError, type ApiFieldError } from "@/types/api";
 import type { Cliente, ClientePayload } from "@/types/cliente";
-import type { Fornecedor, FornecedorPayload } from "@/types/fornecedor";
+import type {
+  EnderecoFornecedor,
+  Fornecedor,
+  FornecedorPayload,
+} from "@/types/fornecedor";
 import type { Colecao, ColecaoPayload } from "@/types/colecao";
 import type { Campanha, CampanhaPayload } from "@/types/campanha";
 
@@ -141,15 +153,45 @@ function registrarClientes(): void {
   });
 }
 
-function registrarFornecedores(): void {
-  registerMock("GET", "/fornecedores", () => ({
-    data: clonar(db.fornecedores),
-    meta: { total: db.fornecedores.length },
-  }));
+/**
+ * Endereço é totalmente opcional. Quando nenhum campo é informado, a API
+ * persiste `null` (e não um objeto vazio).
+ */
+function endereco(valor: unknown): EnderecoFornecedor | null {
+  const bruto = (valor ?? {}) as Partial<EnderecoFornecedor>;
+  const endereco: EnderecoFornecedor = {
+    cep: texto(bruto.cep),
+    logradouro: texto(bruto.logradouro),
+    numero: texto(bruto.numero),
+    complemento: texto(bruto.complemento),
+    bairro: texto(bruto.bairro),
+    cidade: texto(bruto.cidade),
+    estado: texto(bruto.estado).toUpperCase().slice(0, 2),
+  };
+  return Object.values(endereco).some((campo) => campo.length > 0) ? endereco : null;
+}
 
-  registerMock("GET", "/fornecedores/:id", ({ params }) => ({
-    data: clonar(encontrar(db.fornecedores, params["id"]!, "Fornecedor")),
-  }));
+function registrarFornecedores(): void {
+  registerMock("GET", "/fornecedores", () => {
+    // Agregados comerciais são responsabilidade da camada de dados (futuro NestJS).
+    sincronizarAgregadosFornecedores();
+    return { data: clonar(db.fornecedores), meta: { total: db.fornecedores.length } };
+  });
+
+  registerMock("GET", "/fornecedores/:id", ({ params }) => {
+    sincronizarAgregadosFornecedores();
+    return { data: clonar(encontrar(db.fornecedores, params["id"]!, "Fornecedor")) };
+  });
+
+  /**
+   * Histórico de produtos que estão ou já estiveram vinculados ao fornecedor.
+   * Contrato: GET /fornecedores/:id/historico
+   */
+  registerMock("GET", "/fornecedores/:id/historico", ({ params }) => {
+    const fornecedor = encontrar(db.fornecedores, params["id"]!, "Fornecedor");
+    const itens = historicoDoFornecedor(fornecedor.id, db.fornecedoresHistorico, db.produtos);
+    return { data: clonar(itens), meta: { total: itens.length } };
+  });
 
   registerMock("POST", "/fornecedores", ({ body }) => {
     const payload = (body ?? {}) as Partial<FornecedorPayload>;
@@ -160,6 +202,7 @@ function registrarFornecedores(): void {
 
     const fornecedor: Fornecedor = {
       id: gerarId("for"),
+      // Código gerado pela camada de dados — nunca enviado pelo formulário.
       codigo: proximoCodigo("fornecedor"),
       nome,
       foto: texto(payload.foto) || null,
@@ -168,9 +211,13 @@ function registrarFornecedores(): void {
       email: texto(payload.email),
       cnpj: texto(payload.cnpj),
       instagram: texto(payload.instagram),
-      ativo: booleano(payload.ativo),
+      observacao: texto(payload.observacao),
+      endereco: endereco(payload.endereco),
       criadoEm: agora(),
       atualizadoEm: agora(),
+      produtosVinculados: 0,
+      valorEmCusto: 0,
+      ultimaEntrada: null,
     };
     db.fornecedores.unshift(fornecedor);
     return { data: clonar(fornecedor) };
@@ -188,16 +235,10 @@ function registrarFornecedores(): void {
     fornecedor.email = texto(payload.email);
     fornecedor.cnpj = texto(payload.cnpj);
     fornecedor.instagram = texto(payload.instagram);
-    fornecedor.ativo = booleano(payload.ativo, fornecedor.ativo);
+    fornecedor.observacao = texto(payload.observacao);
+    fornecedor.endereco = endereco(payload.endereco);
     fornecedor.atualizadoEm = agora();
-    return { data: clonar(fornecedor) };
-  });
-
-  registerMock("PATCH", "/fornecedores/:id/status", ({ params, body }) => {
-    const fornecedor = encontrar(db.fornecedores, params["id"]!, "Fornecedor");
-    const payload = (body ?? {}) as { ativo?: boolean };
-    fornecedor.ativo = typeof payload.ativo === "boolean" ? payload.ativo : !fornecedor.ativo;
-    fornecedor.atualizadoEm = agora();
+    sincronizarAgregadosFornecedores();
     return { data: clonar(fornecedor) };
   });
 

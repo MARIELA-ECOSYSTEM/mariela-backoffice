@@ -5,6 +5,7 @@ export interface Vendedor {
   nome: string;
   /** URL da foto do vendedor ou null. */
   foto: string | null;
+  /** Telefone único — usado também como WhatsApp. */
   telefone: string;
   /** Data de nascimento em ISO (YYYY-MM-DD) ou null. */
   dataNascimento: string | null;
@@ -12,6 +13,14 @@ export interface Vendedor {
   ativo: boolean;
   criadoEm: string;
   atualizadoEm: string;
+  /**
+   * Agregados de vendas calculados pela camada de dados (hoje mock, amanhã
+   * NestJS). O frontend NUNCA recalcula isso somando vendas no componente.
+   */
+  vendas: number;
+  totalVendido: number;
+  /** Data ISO da venda mais recente ou null quando nunca vendeu. */
+  ultimaVenda: string | null;
 }
 
 export interface VendedorPayload {

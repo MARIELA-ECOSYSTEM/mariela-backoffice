@@ -1,5 +1,6 @@
 import { registerMock } from "./mock-transport";
-import { agora, clonar, db, gerarId } from "./db";
+import { agora, clonar, db, gerarId, sincronizarAgregadosVendedores } from "./db";
+import { vendasDoVendedor } from "./vendedores-vendas.seed";
 import { proximoCodigo } from "./sequencias";
 import { ApiError, type ApiFieldError } from "@/types/api";
 import type { Vendedor, VendedorPayload } from "@/types/vendedor";
@@ -44,14 +45,26 @@ function validarDados(body: unknown, exigirSenha: boolean) {
 }
 
 export function registerVendedoresMocks(): void {
-  registerMock("GET", "/vendedores", () => ({
-    data: clonar(db.vendedores),
-    meta: { total: db.vendedores.length },
-  }));
+  registerMock("GET", "/vendedores", () => {
+    // Agregados de vendas são responsabilidade da camada de dados (futuro NestJS).
+    sincronizarAgregadosVendedores();
+    return { data: clonar(db.vendedores), meta: { total: db.vendedores.length } };
+  });
 
-  registerMock("GET", "/vendedores/:id", ({ params }) => ({
-    data: clonar(encontrar(params["id"]!)),
-  }));
+  registerMock("GET", "/vendedores/:id", ({ params }) => {
+    sincronizarAgregadosVendedores();
+    return { data: clonar(encontrar(params["id"]!)) };
+  });
+
+  /**
+   * Histórico de vendas do vendedor (somente leitura — a venda pertence ao PDV).
+   * Contrato: GET /vendedores/:id/vendas
+   */
+  registerMock("GET", "/vendedores/:id/vendas", ({ params }) => {
+    const vendedor = encontrar(params["id"]!);
+    const vendas = vendasDoVendedor(vendedor.id, db.vendas);
+    return { data: clonar(vendas), meta: { total: vendas.length } };
+  });
 
   registerMock("POST", "/vendedores", ({ body }) => {
     const dados = validarDados(body, true);
@@ -66,6 +79,9 @@ export function registerVendedoresMocks(): void {
       ativo: dados.ativo,
       criadoEm: agora(),
       atualizadoEm: agora(),
+      vendas: 0,
+      totalVendido: 0,
+      ultimaVenda: null,
     };
     db.vendedores.unshift(vendedor);
     db.vendedoresSenhas[vendedor.id] = hashSimulado(dados.senha);
