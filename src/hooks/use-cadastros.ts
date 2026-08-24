@@ -91,6 +91,23 @@ export function useRemoverFornecedor() {
   });
 }
 
+/** Histórico de produtos do fornecedor (somente leitura). */
+export function useHistoricoFornecedor(id: string | null) {
+  return useQuery({
+    queryKey: [...fornecedoresKeys.todos, id, "historico"],
+    queryFn: () => fornecedoresApi.listarHistorico(id!),
+    enabled: Boolean(id),
+  });
+}
+
+export function useRemoverFornecedor() {
+  const invalidar = useInvalidar(fornecedoresKeys.todos);
+  return useMutation({
+    mutationFn: (id: string) => fornecedoresApi.remover(id),
+    onSuccess: () => void invalidar(),
+  });
+}
+
 export function useAlterarStatusFornecedor() {
   const invalidar = useInvalidar(fornecedoresKeys.todos);
   return useMutation({

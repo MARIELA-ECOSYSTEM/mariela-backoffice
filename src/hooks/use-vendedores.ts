@@ -17,6 +17,15 @@ export function useVendedores() {
   });
 }
 
+/** Histórico de vendas do vendedor (somente leitura). */
+export function useVendasDoVendedor(id: string | null) {
+  return useQuery({
+    queryKey: [...vendedoresKeys.todos, id, "vendas"],
+    queryFn: () => vendedoresApi.listarVendas(id!),
+    enabled: Boolean(id),
+  });
+}
+
 export function useCriarVendedor() {
   const invalidar = useInvalidar();
   return useMutation({
