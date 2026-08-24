@@ -34,6 +34,8 @@ export interface MockDatabase {
   campanhas: Campanha[];
   /** Vendas de leitura (fonte: MARIELA PDV) usadas pelos indicadores do Dashboard. */
   vendas: VendaResumo[];
+  /** Detalhamento das vendas (itens, pagamentos, parcelas, histórico). */
+  vendasDetalhes: VendaDetalhe[];
   /** Histórico de vínculos produto × fornecedor (somente leitura). */
   fornecedoresHistorico: FornecedorHistoricoItem[];
 }
@@ -48,6 +50,7 @@ export const db: MockDatabase = {
   colecoes: seedColecoes(),
   campanhas: seedCampanhas(),
   vendas: [],
+  vendasDetalhes: [],
   fornecedoresHistorico: [],
 };
 
@@ -56,6 +59,9 @@ db.vendas = [
   ...seedVendas(db.produtos, [], db.vendedores),
   ...seedVendasClientes(db.produtos, db.clientes, db.vendedores),
 ].sort((a, b) => b.dataVenda.localeCompare(a.dataVenda));
+
+// O detalhamento sincroniza os números do resumo (bruto, descontos, parcelas).
+db.vendasDetalhes = seedVendasDetalhes(db.vendas, db.produtos);
 
 db.fornecedoresHistorico = seedHistoricoFornecedores(db.produtos, db.fornecedores);
 
