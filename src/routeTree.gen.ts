@@ -29,6 +29,7 @@ import { Route as BackofficeEstoqueIndexRouteImport } from './routes/_backoffice
 import { Route as BackofficeEstoqueProdutoIdRouteImport } from './routes/_backoffice/estoque/$produtoId'
 import { Route as BackofficeProdutosIndexRouteImport } from './routes/_backoffice/produtos/index'
 import { Route as BackofficeProdutosNovoRouteImport } from './routes/_backoffice/produtos/novo'
+import { Route as BackofficeVendasIdRouteImport } from './routes/_backoffice/vendas.$id'
 import { Route as BackofficeProdutosIdIndexRouteImport } from './routes/_backoffice/produtos/$id/index'
 import { Route as BackofficeProdutosIdEditarRouteImport } from './routes/_backoffice/produtos/$id/editar'
 import { Route as BackofficeProdutosIdVariantesRouteImport } from './routes/_backoffice/produtos/$id/variantes'
@@ -134,6 +135,11 @@ const BackofficeProdutosNovoRoute = BackofficeProdutosNovoRouteImport.update({
   path: '/produtos/novo',
   getParentRoute: () => BackofficeRoute,
 } as any)
+const BackofficeVendasIdRoute = BackofficeVendasIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => BackofficeVendasRoute,
+} as any)
 const BackofficeProdutosIdIndexRoute =
   BackofficeProdutosIdIndexRouteImport.update({
     id: '/produtos/$id/',
@@ -163,12 +169,13 @@ export interface FileRoutesByFullPath {
   '/fornecedores': typeof BackofficeFornecedoresRoute
   '/integracoes': typeof BackofficeIntegracoesRoute
   '/relatorios': typeof BackofficeRelatoriosRoute
-  '/vendas': typeof BackofficeVendasRoute
+  '/vendas': typeof BackofficeVendasRouteWithChildren
   '/vendedores': typeof BackofficeVendedoresRoute
   '/campanhas/$id': typeof BackofficeCampanhasIdRoute
   '/colecoes/$id': typeof BackofficeColecoesIdRoute
   '/estoque/$produtoId': typeof BackofficeEstoqueProdutoIdRoute
   '/produtos/novo': typeof BackofficeProdutosNovoRoute
+  '/vendas/$id': typeof BackofficeVendasIdRoute
   '/campanhas/': typeof BackofficeCampanhasIndexRoute
   '/colecoes/': typeof BackofficeColecoesIndexRoute
   '/estoque/': typeof BackofficeEstoqueIndexRoute
@@ -187,12 +194,13 @@ export interface FileRoutesByTo {
   '/fornecedores': typeof BackofficeFornecedoresRoute
   '/integracoes': typeof BackofficeIntegracoesRoute
   '/relatorios': typeof BackofficeRelatoriosRoute
-  '/vendas': typeof BackofficeVendasRoute
+  '/vendas': typeof BackofficeVendasRouteWithChildren
   '/vendedores': typeof BackofficeVendedoresRoute
   '/campanhas/$id': typeof BackofficeCampanhasIdRoute
   '/colecoes/$id': typeof BackofficeColecoesIdRoute
   '/estoque/$produtoId': typeof BackofficeEstoqueProdutoIdRoute
   '/produtos/novo': typeof BackofficeProdutosNovoRoute
+  '/vendas/$id': typeof BackofficeVendasIdRoute
   '/campanhas': typeof BackofficeCampanhasIndexRoute
   '/colecoes': typeof BackofficeColecoesIndexRoute
   '/estoque': typeof BackofficeEstoqueIndexRoute
@@ -213,12 +221,13 @@ export interface FileRoutesById {
   '/_backoffice/fornecedores': typeof BackofficeFornecedoresRoute
   '/_backoffice/integracoes': typeof BackofficeIntegracoesRoute
   '/_backoffice/relatorios': typeof BackofficeRelatoriosRoute
-  '/_backoffice/vendas': typeof BackofficeVendasRoute
+  '/_backoffice/vendas': typeof BackofficeVendasRouteWithChildren
   '/_backoffice/vendedores': typeof BackofficeVendedoresRoute
   '/_backoffice/campanhas/$id': typeof BackofficeCampanhasIdRoute
   '/_backoffice/colecoes/$id': typeof BackofficeColecoesIdRoute
   '/_backoffice/estoque/$produtoId': typeof BackofficeEstoqueProdutoIdRoute
   '/_backoffice/produtos/novo': typeof BackofficeProdutosNovoRoute
+  '/_backoffice/vendas/$id': typeof BackofficeVendasIdRoute
   '/_backoffice/campanhas/': typeof BackofficeCampanhasIndexRoute
   '/_backoffice/colecoes/': typeof BackofficeColecoesIndexRoute
   '/_backoffice/estoque/': typeof BackofficeEstoqueIndexRoute
@@ -245,6 +254,7 @@ export interface FileRouteTypes {
     | '/colecoes/$id'
     | '/estoque/$produtoId'
     | '/produtos/novo'
+    | '/vendas/$id'
     | '/campanhas/'
     | '/colecoes/'
     | '/estoque/'
@@ -269,6 +279,7 @@ export interface FileRouteTypes {
     | '/colecoes/$id'
     | '/estoque/$produtoId'
     | '/produtos/novo'
+    | '/vendas/$id'
     | '/campanhas'
     | '/colecoes'
     | '/estoque'
@@ -294,6 +305,7 @@ export interface FileRouteTypes {
     | '/_backoffice/colecoes/$id'
     | '/_backoffice/estoque/$produtoId'
     | '/_backoffice/produtos/novo'
+    | '/_backoffice/vendas/$id'
     | '/_backoffice/campanhas/'
     | '/_backoffice/colecoes/'
     | '/_backoffice/estoque/'
@@ -451,6 +463,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BackofficeProdutosNovoRouteImport
       parentRoute: typeof BackofficeRoute
     }
+    '/_backoffice/vendas/$id': {
+      id: '/_backoffice/vendas/$id'
+      path: '/$id'
+      fullPath: '/vendas/$id'
+      preLoaderRoute: typeof BackofficeVendasIdRouteImport
+      parentRoute: typeof BackofficeVendasRoute
+    }
     '/_backoffice/produtos/$id/': {
       id: '/_backoffice/produtos/$id/'
       path: '/produtos/$id'
@@ -475,6 +494,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface BackofficeVendasRouteChildren {
+  BackofficeVendasIdRoute: typeof BackofficeVendasIdRoute
+}
+
+const BackofficeVendasRouteChildren: BackofficeVendasRouteChildren = {
+  BackofficeVendasIdRoute: BackofficeVendasIdRoute,
+}
+
+const BackofficeVendasRouteWithChildren =
+  BackofficeVendasRoute._addFileChildren(BackofficeVendasRouteChildren)
+
 interface BackofficeRouteChildren {
   BackofficeCaixaRoute: typeof BackofficeCaixaRoute
   BackofficeClientesRoute: typeof BackofficeClientesRoute
@@ -483,7 +513,7 @@ interface BackofficeRouteChildren {
   BackofficeFornecedoresRoute: typeof BackofficeFornecedoresRoute
   BackofficeIntegracoesRoute: typeof BackofficeIntegracoesRoute
   BackofficeRelatoriosRoute: typeof BackofficeRelatoriosRoute
-  BackofficeVendasRoute: typeof BackofficeVendasRoute
+  BackofficeVendasRoute: typeof BackofficeVendasRouteWithChildren
   BackofficeVendedoresRoute: typeof BackofficeVendedoresRoute
   BackofficeCampanhasIdRoute: typeof BackofficeCampanhasIdRoute
   BackofficeColecoesIdRoute: typeof BackofficeColecoesIdRoute
@@ -506,7 +536,7 @@ const BackofficeRouteChildren: BackofficeRouteChildren = {
   BackofficeFornecedoresRoute: BackofficeFornecedoresRoute,
   BackofficeIntegracoesRoute: BackofficeIntegracoesRoute,
   BackofficeRelatoriosRoute: BackofficeRelatoriosRoute,
-  BackofficeVendasRoute: BackofficeVendasRoute,
+  BackofficeVendasRoute: BackofficeVendasRouteWithChildren,
   BackofficeVendedoresRoute: BackofficeVendedoresRoute,
   BackofficeCampanhasIdRoute: BackofficeCampanhasIdRoute,
   BackofficeColecoesIdRoute: BackofficeColecoesIdRoute,
