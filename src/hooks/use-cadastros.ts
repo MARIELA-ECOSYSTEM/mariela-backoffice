@@ -108,14 +108,6 @@ export function useRemoverFornecedor() {
   });
 }
 
-export function useAlterarStatusFornecedor() {
-  const invalidar = useInvalidar(fornecedoresKeys.todos);
-  return useMutation({
-    mutationFn: (vars: { id: string; ativo: boolean }) =>
-      fornecedoresApi.alterarStatus(vars.id, vars.ativo),
-    onSuccess: () => void invalidar(),
-  });
-}
 
 export function useColecoes() {
   return useQuery({
