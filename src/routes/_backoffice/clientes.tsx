@@ -310,7 +310,15 @@ function ClientesPage() {
                 <BotaoWhatsapp
                   nome={cliente.nome}
                   numero={numeroWhatsapp(cliente)}
-                  onClick={() => setAlvoMensagem({ cliente, tipoMensagem: "geral" })}
+                  onClick={() =>
+                    setAlvoMensagem({
+                      id: cliente.id,
+                      nome: cliente.nome,
+                      telefone: cliente.telefone,
+                      tipoMensagem: "geral",
+                      papel: "Cliente",
+                    })
+                  }
                 />
               }
               onVisualizar={() => setDetalhe(cliente)}
@@ -392,7 +400,15 @@ function ClientesPage() {
         onOpenChange={(aberto) => {
           if (!aberto) setDetalhe(null);
         }}
-        onEnviarMensagem={(cliente) => setAlvoMensagem({ cliente, tipoMensagem: "geral" })}
+        onEnviarMensagem={(cliente) =>
+          setAlvoMensagem({
+            id: cliente.id,
+            nome: cliente.nome,
+            telefone: cliente.telefone,
+            tipoMensagem: "geral",
+            papel: "Cliente",
+          })
+        }
       />
     </Page>
   );

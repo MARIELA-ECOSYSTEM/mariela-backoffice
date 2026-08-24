@@ -19,11 +19,18 @@ import {
   type TipoMensagemWhatsapp,
 } from "@/services/whatsapp/messages";
 import { formatarTelefone } from "@/utils/cliente";
-import type { Cliente } from "@/types/cliente";
 
+/**
+ * Destinatário genérico: serve para cliente, fornecedor e vendedor.
+ * O contrato da API não muda — `id` é enviado no campo `clienteId`.
+ */
 export interface AlvoMensagemWhatsapp {
-  cliente: Cliente;
+  id: string;
+  nome: string;
+  telefone: string;
   tipoMensagem: TipoMensagemWhatsapp;
+  /** Rótulo do tipo de destinatário exibido no resumo (ex.: "Fornecedor"). */
+  papel?: string;
 }
 
 /**
@@ -43,19 +50,19 @@ export function DialogMensagemWhatsapp({
   const enviar = useEnviarMensagemWhatsapp();
   const [mensagem, setMensagem] = useState("");
 
-  const telefone = alvo ? formatarTelefone(alvo.cliente.telefone) : "";
+  const telefone = alvo ? formatarTelefone(alvo.telefone) : "";
   const template = alvo ? TEMPLATES_WHATSAPP[alvo.tipoMensagem] : null;
 
   useEffect(() => {
-    if (alvo) setMensagem(montarMensagem(alvo.tipoMensagem, alvo.cliente.nome));
+    if (alvo) setMensagem(montarMensagem(alvo.tipoMensagem, alvo.nome));
   }, [alvo]);
 
   async function confirmar() {
     if (!alvo) return;
     try {
       await enviar.mutateAsync({
-        clienteId: alvo.cliente.id,
-        telefone: alvo.cliente.telefone,
+        clienteId: alvo.id,
+        telefone: alvo.telefone,
         mensagem,
       });
       onOpenChange(false);
@@ -83,9 +90,9 @@ export function DialogMensagemWhatsapp({
           <div className="grid gap-3 rounded-lg border border-primary/15 bg-primary-soft/30 px-3 py-2.5 sm:grid-cols-2">
             <div className="min-w-0">
               <p className="font-brand text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground">
-                Para
+                {alvo?.papel ?? "Para"}
               </p>
-              <p className="truncate text-sm text-foreground">{alvo?.cliente.nome}</p>
+              <p className="truncate text-sm text-foreground">{alvo?.nome}</p>
             </div>
             <div className="min-w-0">
               <p className="font-brand text-[0.6rem] uppercase tracking-[0.12em] text-muted-foreground">
