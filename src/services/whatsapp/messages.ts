@@ -5,7 +5,7 @@
  * Configurações → Integrações → WhatsApp sem alterar nenhum componente de UI.
  */
 
-export type TipoMensagemWhatsapp = "geral" | "aniversario";
+export type TipoMensagemWhatsapp = "geral" | "aniversario" | "fornecedor" | "vendedor";
 
 export interface TemplateWhatsapp {
   tipo: TipoMensagemWhatsapp;
@@ -23,6 +23,22 @@ export const TEMPLATES_WHATSAPP: Record<TipoMensagemWhatsapp, TemplateWhatsapp> 
     corpo: `Olá, {{nome}}! 💜
 Passando para desejar um ótimo dia!
 Estamos com novidades na MARIELA e será um prazer receber você em nossa loja.`,
+  },
+  fornecedor: {
+    tipo: "fornecedor",
+    titulo: "Enviar mensagem",
+    descricao: "Mensagem operacional enviada ao contato do fornecedor.",
+    corpo: `Olá, {{nome}}! 💜
+Aqui é a equipe da MARIELA Moda Feminina.
+Gostaríamos de alinhar disponibilidade de peças e prazos do próximo pedido.`,
+  },
+  vendedor: {
+    tipo: "vendedor",
+    titulo: "Enviar mensagem",
+    descricao: "Mensagem interna enviada à vendedora da loja.",
+    corpo: `Olá, {{nome}}! 💜
+Mensagem da administração da MARIELA.
+Passando um recado rápido sobre a operação da loja.`,
   },
   aniversario: {
     tipo: "aniversario",

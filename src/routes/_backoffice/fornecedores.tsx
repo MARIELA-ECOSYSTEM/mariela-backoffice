@@ -347,7 +347,7 @@ function FornecedoresPage() {
                       id: fornecedor.id,
                       nome: fornecedor.nome,
                       telefone: fornecedor.telefone,
-                      tipoMensagem: "geral",
+                      tipoMensagem: "fornecedor",
                       papel: "Fornecedor",
                     })
                   }

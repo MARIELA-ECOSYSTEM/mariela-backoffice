@@ -383,7 +383,7 @@ function VendedoresPage() {
                       id: vendedor.id,
                       nome: vendedor.nome,
                       telefone: vendedor.telefone,
-                      tipoMensagem: "geral",
+                      tipoMensagem: "vendedor",
                       papel: "Vendedor(a)",
                     })
                   }
