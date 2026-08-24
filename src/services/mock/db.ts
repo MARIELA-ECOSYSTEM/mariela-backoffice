@@ -2,7 +2,7 @@ import type { Produto } from "@/types/produto";
 import type { Variante } from "@/types/variante";
 import type { Configuracoes } from "@/types/configuracoes";
 import type { Cliente } from "@/types/cliente";
-import type { Fornecedor } from "@/types/fornecedor";
+import type { Fornecedor, FornecedorHistoricoItem } from "@/types/fornecedor";
 import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
@@ -19,6 +19,8 @@ import {
 } from "./seed";
 import { seedVendas } from "./vendas.seed";
 import { agregadosDoCliente, seedVendasClientes } from "./clientes-vendas.seed";
+import { agregadosDoVendedor } from "./vendedores-vendas.seed";
+import { agregadosDoFornecedor, seedHistoricoFornecedores } from "./fornecedores-historico.seed";
 
 export interface MockDatabase {
   produtos: Produto[];
@@ -32,6 +34,8 @@ export interface MockDatabase {
   campanhas: Campanha[];
   /** Vendas de leitura (fonte: MARIELA PDV) usadas pelos indicadores do Dashboard. */
   vendas: VendaResumo[];
+  /** Histórico de vínculos produto × fornecedor (somente leitura). */
+  fornecedoresHistorico: FornecedorHistoricoItem[];
 }
 
 export const db: MockDatabase = {
@@ -44,6 +48,7 @@ export const db: MockDatabase = {
   colecoes: seedColecoes(),
   campanhas: seedCampanhas(),
   vendas: [],
+  fornecedoresHistorico: [],
 };
 
 // Vendas anônimas (consumidor final) + vendas determinísticas vinculadas às clientes.
@@ -51,6 +56,8 @@ db.vendas = [
   ...seedVendas(db.produtos, [], db.vendedores),
   ...seedVendasClientes(db.produtos, db.clientes, db.vendedores),
 ].sort((a, b) => b.dataVenda.localeCompare(a.dataVenda));
+
+db.fornecedoresHistorico = seedHistoricoFornecedores(db.produtos, db.fornecedores);
 
 /** Reaplica os agregados de compras em todas as clientes do banco mock. */
 export function sincronizarAgregadosClientes(): void {
@@ -62,7 +69,29 @@ export function sincronizarAgregadosClientes(): void {
   });
 }
 
+/** Reaplica os agregados comerciais de todos os fornecedores. */
+export function sincronizarAgregadosFornecedores(): void {
+  db.fornecedores.forEach((fornecedor) => {
+    const resumo = agregadosDoFornecedor(fornecedor.id, db.produtos);
+    fornecedor.produtosVinculados = resumo.produtosVinculados;
+    fornecedor.valorEmCusto = resumo.valorEmCusto;
+    fornecedor.ultimaEntrada = resumo.ultimaEntrada;
+  });
+}
+
+/** Reaplica os agregados de vendas de todos os vendedores. */
+export function sincronizarAgregadosVendedores(): void {
+  db.vendedores.forEach((vendedor) => {
+    const resumo = agregadosDoVendedor(vendedor.id, db.vendas);
+    vendedor.vendas = resumo.vendas;
+    vendedor.totalVendido = resumo.totalVendido;
+    vendedor.ultimaVenda = resumo.ultimaVenda;
+  });
+}
+
 sincronizarAgregadosClientes();
+sincronizarAgregadosFornecedores();
+sincronizarAgregadosVendedores();
 
 export function agora(): string {
   return new Date().toISOString();
