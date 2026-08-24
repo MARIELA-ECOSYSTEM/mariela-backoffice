@@ -100,13 +100,6 @@ export function useHistoricoFornecedor(id: string | null) {
   });
 }
 
-export function useRemoverFornecedor() {
-  const invalidar = useInvalidar(fornecedoresKeys.todos);
-  return useMutation({
-    mutationFn: (id: string) => fornecedoresApi.remover(id),
-    onSuccess: () => void invalidar(),
-  });
-}
 
 
 export function useColecoes() {
