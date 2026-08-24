@@ -7,6 +7,7 @@ import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
 import type { VendaDetalhe, VendaResumo } from "@/types/venda";
+import type { Caixa, MovimentacaoCaixa, RecebimentoCaixa } from "@/types/caixa";
 import { calcularMargem, precoFinal } from "@/utils/produto";
 import {
   seedCampanhas,
