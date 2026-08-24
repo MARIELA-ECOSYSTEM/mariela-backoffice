@@ -71,6 +71,43 @@ const DESCRICOES_SAIDA_SEED = [
   "Retirada para depósito bancário",
 ];
 
+/** Resumo derivado das movimentações — mesma fórmula usada pelo serviço mock. */
+export function resumoDeMovimentacoes(
+  valorAbertura: number,
+  movimentacoes: MovimentacaoCaixa[],
+): ResumoCaixa {
+  const somar = (tipos: MovimentacaoCaixa["tipo"][]) =>
+    arredondar(
+      movimentacoes
+        .filter((item) => tipos.includes(item.tipo))
+        .reduce((total, item) => total + item.valor, 0),
+    );
+
+  const totalVendas = somar(["venda"]);
+  const recebimentos = somar(["recebimento_parcela"]);
+  const entradasManuais = somar(["entrada"]);
+  const saidasManuais = somar(["saida"]);
+  const devolucoes = somar(["devolucao", "cancelamento"]);
+  const totalEntradas = arredondar(totalVendas + recebimentos + entradasManuais);
+  const totalSaidas = arredondar(saidasManuais + devolucoes);
+
+  return {
+    valorAbertura,
+    totalVendas,
+    recebimentos,
+    entradasManuais,
+    totalEntradas,
+    saidasManuais,
+    devolucoes,
+    totalSaidas,
+    saldoEsperado: arredondar(valorAbertura + totalEntradas - totalSaidas),
+    quantidadeVendas: new Set(
+      movimentacoes.filter((item) => item.tipo === "venda").map((item) => item.vendaId),
+    ).size,
+    quantidadeMovimentacoes: movimentacoes.length,
+  };
+}
+
 export function seedCaixas(
   vendas: VendaResumo[],
   detalhes: VendaDetalhe[],
@@ -260,6 +297,14 @@ export function seedCaixas(
   movimentacoes.sort((a, b) => a.dataHora.localeCompare(b.dataHora));
   recebimentos.sort((a, b) => b.dataHora.localeCompare(a.dataHora));
 
+  // Resumo financeiro de cada caixa, sempre derivado das movimentações.
+  caixas.forEach((caixa) => {
+    caixa.resumo = resumoDeMovimentacoes(
+      caixa.abertura.valorInicial,
+      movimentacoes.filter((item) => item.caixaId === caixa.id),
+    );
+  });
+
   // Fechamento: o último caixa permanece ABERTO; os demais são conferidos.
   const DIFERENCAS = [0, 12.5, 0, -8.4, 0];
   caixas.forEach((caixa, indice) => {
@@ -267,14 +312,7 @@ export function seedCaixas(
       caixa.status = "aberto";
       return;
     }
-    const doCaixa = movimentacoes.filter((item) => item.caixaId === caixa.id);
-    const entradas = doCaixa
-      .filter((item) => item.sentido === "entrada")
-      .reduce((total, item) => total + item.valor, 0);
-    const saidas = doCaixa
-      .filter((item) => item.sentido === "saida")
-      .reduce((total, item) => total + item.valor, 0);
-    const esperado = arredondar(caixa.abertura.valorInicial + entradas - saidas);
+    const esperado = caixa.resumo.saldoEsperado;
     const diferenca = DIFERENCAS[indice % DIFERENCAS.length]!;
     const informado = arredondar(esperado + diferenca);
     caixa.fechamento = {
