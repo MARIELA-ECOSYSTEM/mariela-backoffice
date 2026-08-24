@@ -10,6 +10,12 @@ import { precoFinal } from "@/utils/produto";
  * registros estáveis para demonstrar a tela e, principalmente, para fixar o
  * CONTRATO que o NestJS devolverá em `GET /fornecedores/:id/historico`.
  */
+/**
+ * Mapa auxiliar id-do-histórico → fornecedorId, apenas para os vínculos
+ * encerrados (os atuais são resolvidos por `produto.fornecedorId`).
+ */
+export const vinculosAnteriores = new Map<string, string>();
+
 export function seedHistoricoFornecedores(
   produtos: Produto[],
   fornecedores: Fornecedor[],
@@ -59,18 +65,11 @@ export function seedHistoricoFornecedores(
       situacao: "historico",
     });
     // O registro encerrado pertence ao fornecedor ANTERIOR.
-    historico[historico.length - 1]!.id = `fvh_${sequencia}`;
-    vinculosAnteriores.set(historico[historico.length - 1]!.id, anterior.id);
+    vinculosAnteriores.set(`fvh_${sequencia}`, anterior.id);
   });
 
   return historico;
 }
-
-/**
- * Mapa auxiliar id-do-histórico → fornecedorId, apenas para os vínculos
- * encerrados (os atuais são resolvidos por `produto.fornecedorId`).
- */
-export const vinculosAnteriores = new Map<string, string>();
 
 /** Histórico de um fornecedor, mais recentes primeiro. */
 export function historicoDoFornecedor(
