@@ -206,8 +206,8 @@ function CaixaPage() {
                 </Link>
               </Button>
               <Button asChild>
-                <Link to="/caixa/$id" params={{ id: atual.id }} search={{ fechar: true }}>
-                  Fechar caixa
+                <Link to="/caixa/$id" params={{ id: atual.id }}>
+                  Conferir e fechar
                 </Link>
               </Button>
             </div>
