@@ -1,9 +1,4 @@
-import type {
-  Caixa,
-  MovimentacaoCaixa,
-  RecebimentoCaixa,
-  ResumoCaixa,
-} from "@/types/caixa";
+import type { Caixa, MovimentacaoCaixa, RecebimentoCaixa, ResumoCaixa } from "@/types/caixa";
 import type { ParcelaVenda, VendaDetalhe } from "@/types/venda";
 import { agora, db, gerarId } from "./db";
 

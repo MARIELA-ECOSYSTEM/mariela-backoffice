@@ -1,10 +1,5 @@
 import { formatarCodigo } from "@/lib/codigos";
-import type {
-  Caixa,
-  MovimentacaoCaixa,
-  RecebimentoCaixa,
-  ResumoCaixa,
-} from "@/types/caixa";
+import type { Caixa, MovimentacaoCaixa, RecebimentoCaixa, ResumoCaixa } from "@/types/caixa";
 import type { VendaDetalhe, VendaResumo } from "@/types/venda";
 import type { Vendedor } from "@/types/vendedor";
 
@@ -114,10 +109,15 @@ export function seedCaixas(
   vendedores: Vendedor[],
 ): CaixasSeed {
   const equipe = vendedores.filter((vendedor) => vendedor.ativo);
-  if (!vendas.length || !equipe.length)
-    return { caixas: [], movimentacoes: [], recebimentos: [] };
+  if (!vendas.length || !equipe.length) return { caixas: [], movimentacoes: [], recebimentos: [] };
 
-  const dias = Array.from(new Set(vendas.map((venda) => dia(venda.dataVenda)))).sort();
+  // Um caixa por DIA de movimento: vendas, pagamentos de parcela e devoluções.
+  const diasSet = new Set(vendas.map((venda) => dia(venda.dataVenda)));
+  detalhes.forEach((detalhe) => {
+    detalhe.pagamentos.forEach((pagamento) => diasSet.add(dia(pagamento.dataPagamento)));
+    if (detalhe.cancelamento) diasSet.add(dia(detalhe.cancelamento.dataHora));
+  });
+  const dias = Array.from(diasSet).sort();
   const caixas: Caixa[] = dias.map((diaIso, indice) => {
     const responsavel = equipe[indice % equipe.length]!;
     const valorInicial = VALORES_ABERTURA[indice % VALORES_ABERTURA.length]!;

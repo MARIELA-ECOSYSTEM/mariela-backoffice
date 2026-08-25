@@ -57,7 +57,12 @@ function detalhar(caixa: Caixa): CaixaDetalhe {
 function estatisticas(): CaixaEstatisticas {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
-  const doDia = db.caixasMovimentacoes.filter((item) => new Date(item.dataHora) >= hoje);
+  const amanha = new Date(hoje);
+  amanha.setDate(amanha.getDate() + 1);
+  const doDia = db.caixasMovimentacoes.filter((item) => {
+    const data = new Date(item.dataHora);
+    return data >= hoje && data < amanha;
+  });
   const somar = (tipos: string[]) =>
     arredondar(
       doDia
