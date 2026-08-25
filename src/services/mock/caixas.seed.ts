@@ -1,10 +1,5 @@
 import { formatarCodigo } from "@/lib/codigos";
-import type {
-  Caixa,
-  MovimentacaoCaixa,
-  RecebimentoCaixa,
-  ResumoCaixa,
-} from "@/types/caixa";
+import type { Caixa, MovimentacaoCaixa, RecebimentoCaixa, ResumoCaixa } from "@/types/caixa";
 import type { VendaDetalhe, VendaResumo } from "@/types/venda";
 import type { Vendedor } from "@/types/vendedor";
 
@@ -114,8 +109,7 @@ export function seedCaixas(
   vendedores: Vendedor[],
 ): CaixasSeed {
   const equipe = vendedores.filter((vendedor) => vendedor.ativo);
-  if (!vendas.length || !equipe.length)
-    return { caixas: [], movimentacoes: [], recebimentos: [] };
+  if (!vendas.length || !equipe.length) return { caixas: [], movimentacoes: [], recebimentos: [] };
 
   // Um caixa por DIA de movimento: vendas, pagamentos de parcela e devoluções.
   const diasSet = new Set(vendas.map((venda) => dia(venda.dataVenda)));

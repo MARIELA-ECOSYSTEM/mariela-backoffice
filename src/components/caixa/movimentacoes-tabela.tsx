@@ -84,8 +84,7 @@ export function MovimentacoesTabela({
                     : "py-2.5 text-right tabular-nums text-rose-600"
                 }
               >
-                {movimentacao.sentido === "entrada" ? "+" : "−"}{" "}
-                {formatarMoeda(movimentacao.valor)}
+                {movimentacao.sentido === "entrada" ? "+" : "−"} {formatarMoeda(movimentacao.valor)}
               </td>
               <td className="py-2.5 text-muted-foreground">{movimentacao.responsavelNome}</td>
             </tr>

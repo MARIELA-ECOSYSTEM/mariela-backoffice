@@ -20,12 +20,7 @@ import { EmptyState, ErrorState } from "@/components/common/states";
 import { MovimentacoesTabela } from "@/components/caixa/movimentacoes-tabela";
 import { MovimentacaoCaixaDialog } from "@/components/caixa/movimentacao-dialog";
 import { FechamentoCaixaDialog } from "@/components/caixa/fechamento-dialog";
-import {
-  useCaixa,
-  useEntradaCaixa,
-  useFecharCaixa,
-  useSaidaCaixa,
-} from "@/hooks/use-caixas";
+import { useCaixa, useEntradaCaixa, useFecharCaixa, useSaidaCaixa } from "@/hooks/use-caixas";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarData, formatarDataHora, formatarMoeda } from "@/utils/format";
 import { LABEL_STATUS_CAIXA, type SaidaCaixaPayload } from "@/types/caixa";
@@ -60,7 +55,15 @@ function Rotulo({ children }: { children: React.ReactNode }) {
   return <p className="text-eyebrow text-[0.58rem]">{children}</p>;
 }
 
-function ResumoItem({ rotulo, valor, tom }: { rotulo: string; valor: number; tom?: "entrada" | "saida" | "destaque" }) {
+function ResumoItem({
+  rotulo,
+  valor,
+  tom,
+}: {
+  rotulo: string;
+  valor: number;
+  tom?: "entrada" | "saida" | "destaque";
+}) {
   return (
     <div className="rounded-lg border border-border/70 px-4 py-3">
       <Rotulo>{rotulo}</Rotulo>
@@ -276,15 +279,33 @@ function CaixaDetalhePage() {
               <table className="w-full min-w-[52rem] text-sm">
                 <thead>
                   <tr className="border-b border-border/70 text-left">
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">Venda</th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">Data</th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">Cliente</th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">Vendedor</th>
-                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">Valor</th>
-                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">Recebido</th>
-                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">Pendente</th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">Pagamento</th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">Status</th>
+                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                      Venda
+                    </th>
+                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                      Data
+                    </th>
+                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                      Cliente
+                    </th>
+                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                      Vendedor
+                    </th>
+                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">
+                      Valor
+                    </th>
+                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">
+                      Recebido
+                    </th>
+                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">
+                      Pendente
+                    </th>
+                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                      Pagamento
+                    </th>
+                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                      Status
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -399,7 +420,8 @@ function CaixaDetalhePage() {
               toast.success(`${caixa.codigo} fechado.`);
               setFechamentoAberto(false);
             },
-            onError: (erro) => toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação.")),
+            onError: (erro) =>
+              toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação.")),
           })
         }
       />

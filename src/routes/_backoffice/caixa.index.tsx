@@ -31,12 +31,7 @@ import { opcoesDeValores, type GrupoFacetaDef } from "@/lib/filtros/facetas";
 import { CaixaCard, CaixasGrid, CaixasGridSkeleton } from "@/components/caixa/caixa-card";
 import { MovimentacoesTabela } from "@/components/caixa/movimentacoes-tabela";
 import { AberturaCaixaDialog } from "@/components/caixa/abertura-dialog";
-import {
-  useAbrirCaixa,
-  useCaixaAtual,
-  useCaixas,
-  useEstatisticasCaixa,
-} from "@/hooks/use-caixas";
+import { useAbrirCaixa, useCaixaAtual, useCaixas, useEstatisticasCaixa } from "@/hooks/use-caixas";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarDataHora, formatarMoeda } from "@/utils/format";
 import { LABEL_STATUS_CAIXA, STATUS_CAIXA, type Caixa } from "@/types/caixa";

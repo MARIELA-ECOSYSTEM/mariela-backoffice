@@ -80,7 +80,10 @@ export function FechamentoCaixaDialog({
               <Linha rotulo="Valor de abertura" valor={formatarMoeda(caixa.resumo.valorAbertura)} />
               <Linha rotulo="Total de vendas" valor={formatarMoeda(caixa.resumo.totalVendas)} />
               <Linha rotulo="Recebimentos" valor={formatarMoeda(caixa.resumo.recebimentos)} />
-              <Linha rotulo="Entradas manuais" valor={formatarMoeda(caixa.resumo.entradasManuais)} />
+              <Linha
+                rotulo="Entradas manuais"
+                valor={formatarMoeda(caixa.resumo.entradasManuais)}
+              />
               <Linha rotulo="Total de entradas" valor={formatarMoeda(caixa.resumo.totalEntradas)} />
               <Linha rotulo="Saídas manuais" valor={formatarMoeda(caixa.resumo.saidasManuais)} />
               <Linha rotulo="Devoluções" valor={formatarMoeda(caixa.resumo.devolucoes)} />
@@ -130,7 +133,9 @@ export function FechamentoCaixaDialog({
                 value={observacao}
                 onChange={(evento) => setObservacao(evento.target.value)}
                 placeholder={
-                  exigeObservacao ? "Justifique a diferença encontrada" : "Opcional quando conferido"
+                  exigeObservacao
+                    ? "Justifique a diferença encontrada"
+                    : "Opcional quando conferido"
                 }
               />
             </div>
@@ -142,11 +147,7 @@ export function FechamentoCaixaDialog({
               <dl className="space-y-1">
                 <Linha rotulo="Valor esperado" valor={formatarMoeda(esperado)} />
                 <Linha rotulo="Valor informado" valor={formatarMoeda(informado)} />
-                <Linha
-                  rotulo={LABEL_DIFERENCA[situacao]}
-                  valor={formatarMoeda(diferenca)}
-                  forte
-                />
+                <Linha rotulo={LABEL_DIFERENCA[situacao]} valor={formatarMoeda(diferenca)} forte />
               </dl>
             </section>
           ) : null}
