@@ -117,7 +117,13 @@ export function seedCaixas(
   if (!vendas.length || !equipe.length)
     return { caixas: [], movimentacoes: [], recebimentos: [] };
 
-  const dias = Array.from(new Set(vendas.map((venda) => dia(venda.dataVenda)))).sort();
+  // Um caixa por DIA de movimento: vendas, pagamentos de parcela e devoluções.
+  const diasSet = new Set(vendas.map((venda) => dia(venda.dataVenda)));
+  detalhes.forEach((detalhe) => {
+    detalhe.pagamentos.forEach((pagamento) => diasSet.add(dia(pagamento.dataPagamento)));
+    if (detalhe.cancelamento) diasSet.add(dia(detalhe.cancelamento.dataHora));
+  });
+  const dias = Array.from(diasSet).sort();
   const caixas: Caixa[] = dias.map((diaIso, indice) => {
     const responsavel = equipe[indice % equipe.length]!;
     const valorInicial = VALORES_ABERTURA[indice % VALORES_ABERTURA.length]!;
