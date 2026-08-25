@@ -161,7 +161,7 @@ function CaixaPage() {
         toast.success(`${caixa.codigo} aberto com ${formatarMoeda(caixa.abertura.valorInicial)}.`);
         setAberturaAberta(false);
       },
-      onError: (erro) => toast.error(mensagemDeErro(erro)),
+      onError: (erro) => toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação.")),
     });
   }
 

@@ -117,7 +117,7 @@ function CaixaDetalhePage() {
         toast.success(tipo === "entrada" ? "Entrada registrada." : "Saída registrada.");
         setMovimentacao(null);
       },
-      onError: (erro) => toast.error(mensagemDeErro(erro)),
+      onError: (erro) => toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação.")),
     });
   }
 
@@ -399,7 +399,7 @@ function CaixaDetalhePage() {
               toast.success(`${caixa.codigo} fechado.`);
               setFechamentoAberto(false);
             },
-            onError: (erro) => toast.error(mensagemDeErro(erro)),
+            onError: (erro) => toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação.")),
           })
         }
       />
