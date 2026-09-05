@@ -1820,11 +1820,11 @@ Continue developing this project in the [Lovable editor](https://lovable.dev/pro
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Prefer working locally? You need [Bun](https://bun.sh/docs/installation). This repository is managed with Bun: dependencies are pinned in `bun.lock`, and `bunfig.toml` configures the install behaviour — including a 24h supply-chain guard that other package managers ignore.
 
 ```sh
 git clone <this-repository-url>
 cd <repository-name>
-npm i
-npm run dev
+bun install
+bun run dev
 ```
