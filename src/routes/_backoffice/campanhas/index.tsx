@@ -1,14 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
-import { CardsSkeleton, DataToolbar, NotaDemonstracao } from "@/components/common/data-toolbar";
+import { CardsSkeleton, DataToolbar, Paginacao } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import type { GrupoFacetaDef } from "@/lib/filtros/facetas";
+import type { GrupoFacetaDef, SelecaoFacetas } from "@/lib/filtros/facetas";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PeriodoCard } from "@/components/cadastros/periodo-card";
 import {
@@ -23,10 +23,9 @@ import {
   useCriarCampanha,
   useRemoverCampanha,
 } from "@/hooks/use-cadastros";
-import { useProdutos } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
 import { OPCOES_BANNER, OPCOES_DESTAQUE, OPCOES_VIGENCIA, statusVigencia } from "@/utils/vitrine";
-import type { Campanha } from "@/types/campanha";
+import type { Campanha, CampanhaFiltros } from "@/types/campanha";
 
 export const Route = createFileRoute("/_backoffice/campanhas/")({
   ssr: false,
@@ -49,21 +48,58 @@ export const Route = createFileRoute("/_backoffice/campanhas/")({
   component: CampanhasPage,
 });
 
+const POR_PAGINA = 12;
+
 function CampanhasPage() {
   const navigate = useNavigate();
-  const { data: campanhas, isPending, isError, error, refetch } = useCampanhas();
-  const { data: produtos } = useProdutos({});
+  const [busca, setBusca] = useState("");
+  const [pagina, setPagina] = useState(1);
+  const [dialogAberto, setDialogAberto] = useState(false);
+  const [emEdicao, setEmEdicao] = useState<Campanha | null>(null);
+  const [paraExcluir, setParaExcluir] = useState<Campanha | null>(null);
+
+  // Seleção das facetas é enviada à camada de dados: os counts NÃO são
+  // calculados sobre a página atual, e sim devolvidos em `facets` — mesmo
+  // esquema já usado em Produtos/Clientes/Fornecedores/Coleções.
+  const [selecao, setSelecao] = useState<SelecaoFacetas>({});
+
   const criar = useCriarCampanha();
   const atualizar = useAtualizarCampanha();
   const alterarStatus = useAlterarStatusCampanha();
   const remover = useRemoverCampanha();
 
-  const [busca, setBusca] = useState("");
-  const [dialogAberto, setDialogAberto] = useState(false);
-  const [emEdicao, setEmEdicao] = useState<Campanha | null>(null);
-  const [paraExcluir, setParaExcluir] = useState<Campanha | null>(null);
+  // Busca ou facetas mudaram: o conjunto de resultados é outro, então a
+  // paginação sempre recomeça em 1. Sem `pagina`/`limit` nesta dependência,
+  // para o efeito abaixo não entrar em looping consigo mesmo a cada troca de página.
+  const criteriosFiltro = useMemo(
+    () => ({ busca: busca || undefined, facetas: selecao }),
+    [busca, selecao],
+  );
 
-  const listaProdutos = useMemo(() => produtos?.produtos ?? [], [produtos]);
+  useEffect(() => {
+    setPagina(1);
+  }, [criteriosFiltro]);
+
+  const filtros = useMemo<CampanhaFiltros>(
+    () => ({ ...criteriosFiltro, page: pagina, limit: POR_PAGINA }),
+    [criteriosFiltro, pagina],
+  );
+
+  const { data, isPending, isError, error, refetch, isFetching } = useCampanhas(filtros);
+  const campanhas = useMemo(() => data?.campanhas ?? [], [data?.campanhas]);
+  const totalPaginas = data?.meta.totalPages ?? 1;
+  const total = data?.meta.total ?? 0;
+  const paginaAtual = pagina;
+
+  // A página pedida pode ficar fora do intervalo depois que o conjunto de
+  // resultados muda de tamanho (ex.: uma campanha foi excluída e a página 5
+  // deixou de existir) — corrige para a última página válida em vez de
+  // deixar "página 5 de 3" na tela.
+  useEffect(() => {
+    if (data && pagina > data.meta.totalPages) {
+      setPagina(data.meta.totalPages);
+    }
+  }, [data, pagina]);
 
   const grupos = useMemo<GrupoFacetaDef<Campanha>[]>(
     () => [
@@ -93,30 +129,27 @@ function CampanhasPage() {
           { valor: "com", label: "Com produtos" },
           { valor: "sem", label: "Sem produtos" },
         ],
-        corresponde: (campanha, valor) => {
-          const quantidade = listaProdutos.filter(
-            (produto) => produto.campanhaId === campanha.id,
-          ).length;
-          return valor === "com" ? quantidade > 0 : quantidade === 0;
-        },
+        corresponde: (campanha, valor) =>
+          valor === "com" ? campanha.produtosVinculados > 0 : campanha.produtosVinculados === 0,
       },
     ],
-    [listaProdutos],
+    [],
   );
 
-  const buscadas = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    if (!termo) return campanhas ?? [];
-    return (campanhas ?? []).filter(
-      (campanha) =>
-        campanha.nome.toLowerCase().includes(termo) ||
-        campanha.descricao.toLowerCase().includes(termo) ||
-        campanha.codigo.toLowerCase().includes(termo),
-    );
-  }, [campanhas, busca]);
+  const filtragem = useFiltrosFacetados({
+    itens: campanhas,
+    grupos,
+    facetasExternas: data?.facets,
+    selecao,
+    onSelecaoChange: setSelecao,
+  });
 
-  const filtragem = useFiltrosFacetados({ itens: buscadas, grupos });
-  const filtradas = filtragem.itensFiltrados;
+  const temFiltros = Boolean(busca) || filtragem.temSelecao;
+
+  function limparFiltros() {
+    setBusca("");
+    filtragem.limparTudo();
+  }
 
   const valoresIniciais: PeriodoFormValues = emEdicao
     ? {
@@ -169,10 +202,6 @@ function CampanhasPage() {
     }
   }
 
-  function contarProdutos(campanhaId: string): number {
-    return listaProdutos.filter((produto) => produto.campanhaId === campanhaId).length;
-  }
-
   return (
     <Page
       titulo="Campanhas"
@@ -185,11 +214,6 @@ function CampanhasPage() {
         </Button>
       }
     >
-      <NotaDemonstracao>
-        As campanhas são servidas pela camada mock preparada para os contratos{" "}
-        <code>/campanhas</code> da futura API.
-      </NotaDemonstracao>
-
       <DataToolbar
         busca={busca}
         onBuscaChange={setBusca}
@@ -201,11 +225,9 @@ function CampanhasPage() {
         totalSelecionados={filtragem.totalSelecionados}
         onAlternar={filtragem.alternar}
         onLimparGrupo={filtragem.limparGrupo}
-        onLimparTudo={filtragem.limparTudo}
+        onLimparTudo={limparFiltros}
         resultado={
-          <span className="text-sm text-muted-foreground">
-            {filtradas.length} campanha(s) encontrada(s)
-          </span>
+          <span className="text-sm text-muted-foreground">{total} campanha(s) encontrada(s)</span>
         }
       />
 
@@ -213,25 +235,31 @@ function CampanhasPage() {
         <CardsSkeleton itens={6} />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
-      ) : filtradas.length === 0 ? (
+      ) : total === 0 ? (
         <EmptyState
           titulo="Nenhuma campanha encontrada"
           descricao="Ajuste a busca ou cadastre uma nova campanha para impulsionar as vendas."
           acao={
-            <Button onClick={abrirNova}>
-              <Plus aria-hidden className="size-4" />
-              Nova campanha
-            </Button>
+            temFiltros ? (
+              <Button variant="outline" onClick={limparFiltros}>
+                Limpar filtros
+              </Button>
+            ) : (
+              <Button onClick={abrirNova}>
+                <Plus aria-hidden className="size-4" />
+                Nova campanha
+              </Button>
+            )
           }
         />
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-3">
-          {filtradas.map((campanha) => (
+          {campanhas.map((campanha) => (
             <PeriodoCard
               key={campanha.id}
               item={campanha}
               tipo="campanha"
-              totalProdutos={contarProdutos(campanha.id)}
+              totalProdutos={campanha.produtosVinculados}
               onEditar={() => {
                 setEmEdicao(campanha);
                 setDialogAberto(true);
@@ -245,6 +273,20 @@ function CampanhasPage() {
           ))}
         </div>
       )}
+
+      {total > 0 ? (
+        <div className="mt-7 flex items-center justify-end">
+          {isFetching ? <span className="text-xs text-muted-foreground">Atualizando…</span> : null}
+        </div>
+      ) : null}
+
+      <Paginacao
+        pagina={paginaAtual}
+        totalPaginas={totalPaginas}
+        total={total}
+        rotulo="campanha(s)"
+        onPaginaChange={setPagina}
+      />
 
       <PeriodoDialog
         open={dialogAberto}

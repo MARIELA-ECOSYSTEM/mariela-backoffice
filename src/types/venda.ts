@@ -5,13 +5,17 @@
  * CONSULTA e ADMINISTRA (baixa de parcela e cancelamento/devolução).
  * Toda venda finalizada é IMUTÁVEL — nenhuma edição de itens/valores existe.
  *
- * Estes tipos espelham o contrato previsto para a API NestJS:
- *   GET    /vendas                      → PaginatedResponse<VendaResumo>
+ * Endpoints (implementados pela API NestJS):
+ *   GET    /vendas                      → PaginatedResponse<VendaResumo> (busca+facetas+ordenação, server-side)
  *   GET    /vendas/estatisticas         → ApiResponse<VendasEstatisticas>
  *   GET    /vendas/:id                  → ApiResponse<VendaDetalhe>
  *   POST   /vendas/:id/parcelas/:pid/baixa
  *   POST   /vendas/:id/cancelamento
+ *
+ * Deliberadamente NÃO existe `POST /vendas`: a criação de venda pertence ao
+ * futuro MARIELA PDV.
  */
+import type { SelecaoFacetas } from "@/lib/filtros/facetas";
 
 /**
  * EM_PAGAMENTO → estoque já baixado no PDV, valor pendente > 0.
@@ -112,11 +116,7 @@ export interface ParcelaVenda {
 }
 
 export type TipoEventoVenda =
-  | "criacao"
-  | "pagamento"
-  | "baixa_parcela"
-  | "devolucao"
-  | "cancelamento";
+  "criacao" | "pagamento" | "baixa_parcela" | "devolucao" | "cancelamento";
 
 export interface EventoVenda {
   id: string;
@@ -179,4 +179,31 @@ export interface CancelamentoPayload {
   motivo: string;
   /** Obrigatório na devolução parcial. */
   itens?: DevolucaoItemPayload[];
+}
+
+export type OrdenarVendaPor = "data" | "valor" | "pendente";
+export type Ordem = "asc" | "desc";
+
+/**
+ * Espelha exatamente `ListarVendasQueryDto` do backend
+ * (`backend/src/modules/vendas/dto/listar-vendas-query.dto.ts`): `busca` +
+ * `ordenarPor`/`ordem` + a seleção de facetas em CSV (`status`, `periodo`,
+ * `vendedor`, `cliente`, `pagamento`, `caixa`, `valor`, `condicoes`,
+ * `financeiro`) + `page`/`limit`.
+ */
+export interface VendaFiltros {
+  facetas?: SelecaoFacetas | undefined;
+  busca?: string | undefined;
+  ordenarPor?: OrdenarVendaPor | undefined;
+  ordem?: Ordem | undefined;
+  page?: number | undefined;
+  limit?: number | undefined;
+}
+
+/** Paginação real, sempre devolvida pelo backend para `GET /vendas` — nunca calculada no cliente. */
+export interface VendasMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }

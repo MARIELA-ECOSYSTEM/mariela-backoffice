@@ -1,3 +1,5 @@
+import type { SelecaoFacetas } from "@/lib/filtros/facetas";
+
 export interface Campanha {
   id: string;
   /** Código sequencial gerado pela API (`CAM-0001`). Somente leitura. */
@@ -18,6 +20,9 @@ export interface Campanha {
   /** Imagem horizontal usada em banners/hero. */
   fotoBanner: string | null;
   criadoEm: string;
+  atualizadoEm: string;
+  /** Quantidade de produtos atualmente vinculados (agregado da API). */
+  produtosVinculados: number;
 }
 
 export interface CampanhaPayload {
@@ -30,4 +35,33 @@ export interface CampanhaPayload {
   banner?: boolean | undefined;
   fotoDestaque?: string | undefined;
   fotoBanner?: string | undefined;
+}
+
+export type OrdenarCampanhaPor = "nome" | "criadoEm" | "inicio" | "fim";
+export type Ordem = "asc" | "desc";
+
+/**
+ * Espelha exatamente `ListarCampanhasQueryDto` do backend
+ * (`backend/src/modules/campanhas/dto/listar-campanhas-query.dto.ts`):
+ * `busca` + `ordenarPor`/`ordem` + a seleção de facetas em CSV (`situacao`,
+ * `destaque`, `banner`, `produtos`) + `page`/`limit`.
+ */
+export interface CampanhaFiltros {
+  /** Seleção multivalorada das facetas (`{ situacao: ["ativa"] }`). */
+  facetas?: SelecaoFacetas | undefined;
+  busca?: string | undefined;
+  ordenarPor?: OrdenarCampanhaPor | undefined;
+  ordem?: Ordem | undefined;
+  /** Página solicitada (1-based). Ausente = página 1 (ver `PAGINA_PADRAO_CAMPANHAS`). */
+  page?: number | undefined;
+  /** Itens por página. Ausente = 20 (ver `LIMITE_PADRAO_CAMPANHAS`), máximo 100 (limite do backend). */
+  limit?: number | undefined;
+}
+
+/** Paginação real, sempre devolvida pelo backend para `GET /campanhas` — nunca calculada no cliente. */
+export interface CampanhasMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }

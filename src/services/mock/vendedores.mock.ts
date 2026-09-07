@@ -2,6 +2,12 @@ import { registerMock } from "./mock-transport";
 import { agora, clonar, db, gerarId, sincronizarAgregadosVendedores } from "./db";
 import { vendasDoVendedor } from "./vendedores-vendas.seed";
 import { proximoCodigo } from "./sequencias";
+import { facetasVendedor } from "@/lib/filtros/vendedores-facetas";
+import {
+  calcularFacetasApi,
+  filtrarPorSelecao,
+  lerSelecaoDaQuery,
+} from "@/lib/filtros/facetas-servidor";
 import { ApiError, type ApiFieldError } from "@/types/api";
 import type { Vendedor, VendedorPayload } from "@/types/vendedor";
 
@@ -44,11 +50,67 @@ function validarDados(body: unknown, exigirSenha: boolean) {
   };
 }
 
+/** Mesmo `ordenarPor`/`ordem` do contrato real. */
+function ordenarVendedoresPorCampo(lista: Vendedor[], campo: string, ordem: string): Vendedor[] {
+  const fator = ordem === "desc" ? -1 : 1;
+  const tempo = (iso: string | null) => (iso ? new Date(iso).getTime() : 0);
+  return [...lista].sort((a, b) => {
+    switch (campo) {
+      case "vendas":
+        return (a.vendas - b.vendas) * fator;
+      case "totalVendido":
+        return (a.totalVendido - b.totalVendido) * fator;
+      case "ultimaVenda":
+        return (tempo(a.ultimaVenda) - tempo(b.ultimaVenda)) * fator;
+      case "dataNascimento":
+        return (tempo(a.dataNascimento) - tempo(b.dataNascimento)) * fator;
+      case "criadoEm":
+        return (tempo(a.criadoEm) - tempo(b.criadoEm)) * fator;
+      default:
+        return a.nome.localeCompare(b.nome, "pt-BR") * fator;
+    }
+  });
+}
+
 export function registerVendedoresMocks(): void {
-  registerMock("GET", "/vendedores", () => {
+  registerMock("GET", "/vendedores", ({ query }) => {
     // Agregados de vendas são responsabilidade da camada de dados (futuro NestJS).
     sincronizarAgregadosVendedores();
-    return { data: clonar(db.vendedores), meta: { total: db.vendedores.length } };
+
+    const busca = String(query["busca"] ?? "")
+      .trim()
+      .toLowerCase();
+    let lista = db.vendedores.filter((vendedor) => {
+      if (!busca) return true;
+      return (
+        vendedor.nome.toLowerCase().includes(busca) ||
+        vendedor.codigo.toLowerCase().includes(busca) ||
+        vendedor.telefone.toLowerCase().includes(busca)
+      );
+    });
+
+    // Facetas: counts sempre sobre o conjunto completo desta busca (nunca
+    // sobre a página) — mesmo comportamento já usado por Produtos/Clientes/Fornecedores/Coleções/Campanhas.
+    const selecao = lerSelecaoDaQuery(query, facetasVendedor);
+    const facets = calcularFacetasApi(lista, facetasVendedor, selecao);
+
+    lista = filtrarPorSelecao(lista, facetasVendedor, selecao);
+    lista = ordenarVendedoresPorCampo(
+      lista,
+      String(query["ordenarPor"] ?? "nome"),
+      String(query["ordem"] ?? "asc"),
+    );
+
+    // Paginação real, espelhando o backend: `page`/`limit` fatiam a lista já
+    // filtrada/ordenada, e `total`/`totalPages` refletem o conjunto INTEIRO.
+    const total = lista.length;
+    const limit = Math.max(1, Number(query["limit"]) || 20);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const page = Math.min(Math.max(1, Number(query["page"]) || 1), totalPages);
+    const inicio = (page - 1) * limit;
+    const pagina = lista.slice(inicio, inicio + limit);
+
+    return { data: clonar(pagina), meta: { total, page, limit, totalPages }, facets };
   });
 
   registerMock("GET", "/vendedores/:id", ({ params }) => {

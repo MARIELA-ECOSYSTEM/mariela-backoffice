@@ -1,4 +1,4 @@
-import type { Vendedor } from "@/types/vendedor";
+import type { OrdenarVendedorPor, Ordem, Vendedor } from "@/types/vendedor";
 
 /** Regras de apresentação/ordenação de vendedores (fora dos componentes). */
 
@@ -75,12 +75,7 @@ export function nascimentoNoMes(dataNascimento: string | null, hoje = new Date()
 }
 
 export type OrdenacaoVendedor =
-  | "nome-asc"
-  | "nome-desc"
-  | "vendas-desc"
-  | "valor-desc"
-  | "venda-recente"
-  | "nascimento";
+  "nome-asc" | "nome-desc" | "vendas-desc" | "valor-desc" | "venda-recente" | "nascimento";
 
 export const OPCOES_ORDENACAO_VENDEDOR: { valor: OrdenacaoVendedor; label: string }[] = [
   { valor: "nome-asc", label: "Nome: A → Z" },
@@ -91,10 +86,38 @@ export const OPCOES_ORDENACAO_VENDEDOR: { valor: OrdenacaoVendedor; label: strin
   { valor: "nascimento", label: "Data de nascimento" },
 ];
 
+/**
+ * Converte a opção combinada do seletor (`OPCOES_ORDENACAO_VENDEDOR`) em
+ * `ordenarPor`/`ordem` — o par que a API (`ListarVendedoresQueryDto`)
+ * realmente espera. A ordenação passou a acontecer no servidor; este mapa
+ * existe só para preservar o rótulo único já exposto na tela.
+ */
+export function paraOrdenarPorEOrdem(valor: OrdenacaoVendedor): {
+  ordenarPor: OrdenarVendedorPor;
+  ordem: Ordem;
+} {
+  switch (valor) {
+    case "nome-desc":
+      return { ordenarPor: "nome", ordem: "desc" };
+    case "vendas-desc":
+      return { ordenarPor: "vendas", ordem: "desc" };
+    case "valor-desc":
+      return { ordenarPor: "totalVendido", ordem: "desc" };
+    case "venda-recente":
+      return { ordenarPor: "ultimaVenda", ordem: "desc" };
+    case "nascimento":
+      return { ordenarPor: "dataNascimento", ordem: "asc" };
+    case "nome-asc":
+    default:
+      return { ordenarPor: "nome", ordem: "asc" };
+  }
+}
+
 function tempo(iso: string | null): number {
   return iso ? new Date(iso).getTime() : 0;
 }
 
+/** @deprecated A ordenação agora é feita pelo backend (ver `paraOrdenarPorEOrdem`); mantida para compatibilidade de testes/consumidores que ainda ordenam localmente. */
 export function ordenarVendedores(lista: Vendedor[], ordem: OrdenacaoVendedor): Vendedor[] {
   const copia = [...lista];
   const porNome = (a: Vendedor, b: Vendedor) => a.nome.localeCompare(b.nome, "pt-BR");

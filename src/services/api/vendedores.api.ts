@@ -1,16 +1,52 @@
 import { apiClient } from "./client";
+import type { ApiFacets, QueryParams } from "@/types/api";
+import { selecaoParaQuery } from "@/lib/filtros/facetas-servidor";
 import type {
   Vendedor,
+  VendedorFiltros,
   VendedorPayload,
   VendedorSenhaPayload,
   VendedorStatusPayload,
+  VendedoresMeta,
 } from "@/types/vendedor";
 import type { VendaResumo } from "@/types/venda";
 
+/** Mesmos defaults do backend (`PAGINA_PADRAO`/`LIMITE_PADRAO`/`LIMITE_MAXIMO` em `vendedores.constants.ts`). */
+export const PAGINA_PADRAO_VENDEDORES = 1;
+export const LIMITE_PADRAO_VENDEDORES = 20;
+export const LIMITE_MAXIMO_VENDEDORES = 100;
+
+export interface ListaVendedores {
+  vendedores: Vendedor[];
+  meta: VendedoresMeta;
+  facets: ApiFacets;
+}
+
 export const vendedoresApi = {
-  async listar(): Promise<Vendedor[]> {
-    const { data } = await apiClient.get<Vendedor[]>("/vendedores");
-    return data;
+  async listar(filtros: VendedorFiltros = {}): Promise<ListaVendedores> {
+    const page = filtros.page ?? PAGINA_PADRAO_VENDEDORES;
+    const limit = filtros.limit ?? LIMITE_PADRAO_VENDEDORES;
+
+    const params: QueryParams = {
+      busca: filtros.busca,
+      ordenarPor: filtros.ordenarPor,
+      ordem: filtros.ordem,
+      page,
+      limit,
+      // Seleção multivalorada das facetas: `?vendas=sem,21+`
+      ...selecaoParaQuery(filtros.facetas),
+    };
+    const { data, meta, facets } = await apiClient.get<Vendedor[]>("/vendedores", { params });
+    return {
+      vendedores: data,
+      meta: {
+        page: meta?.page ?? page,
+        limit: meta?.limit ?? limit,
+        total: meta?.total ?? 0,
+        totalPages: meta?.totalPages ?? 1,
+      },
+      facets: facets ?? {},
+    };
   },
   async obter(id: string): Promise<Vendedor> {
     const { data } = await apiClient.get<Vendedor>(`/vendedores/${id}`);

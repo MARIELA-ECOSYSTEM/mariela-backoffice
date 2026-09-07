@@ -14,18 +14,20 @@
  *    Correções futuras nascem de uma nova movimentação de ajuste.
  * 5. Não existe saldo negativo: uma saída nunca pode exceder o saldo disponível.
  *
- * Endpoints previstos:
- *   GET  /caixas                        → PaginatedResponse<Caixa>
- *   GET  /caixas/atual                  → ApiResponse<Caixa | null>
- *   GET  /caixas/:id                    → ApiResponse<CaixaDetalhe>
- *   POST /caixas                        → ApiResponse<Caixa>
+ * Endpoints (implementados pela API NestJS):
+ *   GET  /caixas                        → PaginatedResponse<Caixa> (busca+facetas+ordenação, server-side)
+ *   GET  /caixas/atual                  → ApiResponse<CaixaDetalhe | null>
+ *   GET  /caixas/estatisticas           → ApiResponse<CaixaEstatisticas>
+ *   GET  /caixas/:id                    → ApiResponse<CaixaDetalhe> (`movimentacoes` = só as mais recentes)
+ *   POST /caixas                        → ApiResponse<CaixaDetalhe>
  *   POST /caixas/:id/entrada            → ApiResponse<CaixaDetalhe>
  *   POST /caixas/:id/saida              → ApiResponse<CaixaDetalhe>
- *   GET  /caixas/:id/movimentacoes      → ApiResponse<MovimentacaoCaixa[]>
- *   GET  /caixas/:id/vendas             → ApiResponse<VendaResumo[]>
- *   GET  /caixas/:id/recebimentos       → ApiResponse<RecebimentoCaixa[]>
- *   POST /caixas/:id/fechamento         → ApiResponse<Caixa>
+ *   GET  /caixas/:id/movimentacoes      → PaginatedResponse<MovimentacaoCaixa> (histórico completo, paginado)
+ *   GET  /caixas/:id/vendas             → ApiResponse<VendaResumo[]> (sempre vazio até Vendas existir)
+ *   GET  /caixas/:id/recebimentos       → ApiResponse<RecebimentoCaixa[]> (sempre vazio até Vendas existir)
+ *   POST /caixas/:id/fechamento         → ApiResponse<CaixaDetalhe>
  */
+import type { SelecaoFacetas } from "@/lib/filtros/facetas";
 import type { VendaResumo } from "./venda";
 
 export type CaixaStatus = "aberto" | "fechado";
@@ -38,12 +40,7 @@ export const LABEL_STATUS_CAIXA: Record<CaixaStatus, string> = {
 export const STATUS_CAIXA: CaixaStatus[] = ["aberto", "fechado"];
 
 export type TipoMovimentacaoCaixa =
-  | "venda"
-  | "recebimento_parcela"
-  | "entrada"
-  | "saida"
-  | "devolucao"
-  | "cancelamento";
+  "venda" | "recebimento_parcela" | "entrada" | "saida" | "devolucao" | "cancelamento";
 
 export const LABEL_TIPO_MOVIMENTACAO: Record<TipoMovimentacaoCaixa, string> = {
   venda: "Venda",
@@ -196,6 +193,8 @@ export interface EntradaCaixaPayload {
   formaPagamento: FormaPagamento;
   responsavelId?: string | null | undefined;
   observacao?: string | undefined;
+  /** Repetir a mesma chave para o mesmo caixa devolve o movimento já criado, sem duplicar (protege contra retry). */
+  idempotencyKey?: string | undefined;
 }
 
 export interface SaidaCaixaPayload extends EntradaCaixaPayload {
@@ -225,3 +224,45 @@ export const MOTIVOS_SAIDA = [
   "Retirada",
   "Outros",
 ] as const;
+
+export type OrdenarCaixaPor = "data" | "faturamento" | "saldo" | "diferenca" | "vendas";
+export type Ordem = "asc" | "desc";
+
+/**
+ * Espelha exatamente `ListarCaixasQueryDto` do backend
+ * (`backend/src/modules/caixas/dto/listar-caixas-query.dto.ts`): `busca` +
+ * `ordenarPor`/`ordem` + a seleção de facetas em CSV (`status`, `periodo`,
+ * `responsavel`, `diferenca`, `saldo`) + `page`/`limit`.
+ */
+export interface CaixaFiltros {
+  facetas?: SelecaoFacetas | undefined;
+  busca?: string | undefined;
+  ordenarPor?: OrdenarCaixaPor | undefined;
+  ordem?: Ordem | undefined;
+  page?: number | undefined;
+  limit?: number | undefined;
+}
+
+/** Paginação real, sempre devolvida pelo backend para `GET /caixas` — nunca calculada no cliente. */
+export interface CaixasMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+/** Filtros do histórico paginado de movimentações de UM caixa (`GET /caixas/:id/movimentacoes`). */
+export interface MovimentosCaixaFiltros {
+  tipo?: TipoMovimentacaoCaixa[] | undefined;
+  responsavelId?: string | undefined;
+  ordem?: Ordem | undefined;
+  page?: number | undefined;
+  limit?: number | undefined;
+}
+
+export interface MovimentosCaixaMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}

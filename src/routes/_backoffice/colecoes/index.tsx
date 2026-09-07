@@ -1,14 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
-import { CardsSkeleton, DataToolbar, NotaDemonstracao } from "@/components/common/data-toolbar";
+import { CardsSkeleton, DataToolbar, Paginacao } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import type { GrupoFacetaDef } from "@/lib/filtros/facetas";
+import type { GrupoFacetaDef, SelecaoFacetas } from "@/lib/filtros/facetas";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PeriodoCard } from "@/components/cadastros/periodo-card";
 import {
@@ -23,10 +23,9 @@ import {
   useCriarColecao,
   useRemoverColecao,
 } from "@/hooks/use-cadastros";
-import { useProdutos } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
 import { OPCOES_BANNER, OPCOES_DESTAQUE, OPCOES_VIGENCIA, statusVigencia } from "@/utils/vitrine";
-import type { Colecao } from "@/types/colecao";
+import type { Colecao, ColecaoFiltros } from "@/types/colecao";
 
 export const Route = createFileRoute("/_backoffice/colecoes/")({
   ssr: false,
@@ -49,21 +48,58 @@ export const Route = createFileRoute("/_backoffice/colecoes/")({
   component: ColecoesPage,
 });
 
+const POR_PAGINA = 12;
+
 function ColecoesPage() {
   const navigate = useNavigate();
-  const { data: colecoes, isPending, isError, error, refetch } = useColecoes();
-  const { data: produtos } = useProdutos({});
+  const [busca, setBusca] = useState("");
+  const [pagina, setPagina] = useState(1);
+  const [dialogAberto, setDialogAberto] = useState(false);
+  const [emEdicao, setEmEdicao] = useState<Colecao | null>(null);
+  const [paraExcluir, setParaExcluir] = useState<Colecao | null>(null);
+
+  // Seleção das facetas é enviada à camada de dados: os counts NÃO são
+  // calculados sobre a página atual, e sim devolvidos em `facets` — mesmo
+  // esquema já usado em Produtos/Clientes/Fornecedores.
+  const [selecao, setSelecao] = useState<SelecaoFacetas>({});
+
   const criar = useCriarColecao();
   const atualizar = useAtualizarColecao();
   const alterarStatus = useAlterarStatusColecao();
   const remover = useRemoverColecao();
 
-  const [busca, setBusca] = useState("");
-  const [dialogAberto, setDialogAberto] = useState(false);
-  const [emEdicao, setEmEdicao] = useState<Colecao | null>(null);
-  const [paraExcluir, setParaExcluir] = useState<Colecao | null>(null);
+  // Busca ou facetas mudaram: o conjunto de resultados é outro, então a
+  // paginação sempre recomeça em 1. Sem `pagina`/`limit` nesta dependência,
+  // para o efeito abaixo não entrar em looping consigo mesmo a cada troca de página.
+  const criteriosFiltro = useMemo(
+    () => ({ busca: busca || undefined, facetas: selecao }),
+    [busca, selecao],
+  );
 
-  const listaProdutos = useMemo(() => produtos?.produtos ?? [], [produtos]);
+  useEffect(() => {
+    setPagina(1);
+  }, [criteriosFiltro]);
+
+  const filtros = useMemo<ColecaoFiltros>(
+    () => ({ ...criteriosFiltro, page: pagina, limit: POR_PAGINA }),
+    [criteriosFiltro, pagina],
+  );
+
+  const { data, isPending, isError, error, refetch, isFetching } = useColecoes(filtros);
+  const colecoes = useMemo(() => data?.colecoes ?? [], [data?.colecoes]);
+  const totalPaginas = data?.meta.totalPages ?? 1;
+  const total = data?.meta.total ?? 0;
+  const paginaAtual = pagina;
+
+  // A página pedida pode ficar fora do intervalo depois que o conjunto de
+  // resultados muda de tamanho (ex.: uma coleção foi excluída e a página 5
+  // deixou de existir) — corrige para a última página válida em vez de
+  // deixar "página 5 de 3" na tela.
+  useEffect(() => {
+    if (data && pagina > data.meta.totalPages) {
+      setPagina(data.meta.totalPages);
+    }
+  }, [data, pagina]);
 
   const grupos = useMemo<GrupoFacetaDef<Colecao>[]>(
     () => [
@@ -92,30 +128,27 @@ function ColecoesPage() {
           { valor: "com", label: "Com produtos" },
           { valor: "sem", label: "Sem produtos" },
         ],
-        corresponde: (colecao, valor) => {
-          const quantidade = listaProdutos.filter(
-            (produto) => produto.colecaoId === colecao.id,
-          ).length;
-          return valor === "com" ? quantidade > 0 : quantidade === 0;
-        },
+        corresponde: (colecao, valor) =>
+          valor === "com" ? colecao.produtosVinculados > 0 : colecao.produtosVinculados === 0,
       },
     ],
-    [listaProdutos],
+    [],
   );
 
-  const buscadas = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    if (!termo) return colecoes ?? [];
-    return (colecoes ?? []).filter(
-      (colecao) =>
-        colecao.nome.toLowerCase().includes(termo) ||
-        colecao.descricao.toLowerCase().includes(termo) ||
-        colecao.codigo.toLowerCase().includes(termo),
-    );
-  }, [colecoes, busca]);
+  const filtragem = useFiltrosFacetados({
+    itens: colecoes,
+    grupos,
+    facetasExternas: data?.facets,
+    selecao,
+    onSelecaoChange: setSelecao,
+  });
 
-  const filtragem = useFiltrosFacetados({ itens: buscadas, grupos });
-  const filtradas = filtragem.itensFiltrados;
+  const temFiltros = Boolean(busca) || filtragem.temSelecao;
+
+  function limparFiltros() {
+    setBusca("");
+    filtragem.limparTudo();
+  }
 
   const valoresIniciais: PeriodoFormValues = emEdicao
     ? {
@@ -168,10 +201,6 @@ function ColecoesPage() {
     }
   }
 
-  function contarProdutos(colecaoId: string): number {
-    return listaProdutos.filter((produto) => produto.colecaoId === colecaoId).length;
-  }
-
   return (
     <Page
       titulo="Coleções"
@@ -184,11 +213,6 @@ function ColecoesPage() {
         </Button>
       }
     >
-      <NotaDemonstracao>
-        As coleções são servidas pela camada mock preparada para os contratos <code>/colecoes</code>{" "}
-        da futura API.
-      </NotaDemonstracao>
-
       <DataToolbar
         busca={busca}
         onBuscaChange={setBusca}
@@ -200,11 +224,9 @@ function ColecoesPage() {
         totalSelecionados={filtragem.totalSelecionados}
         onAlternar={filtragem.alternar}
         onLimparGrupo={filtragem.limparGrupo}
-        onLimparTudo={filtragem.limparTudo}
+        onLimparTudo={limparFiltros}
         resultado={
-          <span className="text-sm text-muted-foreground">
-            {filtradas.length} coleção(ões) encontrada(s)
-          </span>
+          <span className="text-sm text-muted-foreground">{total} coleção(ões) encontrada(s)</span>
         }
       />
 
@@ -212,25 +234,31 @@ function ColecoesPage() {
         <CardsSkeleton itens={6} />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
-      ) : filtradas.length === 0 ? (
+      ) : total === 0 ? (
         <EmptyState
           titulo="Nenhuma coleção encontrada"
           descricao="Ajuste a busca ou cadastre uma nova coleção para agrupar seus produtos."
           acao={
-            <Button onClick={abrirNova}>
-              <Plus aria-hidden className="size-4" />
-              Nova coleção
-            </Button>
+            temFiltros ? (
+              <Button variant="outline" onClick={limparFiltros}>
+                Limpar filtros
+              </Button>
+            ) : (
+              <Button onClick={abrirNova}>
+                <Plus aria-hidden className="size-4" />
+                Nova coleção
+              </Button>
+            )
           }
         />
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-          {filtradas.map((colecao) => (
+          {colecoes.map((colecao) => (
             <PeriodoCard
               key={colecao.id}
               item={colecao}
               tipo="colecao"
-              totalProdutos={contarProdutos(colecao.id)}
+              totalProdutos={colecao.produtosVinculados}
               onEditar={() => {
                 setEmEdicao(colecao);
                 setDialogAberto(true);
@@ -244,6 +272,20 @@ function ColecoesPage() {
           ))}
         </div>
       )}
+
+      {total > 0 ? (
+        <div className="mt-7 flex items-center justify-end">
+          {isFetching ? <span className="text-xs text-muted-foreground">Atualizando…</span> : null}
+        </div>
+      ) : null}
+
+      <Paginacao
+        pagina={paginaAtual}
+        totalPaginas={totalPaginas}
+        total={total}
+        rotulo="coleção(ões)"
+        onPaginaChange={setPagina}
+      />
 
       <PeriodoDialog
         open={dialogAberto}

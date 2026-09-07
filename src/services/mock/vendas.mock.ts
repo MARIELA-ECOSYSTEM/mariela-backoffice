@@ -9,6 +9,12 @@ import {
   sincronizarAgregadosVendedores,
 } from "./db";
 import { registrarDevolucao, registrarRecebimentoParcela } from "./caixas.lancamentos";
+import { facetasVenda } from "@/lib/filtros/vendas-facetas";
+import {
+  calcularFacetasApi,
+  filtrarPorSelecao,
+  lerSelecaoDaQuery,
+} from "@/lib/filtros/facetas-servidor";
 import { ApiError } from "@/types/api";
 import type {
   CancelamentoPayload,
@@ -49,11 +55,15 @@ function sincronizarResumo(venda: VendaDetalhe): void {
 }
 
 /** Devolução física ao estoque: o item volta para o tamanho de origem. */
-function devolverAoEstoque(produtoId: string, varianteId: string | null, tamanho: string | null, quantidade: number): void {
+function devolverAoEstoque(
+  produtoId: string,
+  varianteId: string | null,
+  tamanho: string | null,
+  quantidade: number,
+): void {
   const produto = db.produtos.find((item) => item.id === produtoId);
   if (!produto || quantidade <= 0) return;
-  const variante =
-    produto.variantes.find((item) => item.id === varianteId) ?? produto.variantes[0];
+  const variante = produto.variantes.find((item) => item.id === varianteId) ?? produto.variantes[0];
   if (!variante) return;
   const alvo = variante.tamanhos.find((item) => item.tamanho === tamanho) ?? variante.tamanhos[0];
   if (!alvo) return;
@@ -83,14 +93,61 @@ function estatisticas(vendas: VendaResumo[]): VendasEstatisticas {
   };
 }
 
+/** Mesmo `ordenarPor`/`ordem` do contrato real. */
+function ordenarVendasPorCampo(lista: VendaResumo[], campo: string, ordem: string): VendaResumo[] {
+  const fator = ordem === "asc" ? 1 : -1;
+  return [...lista].sort((a, b) => {
+    switch (campo) {
+      case "valor":
+        return (a.valorFinal - b.valorFinal) * fator;
+      case "pendente":
+        return (a.valorPendente - b.valorPendente) * fator;
+      default:
+        return a.dataVenda.localeCompare(b.dataVenda) * fator;
+    }
+  });
+}
+
 export function registerVendasMocks(): void {
   /** Estatísticas precisam ser registradas ANTES de /vendas/:id. */
   registerMock("GET", "/vendas/estatisticas", () => ({ data: estatisticas(db.vendas) }));
 
-  registerMock("GET", "/vendas", () => ({
-    data: clonar(db.vendas),
-    meta: { total: db.vendas.length },
-  }));
+  registerMock("GET", "/vendas", ({ query }) => {
+    const busca = String(query["busca"] ?? "")
+      .trim()
+      .toLowerCase();
+    let lista = db.vendas.filter((venda) => {
+      if (!busca) return true;
+      return (
+        venda.codigo.toLowerCase().includes(busca) ||
+        venda.numero.includes(busca) ||
+        venda.clienteNome.toLowerCase().includes(busca) ||
+        venda.vendedorNome.toLowerCase().includes(busca) ||
+        venda.formaPagamento.toLowerCase().includes(busca)
+      );
+    });
+
+    // Facetas: counts sempre sobre o conjunto completo desta busca (nunca
+    // sobre a página) — mesmo comportamento já usado pelos demais módulos.
+    const selecao = lerSelecaoDaQuery(query, facetasVenda);
+    const facets = calcularFacetasApi(lista, facetasVenda, selecao);
+
+    lista = filtrarPorSelecao(lista, facetasVenda, selecao);
+    lista = ordenarVendasPorCampo(
+      lista,
+      String(query["ordenarPor"] ?? "data"),
+      String(query["ordem"] ?? "desc"),
+    );
+
+    const total = lista.length;
+    const limit = Math.max(1, Number(query["limit"]) || 20);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const page = Math.min(Math.max(1, Number(query["page"]) || 1), totalPages);
+    const inicio = (page - 1) * limit;
+    const pagina = lista.slice(inicio, inicio + limit);
+
+    return { data: clonar(pagina), meta: { total, page, limit, totalPages }, facets };
+  });
 
   registerMock("GET", "/vendas/:id", ({ params }) => ({ data: clonar(encontrar(params["id"]!)) }));
 

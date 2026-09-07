@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { produtosApi } from "@/services/api/produtos.api";
 import type {
   FotoPrincipalRequest,
@@ -19,6 +19,11 @@ export function useProdutos(filtros: ProdutoFiltros) {
   return useQuery({
     queryKey: produtosKeys.lista(filtros),
     queryFn: () => produtosApi.listar(filtros),
+    // Mantém a página/lista anterior visível (só marca `isPlaceholderData`/
+    // `isFetching`) enquanto a próxima página ou um novo filtro carrega, em
+    // vez de voltar para o skeleton a cada troca — a paginação é server-side
+    // agora, então toda mudança de página é uma requisição nova.
+    placeholderData: keepPreviousData,
   });
 }
 

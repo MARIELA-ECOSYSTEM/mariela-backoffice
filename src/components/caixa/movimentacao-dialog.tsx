@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useVendedores } from "@/hooks/use-vendedores";
+import { LIMITE_MAXIMO_VENDEDORES } from "@/services/api/vendedores.api";
 import { formatarMoeda } from "@/utils/format";
 import { MOTIVOS_ENTRADA, MOTIVOS_SAIDA, type SaidaCaixaPayload } from "@/types/caixa";
 
@@ -43,7 +44,8 @@ export function MovimentacaoCaixaDialog({
   onConfirmar: (payload: SaidaCaixaPayload) => void;
 }) {
   const { data: configuracoes } = useConfiguracoes();
-  const { data: vendedores } = useVendedores();
+  const { data: vendedoresData } = useVendedores({ page: 1, limit: LIMITE_MAXIMO_VENDEDORES });
+  const vendedores = vendedoresData?.vendedores;
   const formas = configuracoes?.formasPagamento ?? ["Dinheiro"];
   const sugestoes = tipo === "entrada" ? MOTIVOS_ENTRADA : MOTIVOS_SAIDA;
 
@@ -54,6 +56,10 @@ export function MovimentacaoCaixaDialog({
   const [observacao, setObservacao] = useState("");
   const [responsavelId, setResponsavelId] = useState("backoffice");
   const [confirmando, setConfirmando] = useState(false);
+  // Gerada de novo a cada abertura do diálogo: se a requisição de confirmar
+  // precisar ser refeita (retry de rede), a mesma chave chega à API e evita
+  // duplicar a movimentação — reabrir o diálogo é que gera uma tentativa nova.
+  const [idempotencyKey, setIdempotencyKey] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -64,6 +70,7 @@ export function MovimentacaoCaixaDialog({
     setObservacao("");
     setResponsavelId("backoffice");
     setConfirmando(false);
+    setIdempotencyKey(crypto.randomUUID());
   }, [open, formas, sugestoes]);
 
   const numero = Number(valor.replace(",", "."));
@@ -79,6 +86,7 @@ export function MovimentacaoCaixaDialog({
       motivo: motivo,
       observacao: observacao.trim(),
       responsavelId: responsavelId === "backoffice" ? null : responsavelId,
+      idempotencyKey,
     });
   }
 

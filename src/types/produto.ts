@@ -45,22 +45,34 @@ export interface ProdutoPayload {
 export type OrdenarProdutoPor =
   "nome" | "codProduto" | "precoVenda" | "quantidadeTotal" | "criadoEm";
 export type Ordem = "asc" | "desc";
+/** Usado pelo filtro (mais simples) da tela de Estoque — não pelo de Produtos, que usa facetas. */
 export type FiltroDisponibilidade = "todos" | "disponivel" | "sem-estoque";
-export type FiltroBooleano = "todos" | "sim" | "nao";
 
+/**
+ * Espelha exatamente `ListarProdutosQueryDto` do backend
+ * (`backend/src/modules/produtos/dto/listar-produtos-query.dto.ts`):
+ * `busca` + `ordenarPor`/`ordem` + a seleção de facetas em CSV + `page`/`limit`.
+ * Os filtros "simples" (categoria única, `promocao=sim|nao`…) não existem mais
+ * no contrato real da API — foram substituídos pelo esquema de facetas.
+ */
 export interface ProdutoFiltros {
   /** Seleção multivalorada das facetas (`{ categorias: ["Vestidos"] }`). */
   facetas?: SelecaoFacetas | undefined;
   busca?: string | undefined;
-  categoria?: string | undefined;
-  colecaoId?: string | undefined;
-  campanhaId?: string | undefined;
-  fornecedorId?: string | undefined;
-  disponibilidade?: FiltroDisponibilidade | undefined;
-  promocao?: FiltroBooleano | undefined;
-  novidade?: FiltroBooleano | undefined;
   ordenarPor?: OrdenarProdutoPor | undefined;
   ordem?: Ordem | undefined;
+  /** Página solicitada (1-based). Ausente = página 1 (ver `PAGINA_PADRAO_PRODUTOS`). */
+  page?: number | undefined;
+  /** Itens por página. Ausente = 20 (ver `LIMITE_PADRAO_PRODUTOS`), máximo 100 (limite do backend). */
+  limit?: number | undefined;
+}
+
+/** Paginação real, sempre devolvida pelo backend para `GET /produtos` — nunca calculada no cliente. */
+export interface ProdutosMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface FotoPrincipalRequest {

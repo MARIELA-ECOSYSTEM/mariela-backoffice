@@ -3,8 +3,7 @@ import { Page } from "@/components/layout/page";
 import { DetalhePeriodo } from "@/components/cadastros/detalhe-periodo";
 import { ErrorState, EmptyState } from "@/components/common/states";
 import { CardsSkeleton } from "@/components/common/data-toolbar";
-import { useCampanhas } from "@/hooks/use-cadastros";
-import { useProdutos } from "@/hooks/use-produtos";
+import { useCampanha, useProdutosDaCampanha } from "@/hooks/use-cadastros";
 
 export const Route = createFileRoute("/_backoffice/campanhas/$id")({
   ssr: false,
@@ -29,11 +28,8 @@ export const Route = createFileRoute("/_backoffice/campanhas/$id")({
 
 function CampanhaDetalhePage() {
   const { id } = Route.useParams();
-  const { data: campanhas, isPending, isError, error, refetch } = useCampanhas();
-  const { data: produtos } = useProdutos({});
-
-  const campanha = (campanhas ?? []).find((item) => item.id === id);
-  const vinculados = (produtos?.produtos ?? []).filter((produto) => produto.campanhaId === id);
+  const { data: campanha, isPending, isError, error, refetch } = useCampanha(id);
+  const { data: produtos } = useProdutosDaCampanha(id);
 
   return (
     <Page
@@ -51,7 +47,7 @@ function CampanhaDetalhePage() {
           descricao="Ela pode ter sido excluída. Volte para a listagem de campanhas."
         />
       ) : (
-        <DetalhePeriodo item={campanha} tipo="campanha" produtos={vinculados} />
+        <DetalhePeriodo item={campanha} tipo="campanha" produtos={produtos ?? []} />
       )}
     </Page>
   );

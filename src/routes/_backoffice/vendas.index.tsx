@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { BadgeDollarSign, Ban, Clock3, Receipt, TicketPercent } from "lucide-react";
 import { Page } from "@/components/layout/page";
@@ -14,17 +14,29 @@ import { EmptyState, ErrorState } from "@/components/common/states";
 import { Metrica } from "@/components/dashboard/metrica";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import { opcoesDe, opcoesDeValores, type GrupoFacetaDef } from "@/lib/filtros/facetas";
+import {
+  opcoesDe,
+  opcoesDeValores,
+  type GrupoFacetaDef,
+  type SelecaoFacetas,
+} from "@/lib/filtros/facetas";
 import { VendaCard, VendasGrid, VendasGridSkeleton } from "@/components/vendas/venda-card";
 import { useEstatisticasVendas, useVendas } from "@/hooks/use-vendas";
 import { useVendedores } from "@/hooks/use-vendedores";
+import { LIMITE_MAXIMO_VENDEDORES } from "@/services/api/vendedores.api";
 import { useClientes } from "@/hooks/use-cadastros";
-import { LABEL_STATUS_VENDA, STATUS_VENDA, type VendaResumo } from "@/types/venda";
+import { LIMITE_MAXIMO_CLIENTES } from "@/services/api/cadastros.api";
+import {
+  LABEL_STATUS_VENDA,
+  STATUS_VENDA,
+  type VendaFiltros,
+  type VendaResumo,
+} from "@/types/venda";
 import {
   FAIXAS_VALOR_VENDA,
   OPCOES_ORDENACAO_VENDA,
   OPCOES_PERIODO_VENDA,
-  ordenarVendas,
+  paraOrdenarPorEOrdem,
   vendaNaFaixa,
   vendaNoPeriodo,
   type OrdenacaoVenda,
@@ -56,26 +68,51 @@ export const Route = createFileRoute("/_backoffice/vendas/")({
 const POR_PAGINA = 12;
 
 function VendasPage() {
-  const { data: vendas, isPending, isError, error, refetch } = useVendas();
   const { data: estatisticas } = useEstatisticasVendas();
-  const { data: vendedores } = useVendedores();
-  const { data: clientes } = useClientes();
+  // Precisa da base inteira para os filtros "Vendedor"/"Cliente" listarem todo
+  // mundo, não só uma página — mesma limitação documentada em Produtos: acima
+  // de `LIMITE_MAXIMO_VENDEDORES`/`LIMITE_MAXIMO_CLIENTES` (100) registros
+  // reais, nem todos apareceriam aqui. Corrigir isso de verdade exige um
+  // endpoint dedicado (fora do escopo desta etapa).
+  const { data: vendedoresData } = useVendedores({ page: 1, limit: LIMITE_MAXIMO_VENDEDORES });
+  const vendedores = vendedoresData?.vendedores;
+  const { data: clientesData } = useClientes({ page: 1, limit: LIMITE_MAXIMO_CLIENTES });
+  const clientes = clientesData?.clientes;
 
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState<OrdenacaoVenda>("data-desc");
   const [pagina, setPagina] = useState(1);
 
-  const formasPagamento = useMemo(
-    () => Array.from(new Set((vendas ?? []).map((venda) => venda.formaPagamento))).sort(),
-    [vendas],
+  // Seleção das facetas é enviada à camada de dados: os counts NÃO são
+  // calculados sobre a página atual, e sim devolvidos em `facets` — mesmo
+  // esquema já usado em Clientes/Fornecedores/Coleções/Campanhas/Vendedores/Caixa.
+  const [selecao, setSelecao] = useState<SelecaoFacetas>({});
+
+  const criteriosFiltro = useMemo(
+    () => ({ busca: busca || undefined, facetas: selecao, ...paraOrdenarPorEOrdem(ordem) }),
+    [busca, selecao, ordem],
   );
-  const caixas = useMemo(
-    () =>
-      Array.from(
-        new Set((vendas ?? []).map((venda) => venda.caixaCodigo).filter((item): item is string => Boolean(item))),
-      ).sort(),
-    [vendas],
+
+  useEffect(() => {
+    setPagina(1);
+  }, [criteriosFiltro]);
+
+  const filtros = useMemo<VendaFiltros>(
+    () => ({ ...criteriosFiltro, page: pagina, limit: POR_PAGINA }),
+    [criteriosFiltro, pagina],
   );
+
+  const { data, isPending, isError, error, refetch, isFetching } = useVendas(filtros);
+  const vendas = useMemo(() => data?.vendas ?? [], [data?.vendas]);
+  const totalPaginas = data?.meta.totalPages ?? 1;
+  const total = data?.meta.total ?? 0;
+  const paginaAtual = pagina;
+
+  useEffect(() => {
+    if (data && pagina > data.meta.totalPages) {
+      setPagina(data.meta.totalPages);
+    }
+  }, [data, pagina]);
 
   const grupos = useMemo<GrupoFacetaDef<VendaResumo>[]>(
     () => [
@@ -106,10 +143,7 @@ function VendasPage() {
       {
         id: "cliente",
         label: "Cliente",
-        opcoes: [
-          { valor: "consumidor-final", label: "Consumidor final" },
-          ...opcoesDe(clientes),
-        ],
+        opcoes: [{ valor: "consumidor-final", label: "Consumidor final" }, ...opcoesDe(clientes)],
         buscavel: true,
         placeholderBusca: "Buscar cliente…",
         corresponde: (venda, valor) =>
@@ -118,13 +152,14 @@ function VendasPage() {
       {
         id: "pagamento",
         label: "Forma de pagamento",
-        opcoes: opcoesDeValores(formasPagamento),
+        // Valores dinâmicos: vêm do `facets` do próprio backend.
+        opcoes: opcoesDeValores((data?.facets["pagamento"] ?? []).map((opcao) => opcao.valor)),
         corresponde: (venda, valor) => venda.formaPagamento === valor,
       },
       {
         id: "caixa",
         label: "Caixa",
-        opcoes: opcoesDeValores(caixas),
+        opcoes: opcoesDeValores((data?.facets["caixa"] ?? []).map((opcao) => opcao.valor)),
         corresponde: (venda, valor) => venda.caixaCodigo === valor,
       },
       {
@@ -167,31 +202,21 @@ function VendasPage() {
                 : venda.valorDevolvido > 0,
       },
     ],
-    [vendedores, clientes, formasPagamento, caixas],
+    [vendedores, clientes, data?.facets],
   );
 
-  const buscados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    if (!termo) return vendas ?? [];
-    return (vendas ?? []).filter(
-      (venda) =>
-        venda.codigo.toLowerCase().includes(termo) ||
-        venda.numero.includes(termo) ||
-        venda.clienteNome.toLowerCase().includes(termo) ||
-        venda.vendedorNome.toLowerCase().includes(termo) ||
-        venda.formaPagamento.toLowerCase().includes(termo),
-    );
-  }, [vendas, busca]);
+  const filtragem = useFiltrosFacetados({
+    itens: vendas,
+    grupos,
+    facetasExternas: data?.facets,
+    selecao,
+    onSelecaoChange: setSelecao,
+  });
 
-  const filtragem = useFiltrosFacetados({ itens: buscados, grupos });
-  const filtradas = useMemo(
-    () => ordenarVendas(filtragem.itensFiltrados, ordem),
-    [filtragem.itensFiltrados, ordem],
-  );
-
-  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA));
-  const paginaAtual = Math.min(pagina, totalPaginas);
-  const visiveis = filtradas.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
+  function limparFiltros() {
+    setBusca("");
+    filtragem.limparTudo();
+  }
 
   return (
     <Page
@@ -253,10 +278,7 @@ function VendasPage() {
 
       <DataToolbar
         busca={busca}
-        onBuscaChange={(valor) => {
-          setBusca(valor);
-          setPagina(1);
-        }}
+        onBuscaChange={setBusca}
         placeholder="Buscar por código, cliente, vendedor ou pagamento…"
       >
         <Select value={ordem} onValueChange={(valor) => setOrdem(valor as OrdenacaoVenda)}>
@@ -276,16 +298,11 @@ function VendasPage() {
       <PainelFiltros
         grupos={filtragem.grupos}
         totalSelecionados={filtragem.totalSelecionados}
-        onAlternar={(grupoId, valor) => {
-          filtragem.alternar(grupoId, valor);
-          setPagina(1);
-        }}
+        onAlternar={filtragem.alternar}
         onLimparGrupo={filtragem.limparGrupo}
-        onLimparTudo={filtragem.limparTudo}
+        onLimparTudo={limparFiltros}
         resultado={
-          <span className="text-sm text-muted-foreground">
-            {filtradas.length} venda(s) encontrada(s)
-          </span>
+          <span className="text-sm text-muted-foreground">{total} venda(s) encontrada(s)</span>
         }
       />
 
@@ -293,23 +310,29 @@ function VendasPage() {
         <VendasGridSkeleton />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
-      ) : filtradas.length === 0 ? (
+      ) : total === 0 ? (
         <EmptyState
           titulo="Nenhuma venda encontrada"
           descricao="Ajuste a busca e os filtros para localizar as vendas registradas no PDV."
         />
       ) : (
         <VendasGrid>
-          {visiveis.map((venda) => (
+          {vendas.map((venda) => (
             <VendaCard key={venda.id} venda={venda} />
           ))}
         </VendasGrid>
       )}
 
+      {total > 0 ? (
+        <div className="mt-7 flex items-center justify-end">
+          {isFetching ? <span className="text-xs text-muted-foreground">Atualizando…</span> : null}
+        </div>
+      ) : null}
+
       <Paginacao
         pagina={paginaAtual}
         totalPaginas={totalPaginas}
-        total={filtradas.length}
+        total={total}
         rotulo="venda(s)"
         onPaginaChange={setPagina}
       />

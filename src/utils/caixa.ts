@@ -1,4 +1,11 @@
-import type { Caixa, CaixaStatus, MovimentacaoCaixa, TipoMovimentacaoCaixa } from "@/types/caixa";
+import type {
+  Caixa,
+  CaixaStatus,
+  MovimentacaoCaixa,
+  Ordem,
+  OrdenarCaixaPor,
+  TipoMovimentacaoCaixa,
+} from "@/types/caixa";
 
 /** Badge do status do caixa — roxo (aberto) é a identidade da marca. */
 export const VARIANTE_STATUS_CAIXA: Record<CaixaStatus, "default" | "outline"> = {
@@ -56,6 +63,36 @@ function faturamento(caixa: Caixa): number {
   return caixa.resumo.totalVendas + caixa.resumo.recebimentos;
 }
 
+/**
+ * Converte a opção combinada do seletor (`OPCOES_ORDENACAO_CAIXA`) em
+ * `ordenarPor`/`ordem` — o par que a API (`ListarCaixasQueryDto`) realmente
+ * espera. A ordenação passou a acontecer no servidor; este mapa existe só
+ * para preservar o rótulo único já exposto na tela.
+ */
+export function paraOrdenarPorEOrdem(valor: OrdenacaoCaixa): {
+  ordenarPor: OrdenarCaixaPor;
+  ordem: Ordem;
+} {
+  switch (valor) {
+    case "data-asc":
+      return { ordenarPor: "data", ordem: "asc" };
+    case "faturamento-desc":
+      return { ordenarPor: "faturamento", ordem: "desc" };
+    case "faturamento-asc":
+      return { ordenarPor: "faturamento", ordem: "asc" };
+    case "saldo-desc":
+      return { ordenarPor: "saldo", ordem: "desc" };
+    case "diferenca-desc":
+      return { ordenarPor: "diferenca", ordem: "desc" };
+    case "vendas-desc":
+      return { ordenarPor: "vendas", ordem: "desc" };
+    case "data-desc":
+    default:
+      return { ordenarPor: "data", ordem: "desc" };
+  }
+}
+
+/** @deprecated A ordenação agora é feita pelo backend (ver `paraOrdenarPorEOrdem`); mantida para compatibilidade de testes/consumidores que ainda ordenam localmente. */
 export function ordenarCaixas(caixas: Caixa[], ordem: OrdenacaoCaixa): Caixa[] {
   const lista = [...caixas];
   switch (ordem) {
@@ -69,8 +106,7 @@ export function ordenarCaixas(caixas: Caixa[], ordem: OrdenacaoCaixa): Caixa[] {
       return lista.sort((a, b) => b.resumo.saldoEsperado - a.resumo.saldoEsperado);
     case "diferenca-desc":
       return lista.sort(
-        (a, b) =>
-          Math.abs(b.fechamento?.diferenca ?? 0) - Math.abs(a.fechamento?.diferenca ?? 0),
+        (a, b) => Math.abs(b.fechamento?.diferenca ?? 0) - Math.abs(a.fechamento?.diferenca ?? 0),
       );
     case "vendas-desc":
       return lista.sort((a, b) => b.resumo.quantidadeVendas - a.resumo.quantidadeVendas);

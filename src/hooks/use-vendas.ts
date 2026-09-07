@@ -1,12 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { vendasApi } from "@/services/api/vendas.api";
 import { clientesKeys, fornecedoresKeys } from "@/hooks/use-cadastros";
 import { vendedoresKeys } from "@/hooks/use-vendedores";
 import { produtosKeys } from "@/hooks/use-produtos";
-import type { BaixaParcelaPayload, CancelamentoPayload } from "@/types/venda";
+import type { BaixaParcelaPayload, CancelamentoPayload, VendaFiltros } from "@/types/venda";
 
 export const vendasKeys = {
   todas: ["vendas"] as const,
+  lista: (filtros: VendaFiltros) => [...vendasKeys.todas, "lista", filtros] as const,
   estatisticas: ["vendas", "estatisticas"] as const,
   detalhe: (id: string) => ["vendas", "detalhe", id] as const,
 };
@@ -26,11 +27,18 @@ function useInvalidar() {
   };
 }
 
-export function useVendas() {
+/**
+ * Paginação/busca/facetas real, delegada ao backend — mesmo padrão de
+ * `useClientes`/`useFornecedores`/`useVendedores`/`useCaixas`. Sem
+ * `staleTime`: uma versão anterior deste hook cacheava por 30s antes de
+ * existir paginação; mantê-lo serviria dados obsoletos ao voltar para uma
+ * página já visitada (mesmo bug já corrigido nos módulos acima).
+ */
+export function useVendas(filtros: VendaFiltros = {}) {
   return useQuery({
-    queryKey: vendasKeys.todas,
-    queryFn: () => vendasApi.listar(),
-    staleTime: 30_000,
+    queryKey: vendasKeys.lista(filtros),
+    queryFn: () => vendasApi.listar(filtros),
+    placeholderData: keepPreviousData,
   });
 }
 

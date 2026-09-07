@@ -17,10 +17,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { EmptyState, ErrorState } from "@/components/common/states";
+import { Paginacao } from "@/components/common/data-toolbar";
 import { MovimentacoesTabela } from "@/components/caixa/movimentacoes-tabela";
 import { MovimentacaoCaixaDialog } from "@/components/caixa/movimentacao-dialog";
 import { FechamentoCaixaDialog } from "@/components/caixa/fechamento-dialog";
-import { useCaixa, useEntradaCaixa, useFecharCaixa, useSaidaCaixa } from "@/hooks/use-caixas";
+import {
+  useCaixa,
+  useEntradaCaixa,
+  useFecharCaixa,
+  useMovimentacoesDoCaixa,
+  useSaidaCaixa,
+} from "@/hooks/use-caixas";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarData, formatarDataHora, formatarMoeda } from "@/utils/format";
 import { LABEL_STATUS_CAIXA, type SaidaCaixaPayload } from "@/types/caixa";
@@ -84,6 +91,8 @@ function ResumoItem({
   );
 }
 
+const POR_PAGINA_MOVIMENTOS = 20;
+
 function CaixaDetalhePage() {
   const { id } = Route.useParams();
   const { data: caixa, isPending, isError, error, refetch } = useCaixa(id);
@@ -93,6 +102,15 @@ function CaixaDetalhePage() {
 
   const [movimentacao, setMovimentacao] = useState<"entrada" | "saida" | null>(null);
   const [fechamentoAberto, setFechamentoAberto] = useState(false);
+  const [paginaMovimentos, setPaginaMovimentos] = useState(1);
+
+  // Histórico completo (paginado) — diferente das "últimas movimentações"
+  // que já vêm embutidas no detalhe (não limitadas para exibição resumida em
+  // outras telas, mas cortadas a uma janela recente pelo backend).
+  const { data: movimentosPagina } = useMovimentacoesDoCaixa(id, {
+    page: paginaMovimentos,
+    limit: POR_PAGINA_MOVIMENTOS,
+  });
 
   if (isPending) {
     return (
@@ -260,7 +278,14 @@ function CaixaDetalhePage() {
           <CardTitle className="font-display text-2xl">Movimentações</CardTitle>
         </CardHeader>
         <CardContent>
-          <MovimentacoesTabela movimentacoes={caixa.movimentacoes} />
+          <MovimentacoesTabela movimentacoes={movimentosPagina?.movimentacoes ?? []} />
+          <Paginacao
+            pagina={paginaMovimentos}
+            totalPaginas={movimentosPagina?.meta.totalPages ?? 1}
+            total={movimentosPagina?.meta.total ?? 0}
+            rotulo="movimentação(ões)"
+            onPaginaChange={setPaginaMovimentos}
+          />
         </CardContent>
       </Card>
 

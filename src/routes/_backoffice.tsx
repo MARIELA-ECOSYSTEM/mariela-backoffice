@@ -2,14 +2,19 @@ import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { useAuth } from "@/hooks/use-auth";
-import { getToken } from "@/services/api/client";
+import { getAccessToken, getRefreshToken } from "@/services/api/client";
 
 export const Route = createFileRoute("/_backoffice")({
   ssr: false,
   // Proteção da área administrativa no roteador: qualquer rota nova sob
   // /_backoffice herda o gate, sem depender de verificação visual nas telas.
+  //
+  // Basta EXISTIR algum token (mesmo que o access token já tenha expirado):
+  // a primeira chamada autenticada que a página fizer aciona a renovação
+  // automática do `apiClient` (ver `client.ts`) — só bloqueia aqui quando não
+  // sobra nenhum jeito de recuperar a sessão.
   beforeLoad: ({ location }) => {
-    if (!getToken()) {
+    if (!getAccessToken() && !getRefreshToken()) {
       throw redirect({ to: "/login", search: { redirect: location.href }, replace: true });
     }
   },

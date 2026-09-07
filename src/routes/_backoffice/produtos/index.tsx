@@ -21,6 +21,11 @@ import { ProdutoCard, ProdutoCardSkeleton } from "@/components/produtos/produto-
 import { useExcluirProduto, useProdutos } from "@/hooks/use-produtos";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useCampanhas, useColecoes, useFornecedores } from "@/hooks/use-cadastros";
+import {
+  LIMITE_MAXIMO_CAMPANHAS,
+  LIMITE_MAXIMO_COLECOES,
+  LIMITE_MAXIMO_FORNECEDORES,
+} from "@/services/api/cadastros.api";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
 import {
   opcoesDe,
@@ -95,16 +100,28 @@ function ProdutosPage() {
   const [produtoExclusao, setProdutoExclusao] = useState<Produto | null>(null);
 
   const { data: configuracoes } = useConfiguracoes();
-  const { data: colecoes } = useColecoes();
-  const { data: campanhas } = useCampanhas();
-  const { data: fornecedores } = useFornecedores();
+  // Dropdown de facetas precisa da base inteira de coleções, não uma página.
+  const { data: colecoesData } = useColecoes({ page: 1, limit: LIMITE_MAXIMO_COLECOES });
+  const colecoes = colecoesData?.colecoes;
+  // Dropdown de facetas precisa da base inteira de campanhas, não uma página.
+  const { data: campanhasData } = useCampanhas({ page: 1, limit: LIMITE_MAXIMO_CAMPANHAS });
+  const campanhas = campanhasData?.campanhas;
+  // Dropdown de facetas precisa da base inteira de fornecedores, não uma página.
+  const { data: fornecedoresData } = useFornecedores({
+    page: 1,
+    limit: LIMITE_MAXIMO_FORNECEDORES,
+  });
+  const fornecedores = fornecedoresData?.fornecedores;
   const excluir = useExcluirProduto();
 
   // Seleção das facetas é enviada à camada de dados: os counts NÃO são
   // calculados sobre a página atual, e sim devolvidos em `facets`.
   const [selecao, setSelecao] = useState<SelecaoFacetas>({});
 
-  const filtros = useMemo<ProdutoFiltros>(() => {
+  // Tudo que, ao mudar, invalida o conjunto de resultados (portanto exige
+  // voltar para a página 1) — deliberadamente SEM `pagina`/`limit` aqui, para
+  // o efeito abaixo não entrar em looping consigo mesmo a cada troca de página.
+  const criteriosFiltro = useMemo(() => {
     const opcao = ORDENACOES.find((item) => item.valor === ordenacao) ?? ORDENACOES[0]!;
     return {
       busca: busca || undefined,
@@ -114,8 +131,30 @@ function ProdutosPage() {
     };
   }, [busca, ordenacao, selecao]);
 
+  // Busca, ordenação ou facetas mudaram: o conjunto de resultados é outro,
+  // então a paginação sempre recomeça em 1.
+  useEffect(() => {
+    setPagina(1);
+  }, [criteriosFiltro]);
+
+  const filtros = useMemo<ProdutoFiltros>(
+    () => ({ ...criteriosFiltro, page: pagina, limit: POR_PAGINA }),
+    [criteriosFiltro, pagina],
+  );
+
   const { data, isPending, isError, error, refetch, isFetching } = useProdutos(filtros);
   const produtos = useMemo(() => data?.produtos ?? [], [data?.produtos]);
+  const totalPaginas = data?.meta.totalPages ?? 1;
+
+  // A página pedida pode ficar fora do intervalo depois que o conjunto de
+  // resultados muda de tamanho (ex.: um produto foi excluído e a página 5
+  // deixou de existir) — corrige para a última página válida assim que o
+  // backend informa o novo total, em vez de deixar "página 5 de 3" na tela.
+  useEffect(() => {
+    if (data && pagina > data.meta.totalPages) {
+      setPagina(data.meta.totalPages);
+    }
+  }, [data, pagina]);
 
   const grupos = useMemo<GrupoFacetaDef<Produto>[]>(
     () => [
@@ -188,20 +227,13 @@ function ProdutosPage() {
     selecao,
     onSelecaoChange: setSelecao,
   });
-  // A lista já vem filtrada pela camada de dados.
-  const visiveisTotal = produtos;
 
-  // Busca, ordenação ou filtros mudaram: volta para a primeira página.
-  useEffect(() => {
-    setPagina(1);
-  }, [filtros]);
-
-  const total = visiveisTotal.length;
-  const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
-  const paginaAtual = Math.min(pagina, totalPaginas);
-  const inicio = (paginaAtual - 1) * POR_PAGINA;
-  // Recorte local por página; ao conectar a API real basta enviar page/limit.
-  const visiveis = visiveisTotal.slice(inicio, inicio + POR_PAGINA);
+  // A página, a busca, a ordenação e os filtros já foram todos aplicados pelo
+  // backend — a resposta é exatamente o que deve aparecer na tela, sem
+  // nenhum corte/filtro adicional no cliente.
+  const visiveis = produtos;
+  const total = data?.meta.total ?? 0;
+  const paginaAtual = pagina;
 
   const temFiltros = Boolean(busca) || filtragem.temSelecao;
 

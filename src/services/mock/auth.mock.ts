@@ -1,7 +1,7 @@
 import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
 import type { ApiFieldError } from "@/types/api";
-import type { LoginRequest, LoginResponse, Usuario } from "@/types/auth";
+import type { LoginRequest, SessaoResponse, Usuario } from "@/types/auth";
 
 const USUARIO_ADMIN: Usuario = { id: "usr_001", nome: "Administrador", tipo: "ADMIN" };
 
@@ -14,7 +14,18 @@ const CREDENCIAIS = {
   usuario: ((import.meta.env["VITE_MOCK_LOGIN"] as string | undefined) ?? "admin").trim(),
   senha: ((import.meta.env["VITE_MOCK_SENHA"] as string | undefined) ?? "123456").trim(),
 };
-const TOKEN = "mock-token";
+const ACCESS_TOKEN = "mock-access-token";
+const REFRESH_TOKEN = "mock-refresh-token";
+const EXPIRES_IN = 900;
+
+function sessao(): SessaoResponse {
+  return {
+    accessToken: ACCESS_TOKEN,
+    refreshToken: REFRESH_TOKEN,
+    expiresIn: EXPIRES_IN,
+    usuario: USUARIO_ADMIN,
+  };
+}
 
 export function registerAuthMocks(): void {
   registerMock(
@@ -35,11 +46,32 @@ export function registerAuthMocks(): void {
         throw ApiError.unauthorized("Usuário ou senha inválidos.");
       }
 
-      const data: LoginResponse = { accessToken: TOKEN, usuario: USUARIO_ADMIN };
-      return { data };
+      return { data: sessao() };
     },
     { requiresAuth: false },
   );
+
+  // O mock não simula expiração/rotação real — um token fixo é suficiente
+  // para exercitar o CAMINHO (o app chamar `/auth/refresh` e receber um par
+  // válido de volta); a rotação de verdade só existe contra o backend real.
+  registerMock(
+    "POST",
+    "/auth/refresh",
+    ({ body }) => {
+      const refreshToken = (body as { refreshToken?: string } | undefined)?.refreshToken;
+      if (refreshToken !== REFRESH_TOKEN) {
+        throw new ApiError({
+          statusCode: 401,
+          code: "REFRESH_TOKEN_INVALID",
+          message: "Sessão expirada. Faça login novamente.",
+        });
+      }
+      return { data: sessao() };
+    },
+    { requiresAuth: false },
+  );
+
+  registerMock("POST", "/auth/logout", () => ({ data: { ok: true } }), { requiresAuth: false });
 
   registerMock("GET", "/auth/me", () => ({ data: USUARIO_ADMIN }));
 }

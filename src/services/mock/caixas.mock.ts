@@ -9,6 +9,12 @@ import {
   registrarMovimentacao,
   sincronizarResumosCaixas,
 } from "./caixas.lancamentos";
+import { facetasCaixa } from "@/lib/filtros/caixas-facetas";
+import {
+  calcularFacetasApi,
+  filtrarPorSelecao,
+  lerSelecaoDaQuery,
+} from "@/lib/filtros/facetas-servidor";
 import { ApiError } from "@/types/api";
 import type {
   AberturaCaixaPayload,
@@ -17,6 +23,7 @@ import type {
   CaixaEstatisticas,
   EntradaCaixaPayload,
   FechamentoCaixaPayload,
+  MovimentacaoCaixa,
   SaidaCaixaPayload,
 } from "@/types/caixa";
 
@@ -40,7 +47,9 @@ function exigirAberto(caixa: Caixa): void {
 
 function detalhar(caixa: Caixa): CaixaDetalhe {
   caixa.resumo = calcularResumoCaixa(caixa);
-  const movimentacoes = movimentacoesDoCaixa(caixa.id);
+  // No detalhe, só as movimentações MAIS RECENTES — histórico completo é
+  // `GET /caixas/:id/movimentacoes` (paginado), mesma regra do backend.
+  const movimentacoes = movimentacoesDoCaixa(caixa.id).slice(0, 20);
   const vendasIds = new Set(
     movimentacoes.map((item) => item.vendaId).filter((item): item is string => Boolean(item)),
   );
@@ -115,10 +124,49 @@ function validarMovimento(payload: Partial<SaidaCaixaPayload>, exigirMotivo: boo
   if (erros.length) throw ApiError.validation("Dados inválidos.", erros);
 }
 
+/** Mesmo `ordenarPor`/`ordem` do contrato real. */
+function ordenarCaixasPorCampo(lista: Caixa[], campo: string, ordem: string): Caixa[] {
+  const fator = ordem === "asc" ? 1 : -1;
+  return [...lista].sort((a, b) => {
+    switch (campo) {
+      case "faturamento":
+        return (
+          (a.resumo.totalVendas +
+            a.resumo.recebimentos -
+            (b.resumo.totalVendas + b.resumo.recebimentos)) *
+          fator
+        );
+      case "saldo":
+        return (a.resumo.saldoEsperado - b.resumo.saldoEsperado) * fator;
+      case "diferenca":
+        return (
+          (Math.abs(a.fechamento?.diferenca ?? 0) - Math.abs(b.fechamento?.diferenca ?? 0)) * fator
+        );
+      case "vendas":
+        return (a.resumo.quantidadeVendas - b.resumo.quantidadeVendas) * fator;
+      default:
+        return a.abertura.dataHora.localeCompare(b.abertura.dataHora) * fator;
+    }
+  });
+}
+
+/** Repetir a mesma `idempotencyKey` para o mesmo caixa devolve o movimento já criado, sem duplicar. */
+function encontrarPorIdempotencyKey(
+  caixaId: string,
+  chave: string | undefined,
+): MovimentacaoCaixa | null {
+  if (!chave) return null;
+  return (
+    db.caixasMovimentacoes.find(
+      (item) => item.caixaId === caixaId && item.referencia === `idem:${chave}`,
+    ) ?? null
+  );
+}
+
 export function registerCaixasMocks(): void {
   sincronizarResumosCaixas();
 
-  /** `/caixas/atual` precisa ser registrada ANTES de `/caixas/:id`. */
+  /** `/caixas/atual` e `/caixas/estatisticas` precisam ser registradas ANTES de `/caixas/:id`. */
   registerMock("GET", "/caixas/atual", () => {
     const aberto = caixaAberto();
     return { data: aberto ? clonar(detalhar(aberto)) : null };
@@ -126,21 +174,70 @@ export function registerCaixasMocks(): void {
 
   registerMock("GET", "/caixas/estatisticas", () => ({ data: estatisticas() }));
 
-  registerMock("GET", "/caixas", () => {
+  registerMock("GET", "/caixas", ({ query }) => {
     sincronizarResumosCaixas();
-    const lista = [...db.caixas].sort((a, b) =>
-      b.abertura.dataHora.localeCompare(a.abertura.dataHora),
+
+    const busca = String(query["busca"] ?? "")
+      .trim()
+      .toLowerCase();
+    let lista = db.caixas.filter((caixa) => {
+      if (!busca) return true;
+      return (
+        caixa.codigo.toLowerCase().includes(busca) ||
+        caixa.abertura.responsavelNome.toLowerCase().includes(busca)
+      );
+    });
+
+    // Facetas: counts sempre sobre o conjunto completo desta busca (nunca
+    // sobre a página) — mesmo comportamento já usado pelos demais módulos.
+    const selecao = lerSelecaoDaQuery(query, facetasCaixa);
+    const facets = calcularFacetasApi(lista, facetasCaixa, selecao);
+
+    lista = filtrarPorSelecao(lista, facetasCaixa, selecao);
+    lista = ordenarCaixasPorCampo(
+      lista,
+      String(query["ordenarPor"] ?? "data"),
+      String(query["ordem"] ?? "desc"),
     );
-    return { data: clonar(lista), meta: { total: lista.length } };
+
+    const total = lista.length;
+    const limit = Math.max(1, Number(query["limit"]) || 20);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const page = Math.min(Math.max(1, Number(query["page"]) || 1), totalPages);
+    const inicio = (page - 1) * limit;
+    const pagina = lista.slice(inicio, inicio + limit);
+
+    return { data: clonar(pagina), meta: { total, page, limit, totalPages }, facets };
   });
 
   registerMock("GET", "/caixas/:id", ({ params }) => ({
     data: clonar(detalhar(encontrar(params["id"]!))),
   }));
 
-  registerMock("GET", "/caixas/:id/movimentacoes", ({ params }) => ({
-    data: clonar(movimentacoesDoCaixa(encontrar(params["id"]!).id)),
-  }));
+  registerMock("GET", "/caixas/:id/movimentacoes", ({ params, query }) => {
+    const caixa = encontrar(params["id"]!);
+    let lista = movimentacoesDoCaixa(caixa.id);
+
+    const tipos = String(query["tipo"] ?? "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (tipos.length > 0) lista = lista.filter((item) => tipos.includes(item.tipo));
+
+    const responsavelId = query["responsavelId"] ? String(query["responsavelId"]) : null;
+    if (responsavelId) lista = lista.filter((item) => item.responsavelId === responsavelId);
+
+    if (String(query["ordem"] ?? "desc") === "asc") lista = [...lista].reverse();
+
+    const total = lista.length;
+    const limit = Math.max(1, Number(query["limit"]) || 50);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const page = Math.min(Math.max(1, Number(query["page"]) || 1), totalPages);
+    const inicio = (page - 1) * limit;
+    const pagina = lista.slice(inicio, inicio + limit);
+
+    return { data: clonar(pagina), meta: { total, page, limit, totalPages } };
+  });
 
   registerMock("GET", "/caixas/:id/vendas", ({ params }) => ({
     data: clonar(detalhar(encontrar(params["id"]!)).vendas),
@@ -196,6 +293,10 @@ export function registerCaixasMocks(): void {
     const caixa = encontrar(params["id"]!);
     exigirAberto(caixa);
     const payload = (body ?? {}) as Partial<EntradaCaixaPayload>;
+
+    const existente = encontrarPorIdempotencyKey(caixa.id, payload.idempotencyKey);
+    if (existente) return { data: clonar(detalhar(caixa)) };
+
     validarMovimento(payload, false);
     const autor = responsavel(payload.responsavelId ?? caixa.abertura.responsavelId);
 
@@ -205,7 +306,7 @@ export function registerCaixasMocks(): void {
       tipo: "entrada",
       origem: "manual",
       descricao: payload.descricao!.trim(),
-      referencia: null,
+      referencia: payload.idempotencyKey ? `idem:${payload.idempotencyKey}` : null,
       vendaId: null,
       vendaCodigo: null,
       formaPagamento: payload.formaPagamento!.trim(),
@@ -225,6 +326,10 @@ export function registerCaixasMocks(): void {
     const caixa = encontrar(params["id"]!);
     exigirAberto(caixa);
     const payload = (body ?? {}) as Partial<SaidaCaixaPayload>;
+
+    const existente = encontrarPorIdempotencyKey(caixa.id, payload.idempotencyKey);
+    if (existente) return { data: clonar(detalhar(caixa)) };
+
     validarMovimento(payload, true);
 
     const saldo = calcularResumoCaixa(caixa).saldoEsperado;
@@ -247,7 +352,7 @@ export function registerCaixasMocks(): void {
       tipo: "saida",
       origem: "manual",
       descricao: payload.descricao!.trim(),
-      referencia: null,
+      referencia: payload.idempotencyKey ? `idem:${payload.idempotencyKey}` : null,
       vendaId: null,
       vendaCodigo: null,
       formaPagamento: payload.formaPagamento!.trim(),

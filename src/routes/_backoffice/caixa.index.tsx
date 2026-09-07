@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowDownCircle,
@@ -27,14 +27,14 @@ import { CodigoBadge } from "@/components/common/codigo-badge";
 import { Metrica } from "@/components/dashboard/metrica";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import { opcoesDeValores, type GrupoFacetaDef } from "@/lib/filtros/facetas";
+import type { GrupoFacetaDef, SelecaoFacetas } from "@/lib/filtros/facetas";
 import { CaixaCard, CaixasGrid, CaixasGridSkeleton } from "@/components/caixa/caixa-card";
 import { MovimentacoesTabela } from "@/components/caixa/movimentacoes-tabela";
 import { AberturaCaixaDialog } from "@/components/caixa/abertura-dialog";
 import { useAbrirCaixa, useCaixaAtual, useCaixas, useEstatisticasCaixa } from "@/hooks/use-caixas";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarDataHora, formatarMoeda } from "@/utils/format";
-import { LABEL_STATUS_CAIXA, STATUS_CAIXA, type Caixa } from "@/types/caixa";
+import { LABEL_STATUS_CAIXA, STATUS_CAIXA, type Caixa, type CaixaFiltros } from "@/types/caixa";
 import {
   FAIXAS_SALDO_CAIXA,
   OPCOES_DIFERENCA_CAIXA,
@@ -43,7 +43,7 @@ import {
   caixaNaFaixa,
   caixaNoPeriodo,
   caixaTemDiferenca,
-  ordenarCaixas,
+  paraOrdenarPorEOrdem,
   type OrdenacaoCaixa,
   type PeriodoCaixa,
 } from "@/utils/caixa";
@@ -74,7 +74,6 @@ export const Route = createFileRoute("/_backoffice/caixa/")({
 const POR_PAGINA = 9;
 
 function CaixaPage() {
-  const { data: caixas, isPending, isError, error, refetch } = useCaixas();
   const { data: atual } = useCaixaAtual();
   const { data: estatisticas } = useEstatisticasCaixa();
   const abrir = useAbrirCaixa();
@@ -84,10 +83,36 @@ function CaixaPage() {
   const [ordem, setOrdem] = useState<OrdenacaoCaixa>("data-desc");
   const [pagina, setPagina] = useState(1);
 
-  const responsaveis = useMemo(
-    () => Array.from(new Set((caixas ?? []).map((caixa) => caixa.abertura.responsavelNome))).sort(),
-    [caixas],
+  // Seleção das facetas é enviada à camada de dados: os counts NÃO são
+  // calculados sobre a página atual, e sim devolvidos em `facets` — mesmo
+  // esquema já usado em Clientes/Fornecedores/Coleções/Campanhas/Vendedores.
+  const [selecao, setSelecao] = useState<SelecaoFacetas>({});
+
+  const criteriosFiltro = useMemo(
+    () => ({ busca: busca || undefined, facetas: selecao, ...paraOrdenarPorEOrdem(ordem) }),
+    [busca, selecao, ordem],
   );
+
+  useEffect(() => {
+    setPagina(1);
+  }, [criteriosFiltro]);
+
+  const filtros = useMemo<CaixaFiltros>(
+    () => ({ ...criteriosFiltro, page: pagina, limit: POR_PAGINA }),
+    [criteriosFiltro, pagina],
+  );
+
+  const { data, isPending, isError, error, refetch, isFetching } = useCaixas(filtros);
+  const caixas = useMemo(() => data?.caixas ?? [], [data?.caixas]);
+  const totalPaginas = data?.meta.totalPages ?? 1;
+  const total = data?.meta.total ?? 0;
+  const paginaAtual = pagina;
+
+  useEffect(() => {
+    if (data && pagina > data.meta.totalPages) {
+      setPagina(data.meta.totalPages);
+    }
+  }, [data, pagina]);
 
   const grupos = useMemo<GrupoFacetaDef<Caixa>[]>(
     () => [
@@ -109,7 +134,12 @@ function CaixaPage() {
       {
         id: "responsavel",
         label: "Responsável",
-        opcoes: opcoesDeValores(responsaveis),
+        // Valores dinâmicos: vêm do `facets` do próprio backend (nomes reais
+        // encontrados no conjunto filtrado), não de uma lista fixa.
+        opcoes: (data?.facets["responsavel"] ?? []).map((opcao) => ({
+          valor: opcao.valor,
+          label: opcao.valor,
+        })),
         buscavel: true,
         placeholderBusca: "Buscar responsável…",
         corresponde: (caixa, valor) => caixa.abertura.responsavelNome === valor,
@@ -127,28 +157,16 @@ function CaixaPage() {
         corresponde: (caixa, valor) => caixaNaFaixa(caixa, valor),
       },
     ],
-    [responsaveis],
+    [data?.facets],
   );
 
-  const buscados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    if (!termo) return caixas ?? [];
-    return (caixas ?? []).filter(
-      (caixa) =>
-        caixa.codigo.toLowerCase().includes(termo) ||
-        caixa.abertura.responsavelNome.toLowerCase().includes(termo),
-    );
-  }, [caixas, busca]);
-
-  const filtragem = useFiltrosFacetados({ itens: buscados, grupos });
-  const filtrados = useMemo(
-    () => ordenarCaixas(filtragem.itensFiltrados, ordem),
-    [filtragem.itensFiltrados, ordem],
-  );
-
-  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
-  const paginaAtual = Math.min(pagina, totalPaginas);
-  const visiveis = filtrados.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
+  const filtragem = useFiltrosFacetados({
+    itens: caixas,
+    grupos,
+    facetasExternas: data?.facets,
+    selecao,
+    onSelecaoChange: setSelecao,
+  });
 
   function abrirCaixa(payload: Parameters<typeof abrir.mutate>[0]) {
     abrir.mutate(payload, {
@@ -313,10 +331,7 @@ function CaixaPage() {
 
       <DataToolbar
         busca={busca}
-        onBuscaChange={(valor) => {
-          setBusca(valor);
-          setPagina(1);
-        }}
+        onBuscaChange={setBusca}
         placeholder="Buscar por código do caixa ou responsável…"
       >
         <Select value={ordem} onValueChange={(valor) => setOrdem(valor as OrdenacaoCaixa)}>
@@ -336,16 +351,11 @@ function CaixaPage() {
       <PainelFiltros
         grupos={filtragem.grupos}
         totalSelecionados={filtragem.totalSelecionados}
-        onAlternar={(grupoId, valor) => {
-          filtragem.alternar(grupoId, valor);
-          setPagina(1);
-        }}
+        onAlternar={filtragem.alternar}
         onLimparGrupo={filtragem.limparGrupo}
         onLimparTudo={filtragem.limparTudo}
         resultado={
-          <span className="text-sm text-muted-foreground">
-            {filtrados.length} caixa(s) encontrado(s)
-          </span>
+          <span className="text-sm text-muted-foreground">{total} caixa(s) encontrado(s)</span>
         }
       />
 
@@ -353,23 +363,29 @@ function CaixaPage() {
         <CaixasGridSkeleton />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
-      ) : filtrados.length === 0 ? (
+      ) : total === 0 ? (
         <EmptyState
           titulo="Nenhum caixa encontrado"
           descricao="Ajuste a busca e os filtros para localizar os caixas do histórico."
         />
       ) : (
         <CaixasGrid>
-          {visiveis.map((caixa) => (
+          {caixas.map((caixa) => (
             <CaixaCard key={caixa.id} caixa={caixa} />
           ))}
         </CaixasGrid>
       )}
 
+      {total > 0 ? (
+        <div className="mt-7 flex items-center justify-end">
+          {isFetching ? <span className="text-xs text-muted-foreground">Atualizando…</span> : null}
+        </div>
+      ) : null}
+
       <Paginacao
         pagina={paginaAtual}
         totalPaginas={totalPaginas}
-        total={filtrados.length}
+        total={total}
         rotulo="caixa(s)"
         onPaginaChange={setPagina}
       />

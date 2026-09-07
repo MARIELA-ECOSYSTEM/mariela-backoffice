@@ -1,4 +1,4 @@
-import type { StatusVenda, VendaResumo } from "@/types/venda";
+import type { Ordem, OrdenarVendaPor, StatusVenda, VendaResumo } from "@/types/venda";
 
 /** Variante visual do badge de status — padrão único do backoffice. */
 export const VARIANTE_STATUS_VENDA: Record<StatusVenda, "success" | "warning" | "destructive"> = {
@@ -8,11 +8,7 @@ export const VARIANTE_STATUS_VENDA: Record<StatusVenda, "success" | "warning" | 
 };
 
 export type OrdenacaoVenda =
-  | "data-desc"
-  | "data-asc"
-  | "valor-desc"
-  | "valor-asc"
-  | "pendente-desc";
+  "data-desc" | "data-asc" | "valor-desc" | "valor-asc" | "pendente-desc";
 
 export const OPCOES_ORDENACAO_VENDA: { valor: OrdenacaoVenda; label: string }[] = [
   { valor: "data-desc", label: "Mais recentes" },
@@ -22,6 +18,32 @@ export const OPCOES_ORDENACAO_VENDA: { valor: OrdenacaoVenda; label: string }[] 
   { valor: "pendente-desc", label: "Maior valor pendente" },
 ];
 
+/**
+ * Converte a opção combinada do seletor (`OPCOES_ORDENACAO_VENDA`) em
+ * `ordenarPor`/`ordem` — o par que a API (`ListarVendasQueryDto`) realmente
+ * espera. A ordenação passou a acontecer no servidor; este mapa existe só
+ * para preservar o rótulo único já exposto na tela.
+ */
+export function paraOrdenarPorEOrdem(valor: OrdenacaoVenda): {
+  ordenarPor: OrdenarVendaPor;
+  ordem: Ordem;
+} {
+  switch (valor) {
+    case "data-asc":
+      return { ordenarPor: "data", ordem: "asc" };
+    case "valor-desc":
+      return { ordenarPor: "valor", ordem: "desc" };
+    case "valor-asc":
+      return { ordenarPor: "valor", ordem: "asc" };
+    case "pendente-desc":
+      return { ordenarPor: "pendente", ordem: "desc" };
+    case "data-desc":
+    default:
+      return { ordenarPor: "data", ordem: "desc" };
+  }
+}
+
+/** @deprecated A ordenação agora é feita pelo backend (ver `paraOrdenarPorEOrdem`); mantida para compatibilidade de testes/consumidores que ainda ordenam localmente. */
 export function ordenarVendas(vendas: VendaResumo[], ordem: OrdenacaoVenda): VendaResumo[] {
   const lista = [...vendas];
   switch (ordem) {
@@ -100,9 +122,8 @@ export function vendaImutavel(venda: VendaResumo): boolean {
   return venda.status === "cancelada";
 }
 
-export function descricaoItemVenda(item: {
-  cor: string | null;
-  tamanho: string | null;
-}): string {
-  return [item.cor, item.tamanho ? `Tam. ${item.tamanho}` : null].filter(Boolean).join(" · ") || "—";
+export function descricaoItemVenda(item: { cor: string | null; tamanho: string | null }): string {
+  return (
+    [item.cor, item.tamanho ? `Tam. ${item.tamanho}` : null].filter(Boolean).join(" · ") || "—"
+  );
 }

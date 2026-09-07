@@ -91,9 +91,19 @@ export function registerProdutosMocks(): void {
     lista = filtrarPorSelecao(lista, facetasProduto, selecao);
     lista = ordenar(lista, String(query["ordenarPor"] ?? "nome"), String(query["ordem"] ?? "asc"));
 
+    // Paginação real, espelhando o backend: `page`/`limit` fatiam a lista já
+    // filtrada/ordenada, e `total`/`totalPages` refletem o conjunto INTEIRO
+    // (não o tamanho da página) — igual ao contrato de `GET /produtos`.
+    const total = lista.length;
+    const limit = Math.max(1, Number(query["limit"]) || 20);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const page = Math.min(Math.max(1, Number(query["page"]) || 1), totalPages);
+    const inicio = (page - 1) * limit;
+    const pagina = lista.slice(inicio, inicio + limit);
+
     return {
-      data: clonar(lista),
-      meta: { total: lista.length, page: 1, limit: lista.length },
+      data: clonar(pagina),
+      meta: { total, page, limit, totalPages },
       facets,
     };
   });

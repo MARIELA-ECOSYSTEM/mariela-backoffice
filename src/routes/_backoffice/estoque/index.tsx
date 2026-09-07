@@ -22,6 +22,7 @@ import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
 import { opcoesDeValores, type GrupoFacetaDef } from "@/lib/filtros/facetas";
 import { useEstoque } from "@/hooks/use-estoque";
 import { useCampanhas, useColecoes } from "@/hooks/use-cadastros";
+import { LIMITE_MAXIMO_CAMPANHAS, LIMITE_MAXIMO_COLECOES } from "@/services/api/cadastros.api";
 import { Badge } from "@/components/ui/badge";
 import { formatarData } from "@/utils/format";
 
@@ -49,8 +50,10 @@ function EstoquePage() {
     busca: busca || undefined,
   });
   const dados = useMemo(() => data ?? [], [data]);
-  const { data: colecoes } = useColecoes();
-  const { data: campanhas } = useCampanhas();
+  const { data: colecoesData } = useColecoes({ page: 1, limit: LIMITE_MAXIMO_COLECOES });
+  const colecoes = colecoesData?.colecoes;
+  const { data: campanhasData } = useCampanhas({ page: 1, limit: LIMITE_MAXIMO_CAMPANHAS });
+  const campanhas = campanhasData?.campanhas;
 
   const nomeColecao = useMemo(() => {
     const mapa = new Map<string, string>();

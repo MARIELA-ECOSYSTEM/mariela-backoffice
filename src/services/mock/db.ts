@@ -103,6 +103,24 @@ export function sincronizarAgregadosFornecedores(): void {
   });
 }
 
+/** Reaplica a contagem de produtos vinculados de todas as coleções. */
+export function sincronizarAgregadosColecoes(): void {
+  db.colecoes.forEach((colecao) => {
+    colecao.produtosVinculados = db.produtos.filter(
+      (produto) => produto.colecaoId === colecao.id,
+    ).length;
+  });
+}
+
+/** Reaplica a contagem de produtos vinculados de todas as campanhas. */
+export function sincronizarAgregadosCampanhas(): void {
+  db.campanhas.forEach((campanha) => {
+    campanha.produtosVinculados = db.produtos.filter(
+      (produto) => produto.campanhaId === campanha.id,
+    ).length;
+  });
+}
+
 /** Reaplica os agregados de vendas de todos os vendedores. */
 export function sincronizarAgregadosVendedores(): void {
   db.vendedores.forEach((vendedor) => {

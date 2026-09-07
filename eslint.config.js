@@ -6,7 +6,9 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi"] },
+  // `backend/` é um projeto NestJS isolado, com seu próprio toolchain — não é
+  // lintado pela configuração do frontend.
+  { ignores: ["dist", ".output", ".vinxi", "backend"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

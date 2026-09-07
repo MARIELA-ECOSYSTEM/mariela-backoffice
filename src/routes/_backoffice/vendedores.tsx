@@ -1,15 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  CalendarDays,
-  History,
-  KeyRound,
-  Pencil,
-  Phone,
-  Plus,
-  Power,
-  Trash2,
-} from "lucide-react";
+import { CalendarDays, History, KeyRound, Pencil, Phone, Plus, Power, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
@@ -27,16 +18,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  AtivoBadge,
-  DataToolbar,
-  NotaDemonstracao,
-  Paginacao,
-} from "@/components/common/data-toolbar";
+import { AtivoBadge, DataToolbar, Paginacao } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import { OPCOES_STATUS, type GrupoFacetaDef } from "@/lib/filtros/facetas";
+import { OPCOES_STATUS, type GrupoFacetaDef, type SelecaoFacetas } from "@/lib/filtros/facetas";
 import {
   AvatarPessoa,
   GridSkeleton,
@@ -76,11 +62,11 @@ import {
   nascimentoNoMes,
   naFaixaDeValor,
   naFaixaDeVendas,
-  ordenarVendedores,
+  paraOrdenarPorEOrdem,
   ultimaVendaNoPeriodo,
   type OrdenacaoVendedor,
 } from "@/utils/vendedor";
-import type { Vendedor, VendedorPayload } from "@/types/vendedor";
+import type { Vendedor, VendedorFiltros, VendedorPayload } from "@/types/vendedor";
 
 export const Route = createFileRoute("/_backoffice/vendedores")({
   ssr: false,
@@ -104,15 +90,7 @@ export const Route = createFileRoute("/_backoffice/vendedores")({
 const POR_PAGINA = 12;
 
 function VendedoresPage() {
-  const { data: vendedores, isPending, isError, error, refetch } = useVendedores();
-  const criar = useCriarVendedor();
-  const atualizar = useAtualizarVendedor();
-  const alterarStatus = useAlterarStatusVendedor();
-  const redefinirSenha = useRedefinirSenhaVendedor();
-  const remover = useRemoverVendedor();
-
   const [busca, setBusca] = useState("");
-
   const [ordem, setOrdem] = useState<OrdenacaoVendedor>("nome-asc");
   const [pagina, setPagina] = useState(1);
   const [dialogAberto, setDialogAberto] = useState(false);
@@ -122,6 +100,51 @@ function VendedoresPage() {
   const [detalhe, setDetalhe] = useState<Vendedor | null>(null);
   const [vendasDe, setVendasDe] = useState<Vendedor | null>(null);
   const [alvoMensagem, setAlvoMensagem] = useState<AlvoMensagemWhatsapp | null>(null);
+
+  // Seleção das facetas é enviada à camada de dados: os counts NÃO são
+  // calculados sobre a página atual, e sim devolvidos em `facets` — mesmo
+  // esquema já usado em Clientes/Fornecedores/Coleções/Campanhas.
+  const [selecao, setSelecao] = useState<SelecaoFacetas>({});
+
+  const criar = useCriarVendedor();
+  const atualizar = useAtualizarVendedor();
+  const alterarStatus = useAlterarStatusVendedor();
+  const redefinirSenha = useRedefinirSenhaVendedor();
+  const remover = useRemoverVendedor();
+
+  // Busca, facetas ou ordenação mudaram: o conjunto/ordem de resultados é
+  // outro, então a paginação sempre recomeça em 1. Sem `pagina`/`limit` nesta
+  // dependência, para o efeito abaixo não entrar em looping consigo mesmo a
+  // cada troca de página.
+  const criteriosFiltro = useMemo(
+    () => ({ busca: busca || undefined, facetas: selecao, ...paraOrdenarPorEOrdem(ordem) }),
+    [busca, selecao, ordem],
+  );
+
+  useEffect(() => {
+    setPagina(1);
+  }, [criteriosFiltro]);
+
+  const filtros = useMemo<VendedorFiltros>(
+    () => ({ ...criteriosFiltro, page: pagina, limit: POR_PAGINA }),
+    [criteriosFiltro, pagina],
+  );
+
+  const { data, isPending, isError, error, refetch, isFetching } = useVendedores(filtros);
+  const vendedores = useMemo(() => data?.vendedores ?? [], [data?.vendedores]);
+  const totalPaginas = data?.meta.totalPages ?? 1;
+  const total = data?.meta.total ?? 0;
+  const paginaAtual = pagina;
+
+  // A página pedida pode ficar fora do intervalo depois que o conjunto de
+  // resultados muda de tamanho (ex.: um vendedor foi excluído e a página 5
+  // deixou de existir) — corrige para a última página válida em vez de
+  // deixar "página 5 de 3" na tela.
+  useEffect(() => {
+    if (data && pagina > data.meta.totalPages) {
+      setPagina(data.meta.totalPages);
+    }
+  }, [data, pagina]);
 
   const grupos = useMemo<GrupoFacetaDef<Vendedor>[]>(
     () => [
@@ -144,7 +167,7 @@ function VendedoresPage() {
         corresponde: (vendedor, valor) => naFaixaDeValor(vendedor.totalVendido, valor),
       },
       {
-        id: "ultima-venda",
+        id: "ultimaVenda",
         label: "Última venda",
         opcoes: OPCOES_ULTIMA_VENDA.map((opcao) => ({ valor: opcao.valor, label: opcao.label })),
         corresponde: (vendedor, valor) => ultimaVendaNoPeriodo(vendedor, valor),
@@ -178,27 +201,20 @@ function VendedoresPage() {
     [],
   );
 
-  const buscados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    return (vendedores ?? []).filter(
-      (vendedor) =>
-        !termo ||
-        vendedor.nome.toLowerCase().includes(termo) ||
-        vendedor.codigo.toLowerCase().includes(termo) ||
-        vendedor.telefone.toLowerCase().includes(termo),
-    );
-  }, [vendedores, busca]);
+  const filtragem = useFiltrosFacetados({
+    itens: vendedores,
+    grupos,
+    facetasExternas: data?.facets,
+    selecao,
+    onSelecaoChange: setSelecao,
+  });
 
-  const filtragem = useFiltrosFacetados({ itens: buscados, grupos });
+  const temFiltros = Boolean(busca) || filtragem.temSelecao;
 
-  const filtrados = useMemo(
-    () => ordenarVendedores(filtragem.itensFiltrados, ordem),
-    [filtragem.itensFiltrados, ordem],
-  );
-
-  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
-  const paginaAtual = Math.min(pagina, totalPaginas);
-  const visiveis = filtrados.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
+  function limparFiltros() {
+    setBusca("");
+    filtragem.limparTudo();
+  }
 
   const valoresIniciais: VendedorFormValues = emEdicao
     ? {
@@ -282,17 +298,9 @@ function VendedoresPage() {
         </Button>
       }
     >
-      <NotaDemonstracao>
-        As senhas são enviadas à API para geração do hash. O backoffice nunca exibe nem armazena
-        senhas.
-      </NotaDemonstracao>
-
       <DataToolbar
         busca={busca}
-        onBuscaChange={(valor) => {
-          setBusca(valor);
-          setPagina(1);
-        }}
+        onBuscaChange={setBusca}
         placeholder="Buscar por nome, código ou telefone…"
       >
         <Select value={ordem} onValueChange={(valor) => setOrdem(valor as OrdenacaoVendedor)}>
@@ -312,17 +320,12 @@ function VendedoresPage() {
       <PainelFiltros
         grupos={filtragem.grupos}
         totalSelecionados={filtragem.totalSelecionados}
-        onAlternar={(grupoId, valor) => {
-          filtragem.alternar(grupoId, valor);
-          setPagina(1);
-        }}
+        onAlternar={filtragem.alternar}
         onLimparGrupo={filtragem.limparGrupo}
-        onLimparTudo={filtragem.limparTudo}
+        onLimparTudo={limparFiltros}
         colunas={3}
         resultado={
-          <span className="text-sm text-muted-foreground">
-            {filtrados.length} vendedor(as) encontrada(s)
-          </span>
+          <span className="text-sm text-muted-foreground">{total} vendedor(as) encontrada(s)</span>
         }
       />
 
@@ -330,20 +333,26 @@ function VendedoresPage() {
         <GridSkeleton itens={8} />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
-      ) : filtrados.length === 0 ? (
+      ) : total === 0 ? (
         <EmptyState
           titulo="Nenhum vendedor encontrado"
           descricao="Ajuste a busca e os filtros ou cadastre o primeiro usuário do PDV."
           acao={
-            <Button onClick={abrirNovo}>
-              <Plus aria-hidden className="size-4" />
-              Novo vendedor
-            </Button>
+            temFiltros ? (
+              <Button variant="outline" onClick={limparFiltros}>
+                Limpar filtros
+              </Button>
+            ) : (
+              <Button onClick={abrirNovo}>
+                <Plus aria-hidden className="size-4" />
+                Novo vendedor
+              </Button>
+            )
           }
         />
       ) : (
         <PessoaGrid>
-          {visiveis.map((vendedor) => (
+          {vendedores.map((vendedor) => (
             <PessoaCard
               key={vendedor.id}
               nome={vendedor.nome}
@@ -427,10 +436,16 @@ function VendedoresPage() {
         </PessoaGrid>
       )}
 
+      {total > 0 ? (
+        <div className="mt-7 flex items-center justify-end">
+          {isFetching ? <span className="text-xs text-muted-foreground">Atualizando…</span> : null}
+        </div>
+      ) : null}
+
       <Paginacao
         pagina={paginaAtual}
         totalPaginas={totalPaginas}
-        total={filtrados.length}
+        total={total}
         rotulo="vendedor(es)"
         onPaginaChange={setPagina}
       />

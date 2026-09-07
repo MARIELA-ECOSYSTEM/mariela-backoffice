@@ -1,3 +1,5 @@
+import type { SelecaoFacetas } from "@/lib/filtros/facetas";
+
 export interface Cliente {
   id: string;
   /** Código sequencial gerado pela API (`CLI-0001`). Somente leitura. */
@@ -28,4 +30,33 @@ export interface ClientePayload {
   telefone: string;
   dataNascimento?: string | null | undefined;
   observacao?: string | undefined;
+}
+
+export type OrdenarClientePor = "nome" | "compras" | "totalComprado" | "ultimaCompra" | "criadoEm";
+export type Ordem = "asc" | "desc";
+
+/**
+ * Espelha exatamente `ListarClientesQueryDto` do backend
+ * (`backend/src/modules/clientes/dto/listar-clientes-query.dto.ts`): `busca` +
+ * `ordenarPor`/`ordem` + a seleção de facetas em CSV (`recencia`, `historico`,
+ * `aniversario`, `observacao`) + `page`/`limit`.
+ */
+export interface ClienteFiltros {
+  /** Seleção multivalorada das facetas (`{ historico: ["recorrente"] }`). */
+  facetas?: SelecaoFacetas | undefined;
+  busca?: string | undefined;
+  ordenarPor?: OrdenarClientePor | undefined;
+  ordem?: Ordem | undefined;
+  /** Página solicitada (1-based). Ausente = página 1 (ver `PAGINA_PADRAO_CLIENTES`). */
+  page?: number | undefined;
+  /** Itens por página. Ausente = 20 (ver `LIMITE_PADRAO_CLIENTES`), máximo 100 (limite do backend). */
+  limit?: number | undefined;
+}
+
+/** Paginação real, sempre devolvida pelo backend para `GET /clientes` — nunca calculada no cliente. */
+export interface ClientesMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }

@@ -3,8 +3,7 @@ import { Page } from "@/components/layout/page";
 import { DetalhePeriodo } from "@/components/cadastros/detalhe-periodo";
 import { ErrorState, EmptyState } from "@/components/common/states";
 import { CardsSkeleton } from "@/components/common/data-toolbar";
-import { useColecoes } from "@/hooks/use-cadastros";
-import { useProdutos } from "@/hooks/use-produtos";
+import { useColecao, useProdutosDaColecao } from "@/hooks/use-cadastros";
 
 export const Route = createFileRoute("/_backoffice/colecoes/$id")({
   ssr: false,
@@ -29,11 +28,8 @@ export const Route = createFileRoute("/_backoffice/colecoes/$id")({
 
 function ColecaoDetalhePage() {
   const { id } = Route.useParams();
-  const { data: colecoes, isPending, isError, error, refetch } = useColecoes();
-  const { data: produtos } = useProdutos({});
-
-  const colecao = (colecoes ?? []).find((item) => item.id === id);
-  const vinculados = (produtos?.produtos ?? []).filter((produto) => produto.colecaoId === id);
+  const { data: colecao, isPending, isError, error, refetch } = useColecao(id);
+  const { data: produtos } = useProdutosDaColecao(id);
 
   return (
     <Page
@@ -51,7 +47,7 @@ function ColecaoDetalhePage() {
           descricao="Ela pode ter sido excluída. Volte para a listagem de coleções."
         />
       ) : (
-        <DetalhePeriodo item={colecao} tipo="colecao" produtos={vinculados} />
+        <DetalhePeriodo item={colecao} tipo="colecao" produtos={produtos ?? []} />
       )}
     </Page>
   );

@@ -21,6 +21,11 @@ import { CODIGO_AUTOMATICO } from "@/lib/codigos";
 import { produtoSchema, type ProdutoFormValues } from "@/schemas/produto.schema";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useCampanhas, useColecoes, useFornecedores } from "@/hooks/use-cadastros";
+import {
+  LIMITE_MAXIMO_CAMPANHAS,
+  LIMITE_MAXIMO_COLECOES,
+  LIMITE_MAXIMO_FORNECEDORES,
+} from "@/services/api/cadastros.api";
 import { calcularMargem } from "@/utils/produto";
 import { formatarPercentual } from "@/utils/format";
 import type { Produto } from "@/types/produto";
@@ -39,9 +44,15 @@ export function ProdutoForm({
   onCancel: () => void;
 }) {
   const { data: configuracoes } = useConfiguracoes();
-  const { data: colecoes } = useColecoes();
-  const { data: campanhas } = useCampanhas();
-  const { data: fornecedores } = useFornecedores();
+  const { data: colecoesData } = useColecoes({ page: 1, limit: LIMITE_MAXIMO_COLECOES });
+  const colecoes = colecoesData?.colecoes;
+  const { data: campanhasData } = useCampanhas({ page: 1, limit: LIMITE_MAXIMO_CAMPANHAS });
+  const campanhas = campanhasData?.campanhas;
+  const { data: fornecedoresData } = useFornecedores({
+    page: 1,
+    limit: LIMITE_MAXIMO_FORNECEDORES,
+  });
+  const fornecedores = fornecedoresData?.fornecedores;
 
   const form = useForm<ProdutoFormValues>({
     resolver: zodResolver(produtoSchema),

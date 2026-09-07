@@ -16,6 +16,11 @@ import { GaleriaProduto } from "@/components/produtos/galeria-produto";
 import { GerenciarVariantes } from "@/components/produtos/gerenciar-variantes";
 import { useDefinirPromocao, useExcluirProduto, useProduto } from "@/hooks/use-produtos";
 import { useCampanhas, useColecoes, useFornecedores } from "@/hooks/use-cadastros";
+import {
+  LIMITE_MAXIMO_CAMPANHAS,
+  LIMITE_MAXIMO_COLECOES,
+  LIMITE_MAXIMO_FORNECEDORES,
+} from "@/services/api/cadastros.api";
 import { formatarData, formatarMoeda, formatarPercentual, pluralizar } from "@/utils/format";
 import { lucroFinal, margemVigente, precoFinal } from "@/utils/produto";
 import { mensagemDeErro } from "@/services/api/client";
@@ -145,9 +150,15 @@ function ProdutoDetalhePage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const { data: produto, isPending, isError, error, refetch } = useProduto(id);
-  const { data: colecoes } = useColecoes();
-  const { data: campanhas } = useCampanhas();
-  const { data: fornecedores } = useFornecedores();
+  const { data: colecoesData } = useColecoes({ page: 1, limit: LIMITE_MAXIMO_COLECOES });
+  const colecoes = colecoesData?.colecoes;
+  const { data: campanhasData } = useCampanhas({ page: 1, limit: LIMITE_MAXIMO_CAMPANHAS });
+  const campanhas = campanhasData?.campanhas;
+  const { data: fornecedoresData } = useFornecedores({
+    page: 1,
+    limit: LIMITE_MAXIMO_FORNECEDORES,
+  });
+  const fornecedores = fornecedoresData?.fornecedores;
   const definirPromocao = useDefinirPromocao(id);
   const excluir = useExcluirProduto();
   const [promocaoAberta, setPromocaoAberta] = useState(false);

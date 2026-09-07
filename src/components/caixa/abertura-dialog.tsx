@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useVendedores } from "@/hooks/use-vendedores";
+import { LIMITE_MAXIMO_VENDEDORES } from "@/services/api/vendedores.api";
 import { formatarMoeda } from "@/utils/format";
 import type { AberturaCaixaPayload } from "@/types/caixa";
 
@@ -35,7 +36,8 @@ export function AberturaCaixaDialog({
   salvando: boolean;
   onConfirmar: (payload: AberturaCaixaPayload) => void;
 }) {
-  const { data: vendedores } = useVendedores();
+  const { data: vendedoresData } = useVendedores({ page: 1, limit: LIMITE_MAXIMO_VENDEDORES });
+  const vendedores = vendedoresData?.vendedores;
   const [responsavelId, setResponsavelId] = useState("backoffice");
   const [valorInicial, setValorInicial] = useState("");
   const [observacao, setObservacao] = useState("");

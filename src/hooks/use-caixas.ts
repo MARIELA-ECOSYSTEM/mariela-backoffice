@@ -1,18 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { caixasApi } from "@/services/api/caixas.api";
 import { vendasKeys } from "@/hooks/use-vendas";
 import type {
   AberturaCaixaPayload,
+  CaixaFiltros,
   EntradaCaixaPayload,
   FechamentoCaixaPayload,
+  MovimentosCaixaFiltros,
   SaidaCaixaPayload,
 } from "@/types/caixa";
 
 export const caixasKeys = {
   todos: ["caixas"] as const,
+  lista: (filtros: CaixaFiltros) => [...caixasKeys.todos, "lista", filtros] as const,
   atual: ["caixas", "atual"] as const,
   estatisticas: ["caixas", "estatisticas"] as const,
   detalhe: (id: string) => ["caixas", "detalhe", id] as const,
+  movimentacoes: (id: string, filtros: MovimentosCaixaFiltros) =>
+    ["caixas", "detalhe", id, "movimentacoes", filtros] as const,
 };
 
 /** Movimentações de caixa refletem em vendas (recebimentos/devoluções). */
@@ -27,11 +32,18 @@ function useInvalidar() {
   };
 }
 
-export function useCaixas() {
+/**
+ * Paginação/busca/facetas real, delegada ao backend — mesmo padrão de
+ * `useClientes`/`useFornecedores`/`useVendedores`. Sem `staleTime`: uma
+ * versão anterior deste hook cacheava por 30s antes de existir paginação;
+ * mantê-lo serviria dados obsoletos ao voltar para uma página já visitada
+ * (mesmo bug já corrigido nos módulos acima).
+ */
+export function useCaixas(filtros: CaixaFiltros = {}) {
   return useQuery({
-    queryKey: caixasKeys.todos,
-    queryFn: () => caixasApi.listar(),
-    staleTime: 30_000,
+    queryKey: caixasKeys.lista(filtros),
+    queryFn: () => caixasApi.listar(filtros),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -56,6 +68,16 @@ export function useCaixa(id: string) {
     queryKey: caixasKeys.detalhe(id),
     queryFn: () => caixasApi.obter(id),
     enabled: Boolean(id),
+  });
+}
+
+/** Histórico paginado de movimentações — substitui o array embutido (não limitado) do detalhe. */
+export function useMovimentacoesDoCaixa(id: string, filtros: MovimentosCaixaFiltros = {}) {
+  return useQuery({
+    queryKey: caixasKeys.movimentacoes(id, filtros),
+    queryFn: () => caixasApi.movimentacoes(id, filtros),
+    enabled: Boolean(id),
+    placeholderData: keepPreviousData,
   });
 }
 

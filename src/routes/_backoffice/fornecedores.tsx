@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Building2,
@@ -26,7 +26,7 @@ import { DataToolbar, Paginacao } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import type { GrupoFacetaDef } from "@/lib/filtros/facetas";
+import type { GrupoFacetaDef, SelecaoFacetas } from "@/lib/filtros/facetas";
 import { GridSkeleton, PessoaCard, PessoaGrid } from "@/components/common/pessoa-card";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
@@ -56,12 +56,16 @@ import {
   OPCOES_ORDENACAO_FORNECEDOR,
   cidadeUf,
   naFaixaDeProdutos,
-  ordenarFornecedores,
   temEndereco,
   ultimaEntradaDentroDe,
   type OrdenacaoFornecedor,
 } from "@/utils/fornecedor";
-import type { Fornecedor } from "@/types/fornecedor";
+import type {
+  Fornecedor,
+  FornecedorFiltros,
+  OrdenarFornecedorPor,
+  Ordem,
+} from "@/types/fornecedor";
 
 export const Route = createFileRoute("/_backoffice/fornecedores")({
   ssr: false,
@@ -84,12 +88,18 @@ export const Route = createFileRoute("/_backoffice/fornecedores")({
 
 const POR_PAGINA = 12;
 
-function FornecedoresPage() {
-  const { data: fornecedores, isPending, isError, error, refetch } = useFornecedores();
-  const criar = useCriarFornecedor();
-  const atualizar = useAtualizarFornecedor();
-  const remover = useRemoverFornecedor();
+/** Mapa "opção do Select" → parâmetros reais de ordenação da API (`ordenarPor`/`ordem`). */
+const CAMPO_ORDENACAO: Record<OrdenacaoFornecedor, { campo: OrdenarFornecedorPor; ordem: Ordem }> =
+  {
+    "nome-asc": { campo: "nome", ordem: "asc" },
+    "nome-desc": { campo: "nome", ordem: "desc" },
+    "produtos-desc": { campo: "produtosVinculados", ordem: "desc" },
+    "custo-desc": { campo: "valorEmCusto", ordem: "desc" },
+    "entrada-recente": { campo: "ultimaEntrada", ordem: "desc" },
+    "parceiro-antigo": { campo: "criadoEm", ordem: "asc" },
+  };
 
+function FornecedoresPage() {
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState<OrdenacaoFornecedor>("nome-asc");
   const [pagina, setPagina] = useState(1);
@@ -98,6 +108,55 @@ function FornecedoresPage() {
   const [paraExcluir, setParaExcluir] = useState<Fornecedor | null>(null);
   const [historico, setHistorico] = useState<Fornecedor | null>(null);
   const [alvoMensagem, setAlvoMensagem] = useState<AlvoMensagemWhatsapp | null>(null);
+
+  // Seleção das facetas é enviada à camada de dados: os counts NÃO são
+  // calculados sobre a página atual, e sim devolvidos em `facets` — mesmo
+  // esquema já usado em Produtos/Clientes.
+  const [selecao, setSelecao] = useState<SelecaoFacetas>({});
+
+  const criar = useCriarFornecedor();
+  const atualizar = useAtualizarFornecedor();
+  const remover = useRemoverFornecedor();
+
+  // Tudo que, ao mudar, invalida o conjunto de resultados (portanto exige
+  // voltar para a página 1) — deliberadamente SEM `pagina`/`limit` aqui, para
+  // o efeito abaixo não entrar em looping consigo mesmo a cada troca de página.
+  const criteriosFiltro = useMemo(() => {
+    const opcao = CAMPO_ORDENACAO[ordem];
+    return {
+      busca: busca || undefined,
+      ordenarPor: opcao.campo,
+      ordem: opcao.ordem,
+      facetas: selecao,
+    };
+  }, [busca, ordem, selecao]);
+
+  // Busca, ordenação ou facetas mudaram: o conjunto de resultados é outro,
+  // então a paginação sempre recomeça em 1.
+  useEffect(() => {
+    setPagina(1);
+  }, [criteriosFiltro]);
+
+  const filtros = useMemo<FornecedorFiltros>(
+    () => ({ ...criteriosFiltro, page: pagina, limit: POR_PAGINA }),
+    [criteriosFiltro, pagina],
+  );
+
+  const { data, isPending, isError, error, refetch, isFetching } = useFornecedores(filtros);
+  const fornecedores = useMemo(() => data?.fornecedores ?? [], [data?.fornecedores]);
+  const totalPaginas = data?.meta.totalPages ?? 1;
+  const total = data?.meta.total ?? 0;
+  const paginaAtual = pagina;
+
+  // A página pedida pode ficar fora do intervalo depois que o conjunto de
+  // resultados muda de tamanho (ex.: um fornecedor foi excluído e a página 5
+  // deixou de existir) — corrige para a última página válida em vez de
+  // deixar "página 5 de 3" na tela.
+  useEffect(() => {
+    if (data && pagina > data.meta.totalPages) {
+      setPagina(data.meta.totalPages);
+    }
+  }, [data, pagina]);
 
   const grupos = useMemo<GrupoFacetaDef<Fornecedor>[]>(
     () => [
@@ -108,8 +167,7 @@ function FornecedoresPage() {
           valor: opcao.valor,
           label: opcao.label,
         })),
-        corresponde: (fornecedor, valor) =>
-          naFaixaDeProdutos(fornecedor.produtosVinculados, valor),
+        corresponde: (fornecedor, valor) => naFaixaDeProdutos(fornecedor.produtosVinculados, valor),
       },
       {
         id: "endereco",
@@ -148,28 +206,20 @@ function FornecedoresPage() {
     [],
   );
 
-  const buscados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    return (fornecedores ?? []).filter(
-      (fornecedor) =>
-        !termo ||
-        fornecedor.nome.toLowerCase().includes(termo) ||
-        fornecedor.codigo.toLowerCase().includes(termo) ||
-        fornecedor.contato.toLowerCase().includes(termo) ||
-        fornecedor.telefone.toLowerCase().includes(termo) ||
-        fornecedor.cnpj.toLowerCase().includes(termo),
-    );
-  }, [fornecedores, busca]);
+  const filtragem = useFiltrosFacetados({
+    itens: fornecedores,
+    grupos,
+    facetasExternas: data?.facets,
+    selecao,
+    onSelecaoChange: setSelecao,
+  });
 
-  const filtragem = useFiltrosFacetados({ itens: buscados, grupos });
-  const filtrados = useMemo(
-    () => ordenarFornecedores(filtragem.itensFiltrados, ordem),
-    [filtragem.itensFiltrados, ordem],
-  );
+  const temFiltros = Boolean(busca) || filtragem.temSelecao;
 
-  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
-  const paginaAtual = Math.min(pagina, totalPaginas);
-  const visiveis = filtrados.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
+  function limparFiltros() {
+    setBusca("");
+    filtragem.limparTudo();
+  }
 
   const valoresIniciais: FornecedorFormValues = emEdicao
     ? {
@@ -248,10 +298,7 @@ function FornecedoresPage() {
     >
       <DataToolbar
         busca={busca}
-        onBuscaChange={(valor) => {
-          setBusca(valor);
-          setPagina(1);
-        }}
+        onBuscaChange={setBusca}
         placeholder="Buscar por nome, código, contato, telefone ou CNPJ…"
       >
         <Select value={ordem} onValueChange={(valor) => setOrdem(valor as OrdenacaoFornecedor)}>
@@ -271,15 +318,12 @@ function FornecedoresPage() {
       <PainelFiltros
         grupos={filtragem.grupos}
         totalSelecionados={filtragem.totalSelecionados}
-        onAlternar={(grupoId, valor) => {
-          filtragem.alternar(grupoId, valor);
-          setPagina(1);
-        }}
+        onAlternar={filtragem.alternar}
         onLimparGrupo={filtragem.limparGrupo}
-        onLimparTudo={filtragem.limparTudo}
+        onLimparTudo={limparFiltros}
         resultado={
           <span className="text-sm text-muted-foreground">
-            {filtrados.length} fornecedor(es) encontrado(s)
+            {total} fornecedor(es) encontrado(s)
           </span>
         }
       />
@@ -288,20 +332,26 @@ function FornecedoresPage() {
         <GridSkeleton itens={8} />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
-      ) : filtrados.length === 0 ? (
+      ) : total === 0 ? (
         <EmptyState
           titulo="Nenhum fornecedor encontrado"
           descricao="Ajuste a busca e os filtros ou cadastre o primeiro parceiro da loja."
           acao={
-            <Button onClick={abrirNovo}>
-              <Plus aria-hidden className="size-4" />
-              Novo fornecedor
-            </Button>
+            temFiltros ? (
+              <Button variant="outline" onClick={limparFiltros}>
+                Limpar filtros
+              </Button>
+            ) : (
+              <Button onClick={abrirNovo}>
+                <Plus aria-hidden className="size-4" />
+                Novo fornecedor
+              </Button>
+            )
           }
         />
       ) : (
         <PessoaGrid>
-          {visiveis.map((fornecedor) => (
+          {fornecedores.map((fornecedor) => (
             <PessoaCard
               key={fornecedor.id}
               nome={fornecedor.nome}
@@ -381,10 +431,16 @@ function FornecedoresPage() {
         </PessoaGrid>
       )}
 
+      {total > 0 ? (
+        <div className="mt-7 flex items-center justify-end">
+          {isFetching ? <span className="text-xs text-muted-foreground">Atualizando…</span> : null}
+        </div>
+      ) : null}
+
       <Paginacao
         pagina={paginaAtual}
         totalPaginas={totalPaginas}
-        total={filtrados.length}
+        total={total}
         rotulo="fornecedor(es)"
         onPaginaChange={setPagina}
       />

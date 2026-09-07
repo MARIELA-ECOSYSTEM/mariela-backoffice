@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Cake, CalendarHeart, Pencil, Phone, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -15,7 +15,7 @@ import { DataToolbar, Paginacao } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
-import type { GrupoFacetaDef } from "@/lib/filtros/facetas";
+import type { GrupoFacetaDef, SelecaoFacetas } from "@/lib/filtros/facetas";
 import { GridSkeleton, PessoaCard, PessoaGrid } from "@/components/common/pessoa-card";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
@@ -36,21 +36,20 @@ import {
   useCriarCliente,
   useRemoverCliente,
 } from "@/hooks/use-cadastros";
+import { LIMITE_MAXIMO_CLIENTES } from "@/services/api/cadastros.api";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarData, formatarMoeda } from "@/utils/format";
 import {
   OPCOES_ORDENACAO,
-  OPCOES_SEM_COMPRA,
   aniversarioNoPeriodo,
   formatarTelefone,
-  janelaSemCompra,
   numeroWhatsapp,
-  ordenarClientes,
   rotuloUltimaCompra,
   semCompraDesde,
+  janelaSemCompra,
   type OrdenacaoCliente,
 } from "@/utils/cliente";
-import type { Cliente } from "@/types/cliente";
+import type { Cliente, ClienteFiltros, OrdenarClientePor, Ordem } from "@/types/cliente";
 
 export const Route = createFileRoute("/_backoffice/clientes")({
   ssr: false,
@@ -67,12 +66,20 @@ export const Route = createFileRoute("/_backoffice/clientes")({
 
 const POR_PAGINA = 12;
 
-function ClientesPage() {
-  const { data: clientes, isPending, isError, error, refetch } = useClientes();
-  const criar = useCriarCliente();
-  const atualizar = useAtualizarCliente();
-  const remover = useRemoverCliente();
+/** Mapa "opção do Select" → parâmetros reais de ordenação da API (`ordenarPor`/`ordem`). */
+const CAMPO_ORDENACAO: Record<OrdenacaoCliente, { campo: OrdenarClientePor; ordem: Ordem }> = {
+  "nome-asc": { campo: "nome", ordem: "asc" },
+  "nome-desc": { campo: "nome", ordem: "desc" },
+  "compras-desc": { campo: "compras", ordem: "desc" },
+  "compras-asc": { campo: "compras", ordem: "asc" },
+  "valor-desc": { campo: "totalComprado", ordem: "desc" },
+  "valor-asc": { campo: "totalComprado", ordem: "asc" },
+  "compra-recente": { campo: "ultimaCompra", ordem: "desc" },
+  "compra-antiga": { campo: "ultimaCompra", ordem: "asc" },
+  "sem-compra": { campo: "ultimaCompra", ordem: "asc" },
+};
 
+function ClientesPage() {
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState<OrdenacaoCliente>("nome-asc");
   const [pagina, setPagina] = useState(1);
@@ -83,18 +90,76 @@ function ClientesPage() {
   const [detalhe, setDetalhe] = useState<Cliente | null>(null);
   const [alvoMensagem, setAlvoMensagem] = useState<AlvoMensagemWhatsapp | null>(null);
 
+  // Seleção das facetas é enviada à camada de dados: os counts NÃO são
+  // calculados sobre a página atual, e sim devolvidos em `facets` — mesmo
+  // esquema já usado em Produtos.
+  const [selecao, setSelecao] = useState<SelecaoFacetas>({});
+
+  const criar = useCriarCliente();
+  const atualizar = useAtualizarCliente();
+  const remover = useRemoverCliente();
+
+  // Tudo que, ao mudar, invalida o conjunto de resultados (portanto exige
+  // voltar para a página 1) — deliberadamente SEM `pagina`/`limit` aqui, para
+  // o efeito abaixo não entrar em looping consigo mesmo a cada troca de página.
+  const criteriosFiltro = useMemo(() => {
+    const opcao = CAMPO_ORDENACAO[ordem];
+    return {
+      busca: busca || undefined,
+      ordenarPor: opcao.campo,
+      ordem: opcao.ordem,
+      facetas: selecao,
+    };
+  }, [busca, ordem, selecao]);
+
+  // Busca, ordenação ou facetas mudaram: o conjunto de resultados é outro,
+  // então a paginação sempre recomeça em 1.
+  useEffect(() => {
+    setPagina(1);
+  }, [criteriosFiltro]);
+
+  const filtros = useMemo<ClienteFiltros>(
+    () => ({ ...criteriosFiltro, page: pagina, limit: POR_PAGINA }),
+    [criteriosFiltro, pagina],
+  );
+
+  const { data, isPending, isError, error, refetch, isFetching } = useClientes(filtros);
+  const clientes = useMemo(() => data?.clientes ?? [], [data?.clientes]);
+  const totalPaginas = data?.meta.totalPages ?? 1;
+  const total = data?.meta.total ?? 0;
+  const paginaAtual = pagina;
+
+  // A página pedida pode ficar fora do intervalo depois que o conjunto de
+  // resultados muda de tamanho (ex.: uma cliente foi excluída e a página 5
+  // deixou de existir) — corrige para a última página válida em vez de
+  // deixar "página 5 de 3" na tela.
+  useEffect(() => {
+    if (data && pagina > data.meta.totalPages) {
+      setPagina(data.meta.totalPages);
+    }
+  }, [data, pagina]);
+
+  // O diálogo de Aniversariantes precisa da base INTEIRA (não a página
+  // atual) para achatar aniversariantes de qualquer cliente — só dispara
+  // quando o diálogo abre, com o maior `limit` que o backend aceita. Acima
+  // de `LIMITE_MAXIMO_CLIENTES` clientes reais, nem todos apareceriam aqui;
+  // a correção definitiva seria um endpoint dedicado (fora do escopo desta etapa).
+  const { data: baseCompleta } = useClientes(
+    { page: 1, limit: LIMITE_MAXIMO_CLIENTES },
+    { enabled: aniversariantesAberto },
+  );
+
   const grupos = useMemo<GrupoFacetaDef<Cliente>[]>(
     () => [
       {
         id: "recencia",
         label: "Sem compra recente",
         opcoes: [
-          { valor: "todos", label: "Todos" },
-          ...OPCOES_SEM_COMPRA.map((opcao) => ({ valor: opcao.valor, label: opcao.label })),
+          { valor: "1m", label: "Mais de 1 mês sem comprar" },
+          { valor: "3m", label: "Mais de 3 meses sem comprar" },
+          { valor: "6m", label: "Mais de 6 meses sem comprar" },
         ],
-        // "Todos" não restringe nada: existe para deixar a contagem total visível.
-        corresponde: (cliente, valor) =>
-          valor === "todos" ? true : semCompraDesde(cliente, janelaSemCompra(valor)),
+        corresponde: (cliente, valor) => semCompraDesde(cliente, janelaSemCompra(valor)),
       },
       {
         id: "historico",
@@ -140,25 +205,20 @@ function ClientesPage() {
     [],
   );
 
-  const buscados = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    return (clientes ?? []).filter(
-      (cliente) =>
-        !termo ||
-        cliente.nome.toLowerCase().includes(termo) ||
-        cliente.telefone.toLowerCase().includes(termo),
-    );
-  }, [clientes, busca]);
+  const filtragem = useFiltrosFacetados({
+    itens: clientes,
+    grupos,
+    facetasExternas: data?.facets,
+    selecao,
+    onSelecaoChange: setSelecao,
+  });
 
-  const filtragem = useFiltrosFacetados({ itens: buscados, grupos });
-  const filtrados = useMemo(
-    () => ordenarClientes(filtragem.itensFiltrados, ordem),
-    [filtragem.itensFiltrados, ordem],
-  );
+  const temFiltros = Boolean(busca) || filtragem.temSelecao;
 
-  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
-  const paginaAtual = Math.min(pagina, totalPaginas);
-  const visiveis = filtrados.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
+  function limparFiltros() {
+    setBusca("");
+    filtragem.limparTudo();
+  }
 
   const valoresIniciais: ClienteFormValues = emEdicao
     ? {
@@ -225,10 +285,7 @@ function ClientesPage() {
     >
       <DataToolbar
         busca={busca}
-        onBuscaChange={(valor) => {
-          setBusca(valor);
-          setPagina(1);
-        }}
+        onBuscaChange={setBusca}
         placeholder="Buscar por nome ou telefone…"
       >
         <Select value={ordem} onValueChange={(valor) => setOrdem(valor as OrdenacaoCliente)}>
@@ -248,16 +305,11 @@ function ClientesPage() {
       <PainelFiltros
         grupos={filtragem.grupos}
         totalSelecionados={filtragem.totalSelecionados}
-        onAlternar={(grupoId, valor) => {
-          filtragem.alternar(grupoId, valor);
-          setPagina(1);
-        }}
+        onAlternar={filtragem.alternar}
         onLimparGrupo={filtragem.limparGrupo}
-        onLimparTudo={filtragem.limparTudo}
+        onLimparTudo={limparFiltros}
         resultado={
-          <span className="text-sm text-muted-foreground">
-            {filtrados.length} cliente(s) encontrada(s)
-          </span>
+          <span className="text-sm text-muted-foreground">{total} cliente(s) encontrada(s)</span>
         }
       />
 
@@ -265,20 +317,26 @@ function ClientesPage() {
         <GridSkeleton itens={8} />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
-      ) : filtrados.length === 0 ? (
+      ) : total === 0 ? (
         <EmptyState
           titulo="Nenhuma cliente encontrada"
           descricao="Ajuste a busca e os filtros ou cadastre a primeira cliente da loja."
           acao={
-            <Button onClick={abrirNovo}>
-              <Plus aria-hidden className="size-4" />
-              Nova cliente
-            </Button>
+            temFiltros ? (
+              <Button variant="outline" onClick={limparFiltros}>
+                Limpar filtros
+              </Button>
+            ) : (
+              <Button onClick={abrirNovo}>
+                <Plus aria-hidden className="size-4" />
+                Nova cliente
+              </Button>
+            )
           }
         />
       ) : (
         <PessoaGrid>
-          {visiveis.map((cliente) => (
+          {clientes.map((cliente) => (
             <PessoaCard
               key={cliente.id}
               nome={cliente.nome}
@@ -344,10 +402,16 @@ function ClientesPage() {
         </PessoaGrid>
       )}
 
+      {total > 0 ? (
+        <div className="mt-7 flex items-center justify-end">
+          {isFetching ? <span className="text-xs text-muted-foreground">Atualizando…</span> : null}
+        </div>
+      ) : null}
+
       <Paginacao
         pagina={paginaAtual}
         totalPaginas={totalPaginas}
-        total={filtrados.length}
+        total={total}
         rotulo="cliente(s)"
         onPaginaChange={setPagina}
       />
@@ -368,7 +432,7 @@ function ClientesPage() {
       <AniversariantesDialog
         open={aniversariantesAberto}
         onOpenChange={setAniversariantesAberto}
-        clientes={clientes ?? []}
+        clientes={baseCompleta?.clientes ?? []}
       />
 
       <DialogMensagemWhatsapp

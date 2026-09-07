@@ -700,6 +700,9 @@ export function seedColecoes(): Colecao[] {
       fotoBanner:
         "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80",
       criadoEm: iso(120),
+      atualizadoEm: iso(120),
+      // Recalculado por `sincronizarAgregadosColecoes()` a cada leitura — valor inicial irrelevante.
+      produtosVinculados: 0,
     },
     {
       id: "col_002",
@@ -715,6 +718,8 @@ export function seedColecoes(): Colecao[] {
         "https://images.unsplash.com/photo-1509319117193-57bab727e09d?auto=format&fit=crop&w=900&q=80",
       fotoBanner: null,
       criadoEm: iso(300),
+      atualizadoEm: iso(300),
+      produtosVinculados: 0,
     },
     {
       id: "col_003",
@@ -729,6 +734,8 @@ export function seedColecoes(): Colecao[] {
       fotoDestaque: null,
       fotoBanner: null,
       criadoEm: iso(60),
+      atualizadoEm: iso(60),
+      produtosVinculados: 0,
     },
   ];
 }
@@ -750,6 +757,9 @@ export function seedCampanhas(): Campanha[] {
       fotoBanner:
         "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?auto=format&fit=crop&w=1600&q=80",
       criadoEm: iso(90),
+      atualizadoEm: iso(90),
+      // Recalculado por `sincronizarAgregadosCampanhas()` a cada leitura — valor inicial irrelevante.
+      produtosVinculados: 0,
     },
     {
       id: "cam_002",
@@ -765,6 +775,8 @@ export function seedCampanhas(): Campanha[] {
       fotoBanner:
         "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1600&q=80",
       criadoEm: iso(150),
+      atualizadoEm: iso(150),
+      produtosVinculados: 0,
     },
     {
       id: "cam_003",
@@ -779,6 +791,8 @@ export function seedCampanhas(): Campanha[] {
       fotoDestaque: null,
       fotoBanner: null,
       criadoEm: iso(40),
+      atualizadoEm: iso(40),
+      produtosVinculados: 0,
     },
   ];
 }

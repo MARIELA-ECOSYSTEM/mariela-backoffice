@@ -1,5 +1,5 @@
 import { apiClient } from "./client";
-import type { ApiFacets, ApiMeta, QueryParams } from "@/types/api";
+import type { ApiFacets, QueryParams } from "@/types/api";
 import { selecaoParaQuery } from "@/lib/filtros/facetas-servidor";
 import type {
   FotoPrincipalRequest,
@@ -7,34 +7,48 @@ import type {
   Produto,
   ProdutoFiltros,
   ProdutoPayload,
+  ProdutosMeta,
   PromocaoRequest,
 } from "@/types/produto";
 
+/** Mesmos defaults do backend (`PAGINA_PADRAO`/`LIMITE_PADRAO` em `produtos.constants.ts`). */
+export const PAGINA_PADRAO_PRODUTOS = 1;
+export const LIMITE_PADRAO_PRODUTOS = 20;
+
 export interface ListaProdutos {
   produtos: Produto[];
-  meta: ApiMeta;
-  /** Contagens dos filtros vindas da camada de dados (mock hoje, API amanhã). */
+  meta: ProdutosMeta;
   facets: ApiFacets;
 }
 
 export const produtosApi = {
   async listar(filtros: ProdutoFiltros = {}): Promise<ListaProdutos> {
+    const page = filtros.page ?? PAGINA_PADRAO_PRODUTOS;
+    const limit = filtros.limit ?? LIMITE_PADRAO_PRODUTOS;
+
     const params: QueryParams = {
       busca: filtros.busca,
-      categoria: filtros.categoria,
-      colecaoId: filtros.colecaoId,
-      campanhaId: filtros.campanhaId,
-      fornecedorId: filtros.fornecedorId,
-      disponibilidade: filtros.disponibilidade,
-      promocao: filtros.promocao,
-      novidade: filtros.novidade,
       ordenarPor: filtros.ordenarPor,
       ordem: filtros.ordem,
+      page,
+      limit,
       // Seleção multivalorada das facetas: `?categorias=a,b&estoque=com_estoque`
       ...selecaoParaQuery(filtros.facetas),
     };
     const { data, meta, facets } = await apiClient.get<Produto[]>("/produtos", { params });
-    return { produtos: data, meta: meta ?? {}, facets: facets ?? {} };
+    return {
+      produtos: data,
+      // A API sempre devolve os quatro campos para este endpoint; os defaults
+      // aqui só cobrem o mock antigo/uma resposta inesperada, nunca mascaram
+      // um valor real diferente do que veio do servidor.
+      meta: {
+        page: meta?.page ?? page,
+        limit: meta?.limit ?? limit,
+        total: meta?.total ?? 0,
+        totalPages: meta?.totalPages ?? 1,
+      },
+      facets: facets ?? {},
+    };
   },
 
   async obter(id: string): Promise<Produto> {
