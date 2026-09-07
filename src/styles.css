@@ -135,6 +135,64 @@
   --sidebar-ring: oklch(0.78 0.07 305);
 }
 
+.dark {
+  color-scheme: dark;
+
+  /* Superfícies profundas com matiz violeta, preservando a identidade MARIELA */
+  --background: oklch(0.17 0.018 305);
+  --surface: oklch(0.205 0.022 305);
+  --foreground: oklch(0.94 0.008 303);
+  --card: oklch(0.215 0.022 305);
+  --card-foreground: oklch(0.94 0.008 303);
+  --popover: oklch(0.235 0.025 305);
+  --popover-foreground: oklch(0.94 0.008 303);
+
+  --primary: oklch(0.72 0.1 305);
+  --primary-foreground: oklch(0.17 0.025 305);
+  --primary-soft: oklch(0.29 0.045 305);
+  --secondary: oklch(0.265 0.028 305);
+  --secondary-foreground: oklch(0.9 0.018 305);
+  --muted: oklch(0.255 0.018 303);
+  --muted-foreground: oklch(0.7 0.018 303);
+  --accent: oklch(0.31 0.045 305);
+  --accent-foreground: oklch(0.94 0.008 303);
+
+  --destructive: oklch(0.66 0.17 25);
+  --destructive-foreground: oklch(0.98 0.004 300);
+  --success: oklch(0.66 0.1 158);
+  --success-foreground: oklch(0.16 0.03 158);
+  --warning: oklch(0.76 0.13 70);
+  --warning-foreground: oklch(0.2 0.04 60);
+  --info: oklch(0.68 0.09 245);
+  --info-foreground: oklch(0.16 0.025 245);
+  --gold: oklch(0.73 0.08 305);
+  --gold-foreground: oklch(0.91 0.025 305);
+
+  --border: oklch(0.32 0.025 305);
+  --border-strong: oklch(0.39 0.032 305);
+  --input: oklch(0.39 0.032 305);
+  --ring: oklch(0.7 0.1 305);
+
+  --chart-1: oklch(0.72 0.1 305);
+  --chart-2: oklch(0.7 0.09 345);
+  --chart-3: oklch(0.72 0.08 245);
+  --chart-4: oklch(0.67 0.09 158);
+  --chart-5: oklch(0.76 0.12 70);
+
+  --sidebar: oklch(0.135 0.03 305);
+  --sidebar-foreground: oklch(0.89 0.012 303);
+  --sidebar-primary: oklch(0.77 0.075 305);
+  --sidebar-primary-foreground: oklch(0.15 0.03 305);
+  --sidebar-accent: oklch(0.24 0.055 305);
+  --sidebar-accent-foreground: oklch(0.96 0.006 303);
+  --sidebar-border: oklch(0.28 0.042 305);
+  --sidebar-ring: oklch(0.7 0.09 305);
+
+  --shadow-card: 0 1px 1px oklch(0 0 0 / 18%), 0 10px 30px -22px oklch(0 0 0 / 55%);
+  --shadow-raised: 0 1px 2px oklch(0 0 0 / 22%), 0 18px 42px -26px oklch(0 0 0 / 65%);
+  --shadow-overlay: 0 24px 70px -30px oklch(0 0 0 / 75%);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

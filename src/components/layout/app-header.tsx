@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { iniciais } from "@/utils/format";
+import { ThemeToggle } from "./theme-toggle";
 
 export interface Breadcrumb {
   label: string;
@@ -47,32 +48,35 @@ export function AppHeader({ titulo, breadcrumbs }: { titulo: string; breadcrumbs
         </h1>
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            className="h-auto gap-3 py-1.5 pl-2 pr-3"
-            aria-label="Menu do usuário"
-          >
-            <span className="flex size-9 items-center justify-center rounded-full border border-primary/20 bg-primary-soft font-brand text-[0.7rem] font-medium tracking-widest text-primary">
-              {iniciais(usuario?.nome ?? "Mariela")}
-            </span>
-            <span className="hidden text-left leading-tight sm:block">
-              <span className="block text-sm text-foreground">{usuario?.nome ?? "—"}</span>
-              <span className="block text-eyebrow">{usuario?.tipo ?? ""}</span>
-            </span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
-            <User aria-hidden className="size-3.5" /> Sessão administrativa
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => void logout()}>
-            <LogOut aria-hidden className="size-4" /> Sair
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-1">
+        <ThemeToggle className="text-muted-foreground" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className="h-auto gap-3 py-1.5 pl-2 pr-3"
+              aria-label="Menu do usuário"
+            >
+              <span className="flex size-9 items-center justify-center rounded-full border border-primary/20 bg-primary-soft font-brand text-[0.7rem] font-medium tracking-widest text-primary">
+                {iniciais(usuario?.nome ?? "Mariela")}
+              </span>
+              <span className="hidden text-left leading-tight sm:block">
+                <span className="block text-sm text-foreground">{usuario?.nome ?? "—"}</span>
+                <span className="block text-eyebrow">{usuario?.tipo ?? ""}</span>
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+              <User aria-hidden className="size-3.5" /> Sessão administrativa
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => void logout()}>
+              <LogOut aria-hidden className="size-4" /> Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }
