@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { mensagemDeErro } from "@/services/api/client";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 export const Route = createFileRoute("/login")({
   ssr: false,
@@ -88,7 +89,8 @@ function LoginPage() {
         </p>
       </div>
 
-      <div className="flex items-center justify-center bg-background px-6 py-14">
+      <div className="relative flex items-center justify-center bg-background px-6 py-14">
+        <ThemeToggle className="absolute right-6 top-6 text-muted-foreground" />
         <div className="w-full max-w-sm">
           <span className="text-eyebrow">Acesso administrativo</span>
           <h1 className="mt-2 font-display text-4xl font-medium">Entrar no Backoffice</h1>
