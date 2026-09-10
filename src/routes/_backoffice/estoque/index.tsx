@@ -162,7 +162,7 @@ function EstoquePage() {
       />
 
       {isPending ? (
-        <TableSkeleton linhas={8} colunas={5} />
+        <TableSkeleton linhas={8} colunas={4} />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : itens.length === 0 ? (
