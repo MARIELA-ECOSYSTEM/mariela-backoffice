@@ -21,11 +21,32 @@ import { CODIGO_AUTOMATICO } from "@/lib/codigos";
 import { produtoSchema, type ProdutoFormValues } from "@/schemas/produto.schema";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useCampanhas, useColecoes, useFornecedores } from "@/hooks/use-cadastros";
+import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 import { calcularMargem } from "@/utils/produto";
 import { formatarPercentual } from "@/utils/format";
 import type { Produto } from "@/types/produto";
 
 const SEM_VINCULO = "__nenhum__";
+
+/**
+ * Campos cujo nome no backend (`ApiFieldError.field`) corresponde exatamente
+ * ao campo do formulário — `CriarProdutoDto`/`AtualizarProdutoDto` são
+ * flat, sem aninhamento, então todos os 9 campos do DTO batem 1:1 aqui.
+ * `precoVenda` cobre inclusive a regra de negócio "preço de venda não pode
+ * ficar ≤ preço promocional ativo" (só existe na edição, ver
+ * `ProdutosService.atualizar`).
+ */
+const CAMPOS_MAPEAVEIS = [
+  "nome",
+  "descricao",
+  "categoria",
+  "colecaoId",
+  "campanhaId",
+  "fornecedorId",
+  "precoCusto",
+  "precoVenda",
+  "ehNovidade",
+] as const;
 
 export function ProdutoForm({
   produto,
@@ -34,7 +55,7 @@ export function ProdutoForm({
   onCancel,
 }: {
   produto?: Produto;
-  onSubmit: (values: ProdutoFormValues) => void | Promise<void>;
+  onSubmit: (values: ProdutoFormValues) => Promise<void>;
   enviando: boolean;
   onCancel: () => void;
 }) {
@@ -101,13 +122,17 @@ export function ProdutoForm({
     }
   }
 
-  function handleSubmit(values: ProdutoFormValues) {
-    void onSubmit({
-      ...values,
-      colecaoId: values.colecaoId === SEM_VINCULO ? undefined : values.colecaoId,
-      campanhaId: values.campanhaId === SEM_VINCULO ? undefined : values.campanhaId,
-      fornecedorId: values.fornecedorId === SEM_VINCULO ? undefined : values.fornecedorId,
-    });
+  async function handleSubmit(values: ProdutoFormValues) {
+    try {
+      await onSubmit({
+        ...values,
+        colecaoId: values.colecaoId === SEM_VINCULO ? undefined : values.colecaoId,
+        campanhaId: values.campanhaId === SEM_VINCULO ? undefined : values.campanhaId,
+        fornecedorId: values.fornecedorId === SEM_VINCULO ? undefined : values.fornecedorId,
+      });
+    } catch (error) {
+      aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
+    }
   }
 
   return (

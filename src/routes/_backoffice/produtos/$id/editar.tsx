@@ -33,6 +33,7 @@ function EditarProdutoPage() {
       void navigate({ to: "/produtos/$id", params: { id } });
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível atualizar o produto."));
+      throw err;
     }
   }
 

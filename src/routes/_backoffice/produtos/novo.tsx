@@ -30,6 +30,7 @@ function NovoProdutoPage() {
       void navigate({ to: "/produtos/$id", params: { id: produto.id } });
     } catch (error) {
       toast.error(mensagemDeErro(error, "Não foi possível criar o produto."));
+      throw error;
     }
   }
 
