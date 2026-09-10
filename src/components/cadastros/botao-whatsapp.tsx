@@ -29,9 +29,7 @@ export function BotaoWhatsapp({
         disabled={!habilitado}
         onClick={onClick}
         title={
-          habilitado
-            ? `Enviar mensagem para ${numero} (envio simulado)`
-            : "Sem telefone cadastrado"
+          habilitado ? `Enviar mensagem para ${numero} (envio simulado)` : "Sem telefone cadastrado"
         }
         className="border-success/40 text-success hover:bg-success/10 hover:text-success"
       >
