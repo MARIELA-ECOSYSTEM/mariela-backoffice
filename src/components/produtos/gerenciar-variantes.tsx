@@ -39,8 +39,7 @@ export function GerenciarVariantes({ produto }: { produto: Produto }) {
       toast.success("Variante excluída com sucesso.");
     } catch (error) {
       toast.error(mensagemDeErro(error, "Não foi possível excluir a variante."));
-    } finally {
-      setVarianteExclusao(null);
+      throw error;
     }
   }
 
@@ -124,7 +123,7 @@ export function GerenciarVariantes({ produto }: { produto: Produto }) {
         titulo="Excluir variante"
         descricao={`Tem certeza que deseja excluir a variante ${varianteExclusao?.cor ?? ""}? Os tamanhos e o estoque dela serão removidos.`}
         confirmarLabel="Excluir"
-        onConfirm={() => void confirmarExclusao()}
+        onConfirm={() => confirmarExclusao()}
       />
     </div>
   );

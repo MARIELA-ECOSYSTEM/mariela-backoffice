@@ -189,6 +189,7 @@ function ProdutoDetalhePage() {
       void navigate({ to: "/produtos" });
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível excluir o produto."));
+      throw err;
     }
   }
 
@@ -345,7 +346,7 @@ function ProdutoDetalhePage() {
         titulo="Excluir produto"
         descricao={`Tem certeza que deseja excluir "${produto.nome}"? Esta ação não pode ser desfeita.`}
         confirmarLabel="Excluir"
-        onConfirm={() => void confirmarExclusao()}
+        onConfirm={() => confirmarExclusao()}
       />
     </Page>
   );

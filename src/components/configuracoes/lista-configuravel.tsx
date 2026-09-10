@@ -52,8 +52,7 @@ export function ListaConfiguravel({
       toast.success("Item removido com sucesso.");
     } catch (error) {
       toast.error(mensagemDeErro(error, "Não foi possível remover o item."));
-    } finally {
-      setRemover(null);
+      throw error;
     }
   }
 
@@ -120,7 +119,7 @@ export function ListaConfiguravel({
         titulo="Remover item"
         descricao={`Tem certeza que deseja remover "${remover ?? ""}" de ${titulo.toLowerCase()}?`}
         confirmarLabel="Remover"
-        onConfirm={() => void onRemover()}
+        onConfirm={() => onRemover()}
       />
     </Card>
   );

@@ -217,8 +217,7 @@ function ProdutosPage() {
       toast.success("Produto excluído com sucesso.");
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível excluir o produto."));
-    } finally {
-      setProdutoExclusao(null);
+      throw err;
     }
   }
 
@@ -364,7 +363,7 @@ function ProdutosPage() {
         titulo="Excluir produto"
         descricao={`Tem certeza que deseja excluir "${produtoExclusao?.nome ?? ""}"? Esta ação não pode ser desfeita.`}
         confirmarLabel="Excluir"
-        onConfirm={() => void confirmarExclusao()}
+        onConfirm={() => confirmarExclusao()}
       />
     </Page>
   );

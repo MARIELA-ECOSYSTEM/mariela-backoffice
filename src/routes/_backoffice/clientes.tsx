@@ -201,8 +201,7 @@ function ClientesPage() {
       toast.success("Cliente excluída.");
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível excluir o cliente."));
-    } finally {
-      setParaExcluir(null);
+      throw err;
     }
   }
 
@@ -391,8 +390,8 @@ function ClientesPage() {
             : ""
         }
         confirmarLabel="Excluir"
-        onConfirm={() => {
-          if (paraExcluir) void excluir(paraExcluir);
+        onConfirm={async () => {
+          if (paraExcluir) await excluir(paraExcluir);
         }}
       />
 

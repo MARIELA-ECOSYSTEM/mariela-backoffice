@@ -165,8 +165,7 @@ function CampanhasPage() {
       toast.success("Campanha excluída.");
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível excluir a campanha."));
-    } finally {
-      setParaExcluir(null);
+      throw err;
     }
   }
 
@@ -273,8 +272,8 @@ function CampanhasPage() {
             : ""
         }
         confirmarLabel="Excluir"
-        onConfirm={() => {
-          if (paraExcluir) void excluir(paraExcluir);
+        onConfirm={async () => {
+          if (paraExcluir) await excluir(paraExcluir);
         }}
       />
     </Page>

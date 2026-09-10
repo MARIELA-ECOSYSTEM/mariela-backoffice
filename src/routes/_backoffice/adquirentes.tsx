@@ -145,8 +145,7 @@ function AdquirentesPage() {
       toast.success("Adquirente excluída.");
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível excluir a adquirente."));
-    } finally {
-      setParaExcluir(null);
+      throw err;
     }
   }
 
@@ -288,8 +287,8 @@ function AdquirentesPage() {
           paraExcluir ? `"${paraExcluir.nome}" será excluída. Esta ação não pode ser desfeita.` : ""
         }
         confirmarLabel="Excluir"
-        onConfirm={() => {
-          if (paraExcluir) void excluir(paraExcluir);
+        onConfirm={async () => {
+          if (paraExcluir) await excluir(paraExcluir);
         }}
       />
     </Page>
