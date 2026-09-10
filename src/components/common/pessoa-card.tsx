@@ -29,7 +29,7 @@ export function iniciais(nome: string): string {
 export function AvatarPessoa({
   nome,
   foto,
-  className = "size-14",
+  className = "size-11",
 }: {
   nome: string;
   foto?: string | null | undefined;
