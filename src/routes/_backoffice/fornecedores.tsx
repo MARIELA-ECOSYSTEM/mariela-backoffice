@@ -108,8 +108,7 @@ function FornecedoresPage() {
           valor: opcao.valor,
           label: opcao.label,
         })),
-        corresponde: (fornecedor, valor) =>
-          naFaixaDeProdutos(fornecedor.produtosVinculados, valor),
+        corresponde: (fornecedor, valor) => naFaixaDeProdutos(fornecedor.produtosVinculados, valor),
       },
       {
         id: "endereco",
