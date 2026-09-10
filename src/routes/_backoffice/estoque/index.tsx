@@ -179,70 +179,82 @@ function EstoquePage() {
         />
       ) : (
         <Card className="overflow-hidden shadow-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-36">Produto</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Coleção / Campanha</TableHead>
-                <TableHead>Cores e tamanhos</TableHead>
-                <TableHead>Quantidade total</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Zerado em</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {itens.map((item) => (
-                <TableRow key={item.produtoId}>
-                  <TableCell>
-                    <div className="flex items-center gap-4 py-2">
-                      <MiniaturaProduto fotos={item.fotos ?? []} alt={item.nome} />
-                      <div className="flex min-w-0 flex-col">
-                        <span className="font-medium">{item.nome}</span>
-                        <span className="text-xs text-muted-foreground">{item.categoria}</span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm">{item.categoria}</TableCell>
-                  <TableCell className="py-3">
-                    <div className="flex flex-col items-start gap-1">
-                      {item.colecaoId && nomeColecao.get(item.colecaoId) ? (
-                        <Badge variant="secondary" className="max-w-44 truncate">
-                          {nomeColecao.get(item.colecaoId)}
-                        </Badge>
-                      ) : null}
-                      {item.campanhaId && nomeCampanha.get(item.campanhaId) ? (
-                        <Badge variant="outline" className="max-w-44 truncate">
-                          {nomeCampanha.get(item.campanhaId)}
-                        </Badge>
-                      ) : null}
-                      {!item.colecaoId && !item.campanhaId ? (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell className="min-w-56 py-3">
-                    <CoresTamanhos cores={item.cores ?? []} />
-                  </TableCell>
-                  <TableCell className="tabular-nums">{item.quantidadeTotal}</TableCell>
-                  <TableCell>
-                    <StatusEstoqueBadge quantidadeTotal={item.quantidadeTotal} />
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatarData(item.estoqueZeradoEm)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button asChild variant="outline" size="sm">
-                      <Link to="/estoque/$produtoId" params={{ produtoId: item.produtoId }}>
-                        <Settings2 aria-hidden className="size-3.5" /> Gerenciar
-                      </Link>
-                    </Button>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[46rem]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produto</TableHead>
+                  <TableHead className="hidden lg:table-cell">Cores e tamanhos</TableHead>
+                  <TableHead className="w-40">Estoque</TableHead>
+                  <TableHead className="w-28 text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {itens.map((item) => {
+                  const colecao = item.colecaoId ? nomeColecao.get(item.colecaoId) : undefined;
+                  const campanha = item.campanhaId ? nomeCampanha.get(item.campanhaId) : undefined;
+                  return (
+                    <TableRow key={item.produtoId} className="align-top">
+                      <TableCell className="py-2.5">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <MiniaturaProduto fotos={item.fotos ?? []} alt={item.nome} />
+                          <div className="flex min-w-0 flex-col gap-1">
+                            <span className="truncate font-medium leading-tight">{item.nome}</span>
+                            <span className="text-xs text-muted-foreground">{item.categoria}</span>
+                            {colecao || campanha ? (
+                              <span className="flex flex-wrap gap-1">
+                                {colecao ? (
+                                  <Badge variant="secondary" className="max-w-44 truncate">
+                                    {colecao}
+                                  </Badge>
+                                ) : null}
+                                {campanha ? (
+                                  <Badge variant="outline" className="max-w-44 truncate">
+                                    {campanha}
+                                  </Badge>
+                                ) : null}
+                              </span>
+                            ) : null}
+                            {/* Em telas menores a distribuição acompanha o produto,
+                                evitando scroll horizontal desnecessário. */}
+                            <div className="lg:hidden">
+                              <CoresTamanhos cores={item.cores ?? []} />
+                            </div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden min-w-56 py-2.5 lg:table-cell">
+                        <CoresTamanhos cores={item.cores ?? []} />
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <div className="flex flex-col items-start gap-1">
+                          <span className="text-xl font-semibold leading-none tabular-nums">
+                            {item.quantidadeTotal}
+                            <span className="ml-1 text-xs font-normal text-muted-foreground">
+                              un.
+                            </span>
+                          </span>
+                          <StatusEstoqueBadge quantidadeTotal={item.quantidadeTotal} />
+                          {item.estoqueZeradoEm ? (
+                            <span className="text-xs text-muted-foreground">
+                              Zerado em {formatarData(item.estoqueZeradoEm)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2.5 text-right">
+                        <Button asChild variant="outline" size="sm">
+                          <Link to="/estoque/$produtoId" params={{ produtoId: item.produtoId }}>
+                            <Settings2 aria-hidden className="size-3.5" /> Gerenciar
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </Card>
       )}
     </Page>
