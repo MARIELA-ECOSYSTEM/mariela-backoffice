@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, X } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,13 +58,18 @@ export function ListaConfiguravel({
   }
 
   return (
-    <Card className="shadow-card">
-      <CardHeader>
-        <CardTitle className="font-display text-xl">{titulo}</CardTitle>
-        <p className="text-sm text-muted-foreground">{descricao}</p>
+    <Card className="border-border shadow-card">
+      <CardHeader className="gap-1.5 border-b border-border/70 pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="font-display text-xl leading-none">{titulo}</CardTitle>
+          <Badge variant="outline">
+            {itens.length} {itens.length === 1 ? "item" : "itens"}
+          </Badge>
+        </div>
+        <p className="text-sm leading-relaxed text-muted-foreground">{descricao}</p>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex gap-2">
+      <CardContent className="space-y-5 pt-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
           <div className="flex-1">
             <Input
               aria-label={`Adicionar em ${titulo}`}
@@ -77,33 +83,54 @@ export function ListaConfiguravel({
                 }
               }}
               aria-invalid={Boolean(erro)}
+              {...(erro ? { "aria-describedby": `${lista}-erro` } : {})}
             />
-            {erro ? <p className="mt-1 text-xs text-destructive">{erro}</p> : null}
+            {erro ? (
+              <p id={`${lista}-erro`} className="mt-1.5 text-xs text-destructive">
+                {erro}
+              </p>
+            ) : (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Pressione Enter para adicionar rapidamente.
+              </p>
+            )}
           </div>
-          <Button onClick={() => void onAdicionar()} disabled={adicionar.isPending}>
-            <Plus aria-hidden className="size-4" /> Adicionar
+          <Button
+            onClick={() => void onAdicionar()}
+            disabled={adicionar.isPending}
+            className="sm:min-w-32"
+          >
+            {adicionar.isPending ? (
+              <Loader2 aria-hidden className="size-4 animate-spin" />
+            ) : (
+              <Plus aria-hidden className="size-4" />
+            )}
+            Adicionar
           </Button>
         </div>
 
         {itens.length === 0 ? (
-          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
-            Nenhum item cadastrado.
-          </p>
+          <div className="rounded-lg border border-dashed border-border-strong bg-surface/50 px-4 py-10 text-center">
+            <p className="text-sm font-medium">Nenhum item cadastrado</p>
+            <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground">
+              Os itens adicionados aqui ficam disponíveis nos cadastros do catálogo.
+            </p>
+          </div>
         ) : (
           <ul className="flex flex-wrap gap-2">
             {itens.map((item) => (
               <li
                 key={item}
-                className="flex items-center gap-1 rounded-full border border-border bg-secondary px-3 py-1 text-sm"
+                className="group flex items-center gap-1.5 rounded-full border border-border bg-surface py-1 pl-3 pr-1.5 text-sm transition-colors hover:border-primary/35 hover:bg-primary-soft/60"
               >
-                {item}
+                <span className="leading-none">{item}</span>
                 <button
                   type="button"
                   aria-label={`Remover ${item}`}
-                  className="ml-1 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  className="flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/12 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                   onClick={() => setRemover(item)}
                 >
-                  <X aria-hidden className="size-3" />
+                  <X aria-hidden className="size-3.5" />
                 </button>
               </li>
             ))}
