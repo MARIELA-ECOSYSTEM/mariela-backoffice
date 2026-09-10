@@ -323,38 +323,38 @@ function CaixaDetalhePage() {
               <table className="w-full min-w-[52rem] text-sm">
                 <thead>
                   <tr className="border-b border-border/70 text-left">
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Venda
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Data
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Cliente
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Vendedor
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">
+                    <th scope="col" className="py-2 text-right text-xs font-medium text-muted-foreground">
                       Valor
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">
+                    <th scope="col" className="py-2 text-right text-xs font-medium text-muted-foreground">
                       Recebido
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">
+                    <th scope="col" className="py-2 text-right text-xs font-medium text-muted-foreground">
                       Pendente
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Pagamento
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Status
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {caixa.vendas.map((venda) => (
-                    <tr key={venda.id} className="border-b border-border/40 last:border-0">
+                    <tr key={venda.id} className="border-b border-border/40 last:border-0 hover:bg-surface/60">
                       <td className="py-2.5">
                         <Link
                           to="/vendas/$id"
@@ -369,13 +369,13 @@ function CaixaDetalhePage() {
                       </td>
                       <td className="py-2.5">{venda.clienteNome}</td>
                       <td className="py-2.5 text-muted-foreground">{venda.vendedorNome}</td>
-                      <td className="py-2.5 text-right tabular-nums">
+                      <td className="py-2.5 text-right text-base font-semibold tabular-nums">
                         {formatarMoeda(venda.valorFinal)}
                       </td>
-                      <td className="py-2.5 text-right tabular-nums text-emerald-600">
+                      <td className="py-2.5 text-right font-medium tabular-nums text-success">
                         {formatarMoeda(venda.valorPago)}
                       </td>
-                      <td className="py-2.5 text-right tabular-nums text-amber-600">
+                      <td className="py-2.5 text-right font-medium tabular-nums text-warning">
                         {formatarMoeda(venda.valorPendente)}
                       </td>
                       <td className="py-2.5 text-muted-foreground">{venda.formaPagamento}</td>
@@ -426,7 +426,7 @@ function CaixaDetalhePage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="tabular-nums text-emerald-600">
+                    <p className="text-base font-semibold tabular-nums text-success">
                       + {formatarMoeda(recebimento.valor)}
                     </p>
                     <p className="text-xs text-muted-foreground">
