@@ -271,8 +271,16 @@ function ClientesPage() {
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : filtrados.length === 0 ? (
         <EmptyState
-          titulo="Nenhuma cliente encontrada"
-          descricao="Ajuste a busca e os filtros ou cadastre a primeira cliente da loja."
+          titulo={
+            busca || filtragem.temSelecao
+              ? "Nenhuma cliente encontrada"
+              : "Não há clientes cadastradas"
+          }
+          descricao={
+            busca || filtragem.temSelecao
+              ? "Ajuste a busca e os filtros para localizar a cliente desejada."
+              : "Cadastre a primeira cliente da loja para acompanhar contato e histórico de compras."
+          }
           acao={
             <Button onClick={abrirNovo}>
               <Plus aria-hidden className="size-4" />

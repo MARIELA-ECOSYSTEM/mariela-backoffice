@@ -337,8 +337,16 @@ function VendedoresPage() {
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : filtrados.length === 0 ? (
         <EmptyState
-          titulo="Nenhum vendedor encontrado"
-          descricao="Ajuste a busca e os filtros ou cadastre o primeiro usuário do PDV."
+          titulo={
+            busca || filtragem.temSelecao
+              ? "Nenhum vendedor encontrado"
+              : "Não há vendedores cadastrados"
+          }
+          descricao={
+            busca || filtragem.temSelecao
+              ? "Ajuste a busca e os filtros para localizar o vendedor desejado."
+              : "Cadastre o primeiro usuário do MARIELA PDV para acompanhar as vendas por vendedor."
+          }
           acao={
             <Button onClick={abrirNovo}>
               <Plus aria-hidden className="size-4" />

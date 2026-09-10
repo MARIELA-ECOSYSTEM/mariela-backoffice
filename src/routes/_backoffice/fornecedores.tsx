@@ -297,8 +297,16 @@ function FornecedoresPage() {
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : filtrados.length === 0 ? (
         <EmptyState
-          titulo="Nenhum fornecedor encontrado"
-          descricao="Ajuste a busca e os filtros ou cadastre o primeiro parceiro da loja."
+          titulo={
+            busca || filtragem.temSelecao
+              ? "Nenhum fornecedor encontrado"
+              : "Não há fornecedores cadastrados"
+          }
+          descricao={
+            busca || filtragem.temSelecao
+              ? "Ajuste a busca e os filtros para localizar o fornecedor desejado."
+              : "Cadastre o primeiro parceiro da loja para vincular produtos e acompanhar o custo."
+          }
           acao={
             <Button onClick={abrirNovo}>
               <Plus aria-hidden className="size-4" />
