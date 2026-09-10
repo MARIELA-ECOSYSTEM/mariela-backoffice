@@ -252,7 +252,7 @@ function ConfiguracoesPage() {
             </form>
           </TabsContent>
 
-          <TabsContent value="categorias" className="mt-5 max-w-3xl">
+          <TabsContent value="categorias" className="mt-0 max-w-3xl">
             <ListaConfiguravel
               lista="categorias"
               titulo="Categorias"
@@ -262,7 +262,7 @@ function ConfiguracoesPage() {
             />
           </TabsContent>
 
-          <TabsContent value="tamanhos" className="mt-5 max-w-3xl">
+          <TabsContent value="tamanhos" className="mt-0 max-w-3xl">
             <ListaConfiguravel
               lista="tamanhos"
               titulo="Tamanhos"
@@ -272,7 +272,7 @@ function ConfiguracoesPage() {
             />
           </TabsContent>
 
-          <TabsContent value="cores" className="mt-5 max-w-3xl">
+          <TabsContent value="cores" className="mt-0 max-w-3xl">
             <ListaConfiguravel
               lista="cores"
               titulo="Cores"
@@ -282,7 +282,7 @@ function ConfiguracoesPage() {
             />
           </TabsContent>
 
-          <TabsContent value="pagamento" className="mt-5 max-w-3xl">
+          <TabsContent value="pagamento" className="mt-0 max-w-3xl">
             <ListaConfiguravel
               lista="formasPagamento"
               titulo="Formas de pagamento"
