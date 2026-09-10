@@ -3,8 +3,6 @@ import { ApiError } from "@/types/api";
 import type { ApiFieldError } from "@/types/api";
 import type { LoginRequest, LoginResponse, Usuario } from "@/types/auth";
 
-const USUARIO_ADMIN: Usuario = { id: "usr_001", nome: "Administrador", tipo: "ADMIN" };
-
 /**
  * Credenciais do ambiente MOCK vêm exclusivamente de variáveis de ambiente
  * (`VITE_MOCK_LOGIN` / `VITE_MOCK_SENHA`) — nunca de componentes React.
@@ -13,6 +11,15 @@ const USUARIO_ADMIN: Usuario = { id: "usr_001", nome: "Administrador", tipo: "AD
 const CREDENCIAIS = {
   usuario: ((import.meta.env["VITE_MOCK_LOGIN"] as string | undefined) ?? "admin").trim(),
   senha: ((import.meta.env["VITE_MOCK_SENHA"] as string | undefined) ?? "123456").trim(),
+};
+
+const USUARIO_ADMIN: Usuario = {
+  id: "usr_001",
+  codigo: "USR-0001",
+  nome: "Administrador",
+  email: CREDENCIAIS.usuario,
+  tipo: "ADMIN",
+  ativo: true,
 };
 const TOKEN = "mock-token";
 /** Só precisa ser reconhecível pelo mock de refresh — nunca validado criptograficamente aqui. */

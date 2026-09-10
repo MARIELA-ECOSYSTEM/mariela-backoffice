@@ -21,11 +21,6 @@ export const produtosApi = {
   async listar(filtros: ProdutoFiltros = {}): Promise<ListaProdutos> {
     const params: QueryParams = {
       busca: filtros.busca,
-      categoria: filtros.categoria,
-      colecaoId: filtros.colecaoId,
-      campanhaId: filtros.campanhaId,
-      fornecedorId: filtros.fornecedorId,
-      disponibilidade: filtros.disponibilidade,
       promocao: filtros.promocao,
       novidade: filtros.novidade,
       ordenarPor: filtros.ordenarPor,

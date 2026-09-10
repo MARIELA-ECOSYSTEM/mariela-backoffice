@@ -2,8 +2,12 @@ export type TipoUsuario = "ADMIN";
 
 export interface Usuario {
   id: string;
+  /** Código sequencial gerado pela API (`USR-0001`). Somente leitura. */
+  codigo: string;
   nome: string;
+  email: string;
   tipo: TipoUsuario;
+  ativo: boolean;
 }
 
 export interface LoginRequest {

@@ -18,6 +18,9 @@ export interface Colecao {
   /** Imagem horizontal usada em banners/hero. */
   fotoBanner: string | null;
   criadoEm: string;
+  atualizadoEm: string;
+  /** Contagem de produtos vinculados — agregado calculado pela camada de dados. */
+  produtosVinculados: number;
 }
 
 export interface ColecaoPayload {

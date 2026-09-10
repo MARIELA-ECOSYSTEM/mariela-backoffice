@@ -108,6 +108,7 @@ function montarItens(venda: VendaResumo, catalogo: Produto[], raiz: number): Ite
       precoOriginal,
       precoPraticado,
       emPromocao: precoPraticado < precoOriginal,
+      descontoItem: 0,
       subtotal: arredondar(precoPraticado * quantidade),
       quantidadeDevolvida: 0,
     });
@@ -211,6 +212,7 @@ export function detalharVenda(venda: VendaResumo, catalogo: Produto[]): VendaDet
             nome: item.nome,
             quantidade: item.quantidade,
             valor: item.subtotal,
+            restaurado: true,
           })),
         }
       : null;

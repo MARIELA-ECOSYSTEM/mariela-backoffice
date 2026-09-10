@@ -321,6 +321,8 @@ export function registerVendasMocks(): void {
           nome: item.nome,
           quantidade: restante,
           valor: arredondar(item.precoPraticado * restante),
+          // `devolverAoEstoque` acima já rodou de forma síncrona.
+          restaurado: true,
         });
       });
     } else {
@@ -344,6 +346,8 @@ export function registerVendasMocks(): void {
           nome: item.nome,
           quantidade,
           valor: arredondar(item.precoPraticado * quantidade),
+          // `devolverAoEstoque` acima já rodou de forma síncrona.
+          restaurado: true,
         });
       });
 

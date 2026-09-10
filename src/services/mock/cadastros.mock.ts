@@ -38,6 +38,23 @@ function encontrar<T extends { id: string }>(lista: T[], id: string, rotulo: str
   return item;
 }
 
+/** `produtosVinculados` é sempre um agregado — nunca um campo editável (mesmo padrão de Fornecedor). */
+function sincronizarAgregadosColecoes(): void {
+  db.colecoes.forEach((colecao) => {
+    colecao.produtosVinculados = db.produtos.filter(
+      (produto) => produto.colecaoId === colecao.id,
+    ).length;
+  });
+}
+
+function sincronizarAgregadosCampanhas(): void {
+  db.campanhas.forEach((campanha) => {
+    campanha.produtosVinculados = db.produtos.filter(
+      (produto) => produto.campanhaId === campanha.id,
+    ).length;
+  });
+}
+
 /** Valida nome + período + dados de vitrine usados por coleções e campanhas. */
 function validarPeriodo(body: unknown): {
   nome: string;
@@ -256,14 +273,15 @@ function registrarFornecedores(): void {
 }
 
 function registrarColecoes(): void {
-  registerMock("GET", "/colecoes", () => ({
-    data: clonar(db.colecoes),
-    meta: { total: db.colecoes.length },
-  }));
+  registerMock("GET", "/colecoes", () => {
+    sincronizarAgregadosColecoes();
+    return { data: clonar(db.colecoes), meta: { total: db.colecoes.length } };
+  });
 
-  registerMock("GET", "/colecoes/:id", ({ params }) => ({
-    data: clonar(encontrar(db.colecoes, params["id"]!, "Coleção")),
-  }));
+  registerMock("GET", "/colecoes/:id", ({ params }) => {
+    sincronizarAgregadosColecoes();
+    return { data: clonar(encontrar(db.colecoes, params["id"]!, "Coleção")) };
+  });
 
   registerMock("POST", "/colecoes", ({ body }) => {
     const colecao: Colecao = {
@@ -271,6 +289,8 @@ function registrarColecoes(): void {
       codigo: proximoCodigo("colecao"),
       ...validarPeriodo(body),
       criadoEm: agora(),
+      atualizadoEm: agora(),
+      produtosVinculados: 0,
     };
     db.colecoes.unshift(colecao);
     return { data: clonar(colecao) };
@@ -279,6 +299,7 @@ function registrarColecoes(): void {
   registerMock("PUT", "/colecoes/:id", ({ params, body }) => {
     const colecao = encontrar(db.colecoes, params["id"]!, "Coleção");
     Object.assign(colecao, validarPeriodo(body));
+    colecao.atualizadoEm = agora();
     return { data: clonar(colecao) };
   });
 
@@ -286,6 +307,7 @@ function registrarColecoes(): void {
     const colecao = encontrar(db.colecoes, params["id"]!, "Coleção");
     const payload = (body ?? {}) as { ativo?: boolean };
     colecao.ativo = typeof payload.ativo === "boolean" ? payload.ativo : !colecao.ativo;
+    colecao.atualizadoEm = agora();
     return { data: clonar(colecao) };
   });
 
@@ -303,14 +325,15 @@ function registrarColecoes(): void {
 }
 
 function registrarCampanhas(): void {
-  registerMock("GET", "/campanhas", () => ({
-    data: clonar(db.campanhas),
-    meta: { total: db.campanhas.length },
-  }));
+  registerMock("GET", "/campanhas", () => {
+    sincronizarAgregadosCampanhas();
+    return { data: clonar(db.campanhas), meta: { total: db.campanhas.length } };
+  });
 
-  registerMock("GET", "/campanhas/:id", ({ params }) => ({
-    data: clonar(encontrar(db.campanhas, params["id"]!, "Campanha")),
-  }));
+  registerMock("GET", "/campanhas/:id", ({ params }) => {
+    sincronizarAgregadosCampanhas();
+    return { data: clonar(encontrar(db.campanhas, params["id"]!, "Campanha")) };
+  });
 
   registerMock("POST", "/campanhas", ({ body }) => {
     const campanha: Campanha = {
@@ -318,6 +341,8 @@ function registrarCampanhas(): void {
       codigo: proximoCodigo("campanha"),
       ...validarPeriodo(body),
       criadoEm: agora(),
+      atualizadoEm: agora(),
+      produtosVinculados: 0,
     };
     db.campanhas.unshift(campanha);
     return { data: clonar(campanha) };
@@ -326,6 +351,7 @@ function registrarCampanhas(): void {
   registerMock("PUT", "/campanhas/:id", ({ params, body }) => {
     const campanha = encontrar(db.campanhas, params["id"]!, "Campanha");
     Object.assign(campanha, validarPeriodo(body as Partial<CampanhaPayload>));
+    campanha.atualizadoEm = agora();
     return { data: clonar(campanha) };
   });
 
@@ -333,6 +359,7 @@ function registrarCampanhas(): void {
     const campanha = encontrar(db.campanhas, params["id"]!, "Campanha");
     const payload = (body ?? {}) as { ativo?: boolean };
     campanha.ativo = typeof payload.ativo === "boolean" ? payload.ativo : !campanha.ativo;
+    campanha.atualizadoEm = agora();
     return { data: clonar(campanha) };
   });
 

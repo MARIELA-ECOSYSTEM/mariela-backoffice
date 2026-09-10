@@ -6,7 +6,8 @@
  * Toda venda finalizada é IMUTÁVEL — nenhuma edição de itens/valores existe.
  *
  * Estes tipos espelham o contrato previsto para a API NestJS:
- *   GET    /vendas                      → PaginatedResponse<VendaResumo>
+ *   GET    /vendas                      → sem parâmetros: ApiResponse<VendaResumo[]>
+ *                                          com parâmetros: PaginatedResponse<VendaResumo> (facetada, desde a Etapa 18.25)
  *   GET    /vendas/estatisticas         → ApiResponse<VendasEstatisticas>
  *   GET    /vendas/:id                  → ApiResponse<VendaDetalhe>
  *   POST   /vendas/:id/parcelas/:pid/baixa
@@ -85,6 +86,8 @@ export interface ItemVenda {
   /** Preço efetivamente praticado (promoção da época já aplicada). */
   precoPraticado: number;
   emPromocao: boolean;
+  /** Valor monetário efetivamente descontado nesta linha (já ×quantidade). `0` quando não houve desconto de item. */
+  descontoItem: number;
   subtotal: number;
   /** Quantidade já devolvida deste item. */
   quantidadeDevolvida: number;
@@ -100,6 +103,18 @@ export const MODALIDADES_PAGAMENTO: ModalidadePagamento[] = [
   "credito",
 ];
 
+/** Snapshot da tarifa de adquirente aplicada a um pagamento no débito/crédito — nunca recalculado depois. */
+export interface TarifaAplicada {
+  adquirenteId: string;
+  adquirenteNome: string;
+  modalidade: "debito" | "credito";
+  parcelas: number;
+  percentual: number;
+  valorBruto: number;
+  valorTarifa: number;
+  valorLiquido: number;
+}
+
 export interface PagamentoVenda {
   id: string;
   forma: string;
@@ -111,6 +126,8 @@ export interface PagamentoVenda {
   /** Presente apenas em recebimentos feitos no débito/crédito. */
   modalidade?: ModalidadePagamento;
   adquirenteId?: string;
+  /** Snapshot da tarifa — só existe quando `modalidade` é "debito"/"credito". */
+  tarifaAplicada?: TarifaAplicada;
   /** Chave enviada pelo cliente ao registrar o recebimento (dedupe). */
   idempotencyKey?: string;
 }
@@ -154,6 +171,8 @@ export interface ItemDevolvido {
   nome: string;
   quantidade: number;
   valor: number;
+  /** `true` quando o estoque desta linha já foi fisicamente devolvido. */
+  restaurado: boolean;
 }
 
 export interface CancelamentoVenda {

@@ -48,15 +48,18 @@ export type Ordem = "asc" | "desc";
 export type FiltroDisponibilidade = "todos" | "disponivel" | "sem-estoque";
 export type FiltroBooleano = "todos" | "sim" | "nao";
 
+/**
+ * Etapa 18.32 — os filtros singulares (`categoria`, `colecaoId`, `campanhaId`,
+ * `fornecedorId`, `disponibilidade`) foram removidos: o backend real rejeita
+ * esses parâmetros com 400 (`ListarProdutosQueryDto` só aceita a seleção em
+ * CSV/plural — `categorias`, `colecoes`, `campanhas`, `fornecedores`,
+ * `estoque` —, já coberta por `facetas`/`selecaoParaQuery`). Confirmado que
+ * nenhuma tela chegou a popular esses campos (dead code desde sempre).
+ */
 export interface ProdutoFiltros {
   /** Seleção multivalorada das facetas (`{ categorias: ["Vestidos"] }`). */
   facetas?: SelecaoFacetas | undefined;
   busca?: string | undefined;
-  categoria?: string | undefined;
-  colecaoId?: string | undefined;
-  campanhaId?: string | undefined;
-  fornecedorId?: string | undefined;
-  disponibilidade?: FiltroDisponibilidade | undefined;
   promocao?: FiltroBooleano | undefined;
   novidade?: FiltroBooleano | undefined;
   ordenarPor?: OrdenarProdutoPor | undefined;
