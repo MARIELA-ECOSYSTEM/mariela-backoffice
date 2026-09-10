@@ -38,7 +38,7 @@ export function AvatarPessoa({
   return (
     <Avatar className={`${className} border border-border bg-primary-soft/60`}>
       {foto ? <AvatarImage src={foto} alt={nome} /> : null}
-      <AvatarFallback className="bg-primary-soft/60 font-display text-lg text-primary">
+      <AvatarFallback className="bg-primary-soft/60 font-display text-base text-primary">
         {iniciais(nome)}
       </AvatarFallback>
     </Avatar>
@@ -101,7 +101,7 @@ export function PessoaCard({
   badgeExtra?: ReactNode;
 }) {
   return (
-    <Card className="group flex h-full flex-col overflow-hidden shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg">
+    <Card className="group flex h-full flex-col overflow-hidden rounded-xl shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-elevated">
       <CardContent className="flex flex-1 flex-col gap-4 p-5">
         <div className="flex items-start gap-3">
           <AvatarPessoa nome={nome} foto={foto} />
@@ -109,7 +109,8 @@ export function PessoaCard({
             <button
               type="button"
               onClick={onVisualizar}
-              className="block max-w-full truncate text-left font-display text-xl leading-tight text-foreground underline-offset-4 hover:underline"
+              title={nome}
+              className="block max-w-full truncate rounded-sm text-left font-display text-xl font-medium leading-tight text-foreground underline-offset-4 hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {nome}
             </button>
@@ -205,7 +206,7 @@ export function PessoaCard({
 
 /** Grid responsivo padrão de cards de pessoa: 2 / 3 / 4 colunas. */
 export function PessoaGrid({ children }: { children: ReactNode }) {
-  return <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{children}</div>;
+  return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{children}</div>;
 }
 
 /** Skeleton do grid de pessoas. */
@@ -215,7 +216,7 @@ export function GridSkeleton({ itens = 8 }: { itens?: number }) {
       {Array.from({ length: itens }).map((_, index) => (
         <div key={index} className="rounded-xl border border-border bg-card p-5 shadow-card">
           <div className="flex items-start gap-3">
-            <Skeleton className="size-14 rounded-full" />
+            <Skeleton className="size-11 rounded-full" />
             <div className="flex-1 space-y-2">
               <Skeleton className="h-5 w-2/3" />
               <Skeleton className="h-4 w-20" />

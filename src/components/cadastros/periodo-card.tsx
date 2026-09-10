@@ -71,7 +71,7 @@ export function PeriodoCard({
           : "destructive";
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-border bg-card shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-elevated">
+    <article className="group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-elevated">
       <div
         className={cn(
           "relative overflow-hidden bg-primary-soft/40",
@@ -165,12 +165,13 @@ export function PeriodoCard({
         ) : null}
       </div>
 
-      <div className="space-y-3 p-4">
+      <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="min-w-0">
           <Link
             to={rotaDetalhe}
             params={{ id: item.id }}
-            className="block truncate font-display text-xl leading-tight hover:text-primary"
+            title={item.nome}
+            className="block truncate rounded-sm font-display text-xl font-medium leading-tight hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {item.nome}
           </Link>
@@ -190,7 +191,9 @@ export function PeriodoCard({
           </span>
         </div>
 
-        <CodigoBadge codigo={item.codigo} tamanho="xs" />
+        <div className="mt-auto pt-1">
+          <CodigoBadge codigo={item.codigo} tamanho="xs" />
+        </div>
       </div>
     </article>
   );
