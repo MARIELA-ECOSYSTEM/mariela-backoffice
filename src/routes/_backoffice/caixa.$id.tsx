@@ -52,7 +52,33 @@ export const Route = createFileRoute("/_backoffice/caixa/$id")({
 });
 
 function Rotulo({ children }: { children: React.ReactNode }) {
-  return <p className="text-eyebrow text-[0.58rem]">{children}</p>;
+  return <p className="text-xs font-medium text-muted-foreground">{children}</p>;
+}
+
+/** Par rótulo/valor do cabeçalho: valor sempre com hierarquia acima do rótulo. */
+function DadoCabecalho({
+  rotulo,
+  children,
+  destaque,
+}: {
+  rotulo: string;
+  children: React.ReactNode;
+  destaque?: boolean;
+}) {
+  return (
+    <div className="space-y-0.5">
+      <Rotulo>{rotulo}</Rotulo>
+      <p
+        className={
+          destaque
+            ? "text-lg font-semibold tabular-nums text-primary"
+            : "text-base text-foreground tabular-nums"
+        }
+      >
+        {children}
+      </p>
+    </div>
+  );
 }
 
 function ResumoItem({
@@ -64,23 +90,40 @@ function ResumoItem({
   valor: number;
   tom?: "entrada" | "saida" | "destaque";
 }) {
+  const total = tom === "destaque";
   return (
-    <div className="rounded-lg border border-border/70 px-4 py-3">
+    <div
+      className={
+        total
+          ? "rounded-lg border border-primary/30 bg-primary-soft/40 px-4 py-3"
+          : "rounded-lg border border-border/70 px-4 py-3"
+      }
+    >
       <Rotulo>{rotulo}</Rotulo>
       <p
         className={
           tom === "entrada"
-            ? "mt-1 text-lg tabular-nums text-emerald-600"
+            ? "mt-1 text-xl font-semibold tabular-nums text-success"
             : tom === "saida"
-              ? "mt-1 text-lg tabular-nums text-rose-600"
-              : tom === "destaque"
-                ? "mt-1 font-display text-2xl text-primary"
-                : "mt-1 text-lg tabular-nums"
+              ? "mt-1 text-xl font-semibold tabular-nums text-destructive"
+              : total
+                ? "mt-1 text-2xl font-semibold tabular-nums text-primary"
+                : "mt-1 text-xl font-semibold tabular-nums"
         }
       >
         {formatarMoeda(valor)}
       </p>
     </div>
+  );
+}
+
+/** Subtítulo de agrupamento do resumo financeiro. */
+function GrupoResumo({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-medium text-foreground/80">{titulo}</h3>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{children}</div>
+    </section>
   );
 }
 
