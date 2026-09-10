@@ -137,26 +137,48 @@ function ConfiguracoesPage() {
       }
     >
       {isPending ? (
-        <TableSkeleton linhas={6} colunas={3} />
+        <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Skeleton key={index} className="h-10 rounded-lg" />
+            ))}
+          </div>
+          <div className="space-y-6">
+            <Skeleton className="h-64 rounded-xl" />
+            <Skeleton className="h-48 rounded-xl" />
+          </div>
+        </div>
       ) : isError || !configuracoes ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : (
-        <Tabs defaultValue="loja">
-          <TabsList>
-            <TabsTrigger value="loja">Dados da loja</TabsTrigger>
-            <TabsTrigger value="categorias">Categorias</TabsTrigger>
-            <TabsTrigger value="tamanhos">Tamanhos</TabsTrigger>
-            <TabsTrigger value="cores">Cores</TabsTrigger>
-            <TabsTrigger value="pagamento">Formas de pagamento</TabsTrigger>
+        <Tabs
+          defaultValue="loja"
+          orientation="vertical"
+          className="grid items-start gap-6 lg:grid-cols-[220px_minmax(0,1fr)]"
+        >
+          <TabsList className="h-auto w-full flex-row overflow-x-auto rounded-xl border border-border bg-card p-1.5 shadow-card lg:flex-col lg:overflow-visible">
+            {secoes.map((secao) => (
+              <TabsTrigger
+                key={secao.valor}
+                value={secao.valor}
+                className="w-full justify-start gap-2 rounded-lg px-3 py-2 text-left data-[state=active]:bg-primary-soft data-[state=active]:text-primary data-[state=active]:shadow-none"
+              >
+                <secao.icone aria-hidden className="size-4 shrink-0" />
+                <span className="truncate">{secao.label}</span>
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          <TabsContent value="loja" className="mt-5">
+          <TabsContent value="loja" className="mt-0">
             <form onSubmit={form.handleSubmit(onSubmit)} className="max-w-4xl space-y-6" noValidate>
-              <Card className="shadow-card">
-                <CardHeader>
-                  <CardTitle className="font-display text-xl">Identificação</CardTitle>
+              <Card className="border-border shadow-card">
+                <CardHeader className="gap-1.5 border-b border-border/70 pb-4">
+                  <CardTitle className="font-display text-xl leading-none">Identificação</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Nome, marca e canais de contato exibidos nos documentos da loja.
+                  </p>
                 </CardHeader>
-                <CardContent className="grid gap-5 md:grid-cols-2">
+                <CardContent className="grid gap-5 pt-5 md:grid-cols-2">
                   <Field id="nome" label="Nome da loja" erro={errors.nome?.message}>
                     <Input id="nome" {...form.register("nome")} />
                   </Field>
