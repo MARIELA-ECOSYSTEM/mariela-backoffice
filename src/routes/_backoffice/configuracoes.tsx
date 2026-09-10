@@ -197,11 +197,14 @@ function ConfiguracoesPage() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-card">
-                <CardHeader>
-                  <CardTitle className="font-display text-xl">Endereço</CardTitle>
+              <Card className="border-border shadow-card">
+                <CardHeader className="gap-1.5 border-b border-border/70 pb-4">
+                  <CardTitle className="font-display text-xl leading-none">Endereço</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Endereço físico da loja usado em documentos e contatos.
+                  </p>
                 </CardHeader>
-                <CardContent className="grid gap-5 md:grid-cols-3">
+                <CardContent className="grid gap-5 pt-5 md:grid-cols-3">
                   <Field id="cep" label="CEP" erro={errors.endereco?.cep?.message}>
                     <Input id="cep" {...form.register("endereco.cep")} />
                   </Field>
