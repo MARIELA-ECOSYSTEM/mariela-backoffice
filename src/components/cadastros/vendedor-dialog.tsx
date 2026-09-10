@@ -111,7 +111,7 @@ export function VendedorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3 font-display text-3xl">
             {edicao ? "Editar vendedor(a)" : "Novo vendedor(a)"}

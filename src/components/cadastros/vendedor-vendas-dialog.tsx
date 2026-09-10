@@ -31,7 +31,7 @@ export function VendedorVendasDialog({
 
   return (
     <Dialog open={vendedor !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-3 font-display text-3xl">
             Vendas do vendedor

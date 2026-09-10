@@ -45,7 +45,7 @@ export function AberturaCaixaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-3 font-display text-3xl">
             Abrir caixa

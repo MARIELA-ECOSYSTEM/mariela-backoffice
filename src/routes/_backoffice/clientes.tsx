@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DataToolbar, Paginacao } from "@/components/common/data-toolbar";
+import { BuscaInput, Paginacao } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
@@ -223,28 +223,6 @@ function ClientesPage() {
         </div>
       }
     >
-      <DataToolbar
-        busca={busca}
-        onBuscaChange={(valor) => {
-          setBusca(valor);
-          setPagina(1);
-        }}
-        placeholder="Buscar por nome ou telefone…"
-      >
-        <Select value={ordem} onValueChange={(valor) => setOrdem(valor as OrdenacaoCliente)}>
-          <SelectTrigger className="w-60" aria-label="Ordenar clientes">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {OPCOES_ORDENACAO.map((opcao) => (
-              <SelectItem key={opcao.valor} value={opcao.valor}>
-                {opcao.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </DataToolbar>
-
       <PainelFiltros
         grupos={filtragem.grupos}
         totalSelecionados={filtragem.totalSelecionados}
@@ -254,6 +232,32 @@ function ClientesPage() {
         }}
         onLimparGrupo={filtragem.limparGrupo}
         onLimparTudo={filtragem.limparTudo}
+        cabecalho={
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <BuscaInput
+              valor={busca}
+              onValorChange={(valor) => {
+                setBusca(valor);
+                setPagina(1);
+              }}
+              placeholder="Buscar por nome ou telefone…"
+            />
+            <div className="flex flex-wrap items-center gap-2 lg:ml-auto lg:justify-end">
+              <Select value={ordem} onValueChange={(valor) => setOrdem(valor as OrdenacaoCliente)}>
+                <SelectTrigger className="h-10 w-60" aria-label="Ordenar clientes">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OPCOES_ORDENACAO.map((opcao) => (
+                    <SelectItem key={opcao.valor} value={opcao.valor}>
+                      {opcao.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        }
         resultado={
           <span className="text-sm text-muted-foreground">
             {filtrados.length} cliente(s) encontrada(s)

@@ -74,7 +74,7 @@ export function DialogMensagemWhatsapp({
 
   return (
     <Dialog open={alvo !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-display text-3xl">
             <MessageCircle aria-hidden className="size-6 text-success" />

@@ -63,7 +63,7 @@ export function FechamentoCaixaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-3 font-display text-3xl">
             Fechar caixa

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { BuscaInput, Paginacao } from "@/components/common/data-toolbar";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -242,26 +242,19 @@ function ProdutosPage() {
           <span className="text-sm text-muted-foreground">{total} produto(s) encontrado(s)</span>
         }
         cabecalho={
-          <div className="flex flex-col gap-3 lg:flex-row">
-            <div className="relative lg:max-w-sm lg:flex-1">
-              <Search
-                aria-hidden
-                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                aria-label="Buscar por código, nome ou categoria"
-                placeholder="Buscar por código (PROD-0001), nome ou categoria…"
-                className="pl-9"
-                value={busca}
-                onChange={(event) => setBusca(event.target.value)}
-              />
-            </div>
-            <div className="flex flex-1 items-center justify-end gap-2">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <BuscaInput
+              valor={busca}
+              onValorChange={setBusca}
+              placeholder="Buscar por código (PROD-0001), nome ou categoria…"
+              ariaLabel="Buscar por código, nome ou categoria"
+            />
+            <div className="flex flex-wrap items-center gap-2 lg:ml-auto lg:justify-end">
               <Select
                 value={ordenacao}
                 onValueChange={(valor) => setOrdenacao(valor as OrdenacaoValor)}
               >
-                <SelectTrigger aria-label="Ordenar por" className="w-52">
+                <SelectTrigger aria-label="Ordenar por" className="h-10 w-52">
                   <SelectValue placeholder="Ordenar" />
                 </SelectTrigger>
                 <SelectContent>
@@ -316,32 +309,14 @@ function ProdutosPage() {
             ))}
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface/60 px-4 py-3">
-            <span className="font-brand text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-              {total} produto(s) · página {paginaAtual} de {totalPaginas}
-            </span>
-            <div className="flex items-center gap-2">
-              {isFetching ? <Badge variant="outline">Atualizando…</Badge> : null}
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Página anterior"
-                disabled={paginaAtual <= 1}
-                onClick={() => setPagina(paginaAtual - 1)}
-              >
-                <ChevronLeft aria-hidden className="size-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Próxima página"
-                disabled={paginaAtual >= totalPaginas}
-                onClick={() => setPagina(paginaAtual + 1)}
-              >
-                <ChevronRight aria-hidden className="size-4" />
-              </Button>
-            </div>
-          </div>
+          <Paginacao
+            pagina={paginaAtual}
+            totalPaginas={totalPaginas}
+            total={total}
+            rotulo="produto(s)"
+            onPaginaChange={setPagina}
+            extra={isFetching ? <Badge variant="outline">Atualizando…</Badge> : null}
+          />
         </div>
       )}
 

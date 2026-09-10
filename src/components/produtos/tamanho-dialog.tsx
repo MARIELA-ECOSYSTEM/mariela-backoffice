@@ -72,7 +72,7 @@ export function TamanhoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle className="font-display text-xl">Adicionar tamanho</DialogTitle>
           <DialogDescription>

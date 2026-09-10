@@ -83,7 +83,7 @@ export function ClienteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             {edicao ? "Editar cliente" : "Nova cliente"}
