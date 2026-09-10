@@ -234,7 +234,7 @@ export function AdquirenteDialog({
                         </SelectContent>
                       </Select>
 
-                      <div className="w-20">
+                      <div className="w-20 sm:w-full">
                         <Input
                           type="number"
                           min={1}
@@ -246,7 +246,7 @@ export function AdquirenteDialog({
                         />
                       </div>
 
-                      <div className="w-24">
+                      <div className="w-24 sm:w-full">
                         <Input
                           type="number"
                           step="0.01"
@@ -261,10 +261,11 @@ export function AdquirenteDialog({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        aria-label="Remover tarifa"
+                        aria-label={`Remover tarifa ${indice + 1}`}
                         onClick={() => tarifas.remove(indice)}
+                        className="size-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       >
-                        <Trash2 aria-hidden className="size-4 text-destructive" />
+                        <Trash2 aria-hidden className="size-4" />
                       </Button>
 
                       {errors.tabelaTarifas?.[indice]?.parcelas?.message ? (
