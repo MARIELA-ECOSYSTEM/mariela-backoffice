@@ -2,7 +2,8 @@ import { IndicadorCor } from "@/components/common/indicador-cor";
 import type { EstoqueCorResumo } from "@/types/estoque";
 
 /**
- * Distribuição do estoque: cada cor disponível com seus tamanhos e quantidades.
+ * Distribuição do estoque: cada cor (variante) com seus tamanhos e quantidades.
+ * Hierarquia: cor em destaque discreto, tamanhos como chips "TAM · qtd".
  * Complementa (não repete) a quantidade total já exibida na listagem.
  */
 export function CoresTamanhos({ cores }: { cores: EstoqueCorResumo[] }) {
@@ -11,21 +12,33 @@ export function CoresTamanhos({ cores }: { cores: EstoqueCorResumo[] }) {
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <ul className="flex flex-col gap-1">
       {cores.map((cor) => {
         const tamanhos = cor.tamanhos.filter((tamanho) => tamanho.quantidade > 0);
         return (
-          <div key={cor.varianteId} className="flex items-baseline gap-1.5 text-xs leading-tight">
-            <IndicadorCor cor={cor.cor} className="mt-1" />
+          <li
+            key={cor.varianteId}
+            className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs leading-tight"
+          >
+            <IndicadorCor cor={cor.cor} />
             <span className="shrink-0 font-medium text-foreground">{cor.cor}</span>
-            <span className="tabular-nums text-muted-foreground">
-              {tamanhos.length
-                ? tamanhos.map((t) => `${t.tamanho}(${t.quantidade})`).join(" ")
-                : "sem estoque"}
-            </span>
-          </div>
+            {tamanhos.length ? (
+              tamanhos.map((tamanho) => (
+                <span
+                  key={tamanho.tamanho}
+                  className="rounded border border-border bg-surface px-1 py-px tabular-nums text-muted-foreground"
+                >
+                  {tamanho.tamanho}
+                  <span aria-hidden> · </span>
+                  <span className="font-medium text-foreground">{tamanho.quantidade}</span>
+                </span>
+              ))
+            ) : (
+              <span className="text-muted-foreground">sem estoque</span>
+            )}
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }
