@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
-import { CardsSkeleton, DataToolbar } from "@/components/common/data-toolbar";
+import { BuscaInput, CardsSkeleton } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
@@ -184,18 +184,19 @@ function ColecoesPage() {
         </Button>
       }
     >
-      <DataToolbar
-        busca={busca}
-        onBuscaChange={setBusca}
-        placeholder="Buscar por nome, descrição ou código…"
-      />
-
       <PainelFiltros
         grupos={filtragem.grupos}
         totalSelecionados={filtragem.totalSelecionados}
         onAlternar={filtragem.alternar}
         onLimparGrupo={filtragem.limparGrupo}
         onLimparTudo={filtragem.limparTudo}
+        cabecalho={
+          <BuscaInput
+            valor={busca}
+            onValorChange={setBusca}
+            placeholder="Buscar por nome, descrição ou código…"
+          />
+        }
         resultado={
           <span className="text-sm text-muted-foreground">
             {filtradas.length} coleção(ões) encontrada(s)
@@ -209,8 +210,16 @@ function ColecoesPage() {
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : filtradas.length === 0 ? (
         <EmptyState
-          titulo="Nenhuma coleção encontrada"
-          descricao="Ajuste a busca ou cadastre uma nova coleção para agrupar seus produtos."
+          titulo={
+            busca || filtragem.temSelecao
+              ? "Nenhuma coleção encontrada"
+              : "Não há coleções cadastradas"
+          }
+          descricao={
+            busca || filtragem.temSelecao
+              ? "Ajuste a busca e os filtros para localizar a coleção desejada."
+              : "Cadastre a primeira coleção para agrupar seus produtos por período."
+          }
           acao={
             <Button onClick={abrirNova}>
               <Plus aria-hidden className="size-4" />
@@ -219,7 +228,7 @@ function ColecoesPage() {
           }
         />
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {filtradas.map((colecao) => (
             <PeriodoCard
               key={colecao.id}
