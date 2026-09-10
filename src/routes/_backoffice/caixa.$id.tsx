@@ -337,23 +337,23 @@ function CaixaDetalhePage() {
                     </th>
                     <th
                       scope="col"
-                      className="py-2 text-right text-xs font-medium text-muted-foreground"
+                      className="py-2 pl-4 text-right text-xs font-medium text-muted-foreground"
                     >
                       Valor
                     </th>
                     <th
                       scope="col"
-                      className="py-2 text-right text-xs font-medium text-muted-foreground"
+                      className="py-2 pl-4 text-right text-xs font-medium text-muted-foreground"
                     >
                       Recebido
                     </th>
                     <th
                       scope="col"
-                      className="py-2 text-right text-xs font-medium text-muted-foreground"
+                      className="py-2 pl-4 text-right text-xs font-medium text-muted-foreground"
                     >
                       Pendente
                     </th>
-                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
+                    <th scope="col" className="py-2 pl-4 text-xs font-medium text-muted-foreground">
                       Pagamento
                     </th>
                     <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
@@ -381,16 +381,16 @@ function CaixaDetalhePage() {
                       </td>
                       <td className="py-2.5">{venda.clienteNome}</td>
                       <td className="py-2.5 text-muted-foreground">{venda.vendedorNome}</td>
-                      <td className="py-2.5 text-right text-base font-semibold tabular-nums">
+                      <td className="py-2.5 pl-4 text-right text-base font-semibold tabular-nums whitespace-nowrap">
                         {formatarMoeda(venda.valorFinal)}
                       </td>
-                      <td className="py-2.5 text-right font-medium tabular-nums text-success">
+                      <td className="py-2.5 pl-4 text-right font-medium tabular-nums whitespace-nowrap text-success">
                         {formatarMoeda(venda.valorPago)}
                       </td>
-                      <td className="py-2.5 text-right font-medium tabular-nums text-warning">
+                      <td className="py-2.5 pl-4 text-right font-medium tabular-nums whitespace-nowrap text-warning">
                         {formatarMoeda(venda.valorPendente)}
                       </td>
-                      <td className="py-2.5 text-muted-foreground">{venda.formaPagamento}</td>
+                      <td className="py-2.5 pl-4 text-muted-foreground">{venda.formaPagamento}</td>
                       <td className="py-2.5">
                         <Badge variant={VARIANTE_STATUS_VENDA[venda.status]}>
                           {LABEL_STATUS_VENDA[venda.status]}
