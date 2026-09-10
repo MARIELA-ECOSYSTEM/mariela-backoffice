@@ -119,6 +119,34 @@ export function registrarRecebimentoParcela(
 }
 
 /**
+ * Recebimento posterior (Etapa 18.29) → mesmo tratamento de
+ * `registrarRecebimentoParcela`: lança `tipo: "venda"` no caixa aberto, mas
+ * sem depender de uma parcela formal (cobre valor livre, parcial ou total,
+ * contra o saldo pendente da venda).
+ */
+export function registrarRecebimentoPosterior(
+  venda: VendaDetalhe,
+  valor: number,
+  formaPagamento: string,
+  dataHora: string,
+): void {
+  registrarMovimentacao({
+    dataHora,
+    tipo: "venda",
+    origem: "venda",
+    descricao: `Recebimento posterior · ${venda.clienteNome}`,
+    referencia: venda.codigo,
+    vendaId: venda.id,
+    vendaCodigo: venda.codigo,
+    formaPagamento,
+    valor,
+    sentido: "entrada",
+    observacao: "Recebimento registrado no backoffice",
+    motivo: null,
+  });
+}
+
+/**
  * Cancelamento/devolução (total ou parcial) → sempre `tipo: "cancelamento"`
  * no caixa aberto, limitado ao valor efetivamente recebido (Etapa 18.6: o
  * Caixa não distingue mais os dois casos — a distinção continua só na

@@ -3,7 +3,11 @@ import { vendasApi } from "@/services/api/vendas.api";
 import { clientesKeys, fornecedoresKeys } from "@/hooks/use-cadastros";
 import { vendedoresKeys } from "@/hooks/use-vendedores";
 import { produtosKeys } from "@/hooks/use-produtos";
-import type { BaixaParcelaPayload, CancelamentoPayload } from "@/types/venda";
+import type {
+  BaixaParcelaPayload,
+  CancelamentoPayload,
+  RegistrarRecebimentoPayload,
+} from "@/types/venda";
 
 export const vendasKeys = {
   todas: ["vendas"] as const,
@@ -55,6 +59,14 @@ export function useBaixarParcela(id: string) {
   return useMutation({
     mutationFn: (vars: { parcelaId: string; payload: BaixaParcelaPayload }) =>
       vendasApi.baixarParcela(id, vars.parcelaId, vars.payload),
+    onSuccess: () => void invalidar(id),
+  });
+}
+
+export function useReceberPagamento(id: string) {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: (payload: RegistrarRecebimentoPayload) => vendasApi.receberPagamento(id, payload),
     onSuccess: () => void invalidar(id),
   });
 }

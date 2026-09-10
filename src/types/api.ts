@@ -64,6 +64,10 @@ export class ApiError extends Error {
   static unauthorized(message = "Credenciais inválidas."): ApiError {
     return new ApiError({ statusCode: 401, code: "UNAUTHORIZED", message });
   }
+
+  static conflict(message: string): ApiError {
+    return new ApiError({ statusCode: 409, code: "CONFLICT", message });
+  }
 }
 
 export type QueryParams = Record<string, string | number | boolean | null | undefined>;

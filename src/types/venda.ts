@@ -10,6 +10,7 @@
  *   GET    /vendas/estatisticas         → ApiResponse<VendasEstatisticas>
  *   GET    /vendas/:id                  → ApiResponse<VendaDetalhe>
  *   POST   /vendas/:id/parcelas/:pid/baixa
+ *   POST   /vendas/:id/recebimentos     (Etapa 18.29 — recebimento posterior)
  *   POST   /vendas/:id/cancelamento
  */
 
@@ -89,6 +90,16 @@ export interface ItemVenda {
   quantidadeDevolvida: number;
 }
 
+/** Modalidades de pagamento aceitas por um recebimento posterior no cartão. */
+export type ModalidadePagamento = "dinheiro" | "pix" | "debito" | "credito";
+
+export const MODALIDADES_PAGAMENTO: ModalidadePagamento[] = [
+  "dinheiro",
+  "pix",
+  "debito",
+  "credito",
+];
+
 export interface PagamentoVenda {
   id: string;
   forma: string;
@@ -97,6 +108,11 @@ export interface PagamentoVenda {
   /** Nº de parcelas do meio de pagamento (1 = à vista). */
   parcelas: number;
   observacao?: string;
+  /** Presente apenas em recebimentos feitos no débito/crédito. */
+  modalidade?: ModalidadePagamento;
+  adquirenteId?: string;
+  /** Chave enviada pelo cliente ao registrar o recebimento (dedupe). */
+  idempotencyKey?: string;
 }
 
 export interface ParcelaVenda {
@@ -167,6 +183,25 @@ export interface VendasEstatisticas {
 
 export interface BaixaParcelaPayload {
   formaPagamento: string;
+}
+
+/**
+ * Recebimento posterior contra o saldo pendente de uma venda EM_PAGAMENTO —
+ * espelha `RegistrarRecebimentoDto` do mariela-backend (`POST
+ * /vendas/:id/recebimentos`). Independe de parcela: cobre tanto valor total
+ * quanto parcial, e não exige que a venda tenha parcelas formais.
+ */
+export interface RegistrarRecebimentoPayload {
+  forma: string;
+  valor: number;
+  /** Nº de parcelas do cartão de crédito (obrigatório no backend quando modalidade = "credito"). */
+  parcelas?: number;
+  observacao?: string;
+  modalidade?: ModalidadePagamento;
+  /** Obrigatório no backend quando modalidade = "debito" | "credito". */
+  adquirenteId?: string;
+  /** Gerada no cliente a cada tentativa, para o backend deduplicar retries. */
+  idempotencyKey?: string;
 }
 
 export interface DevolucaoItemPayload {

@@ -5,6 +5,7 @@ import {
   Ban,
   Clock3,
   CreditCard,
+  HandCoins,
   History,
   Landmark,
   Lock,
@@ -22,10 +23,20 @@ import { CodigoBadge } from "@/components/common/codigo-badge";
 import { ErrorState } from "@/components/common/states";
 import { NotaDemonstracao } from "@/components/common/data-toolbar";
 import { CancelamentoDialog } from "@/components/vendas/cancelamento-dialog";
-import { useBaixarParcela, useCancelarVenda, useVenda } from "@/hooks/use-vendas";
+import { RecebimentoDialog } from "@/components/vendas/recebimento-dialog";
+import {
+  useBaixarParcela,
+  useCancelarVenda,
+  useReceberPagamento,
+  useVenda,
+} from "@/hooks/use-vendas";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarData, formatarDataHora, formatarMoeda, pluralizar } from "@/utils/format";
-import { LABEL_STATUS_VENDA, type CancelamentoPayload } from "@/types/venda";
+import {
+  LABEL_STATUS_VENDA,
+  type CancelamentoPayload,
+  type RegistrarRecebimentoPayload,
+} from "@/types/venda";
 import { VARIANTE_STATUS_VENDA, descricaoItemVenda, percentualDesconto } from "@/utils/venda";
 
 export const Route = createFileRoute("/_backoffice/vendas/$id")({
@@ -60,7 +71,9 @@ function VendaDetalhePage() {
   const { data: venda, isPending, isError, error, refetch } = useVenda(id);
   const baixar = useBaixarParcela(id);
   const cancelar = useCancelarVenda(id);
+  const receber = useReceberPagamento(id);
   const [cancelamentoAberto, setCancelamentoAberto] = useState(false);
+  const [recebimentoAberto, setRecebimentoAberto] = useState(false);
 
   async function baixarParcela(parcelaId: string, formaPagamento: string) {
     try {
@@ -68,6 +81,16 @@ function VendaDetalhePage() {
       toast.success("Parcela baixada.");
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível baixar a parcela."));
+    }
+  }
+
+  async function registrarRecebimento(payload: RegistrarRecebimentoPayload) {
+    try {
+      await receber.mutateAsync(payload);
+      toast.success("Recebimento registrado.");
+      setRecebimentoAberto(false);
+    } catch (err) {
+      toast.error(mensagemDeErro(err, "Não foi possível registrar o recebimento."));
     }
   }
 
@@ -100,6 +123,12 @@ function VendaDetalhePage() {
               Voltar
             </Link>
           </Button>
+          {venda && venda.status === "em_pagamento" && venda.valorPendente > 0 ? (
+            <Button onClick={() => setRecebimentoAberto(true)}>
+              <HandCoins aria-hidden className="size-4" />
+              Receber pagamento
+            </Button>
+          ) : null}
           {venda && venda.status !== "cancelada" ? (
             <Button variant="destructive" onClick={() => setCancelamentoAberto(true)}>
               <Ban aria-hidden className="size-4" />
@@ -423,6 +452,14 @@ function VendaDetalhePage() {
             onOpenChange={setCancelamentoAberto}
             salvando={cancelar.isPending}
             onConfirmar={(payload) => void confirmarCancelamento(payload)}
+          />
+
+          <RecebimentoDialog
+            venda={venda}
+            open={recebimentoAberto}
+            onOpenChange={setRecebimentoAberto}
+            salvando={receber.isPending}
+            onConfirmar={(payload) => void registrarRecebimento(payload)}
           />
         </div>
       )}

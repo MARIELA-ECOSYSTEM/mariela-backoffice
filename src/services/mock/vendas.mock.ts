@@ -8,14 +8,22 @@ import {
   sincronizarAgregadosClientes,
   sincronizarAgregadosVendedores,
 } from "./db";
-import { registrarDevolucao, registrarRecebimentoParcela } from "./caixas.lancamentos";
+import {
+  caixaAberto,
+  registrarDevolucao,
+  registrarRecebimentoParcela,
+  registrarRecebimentoPosterior,
+} from "./caixas.lancamentos";
 import { ApiError } from "@/types/api";
-import type {
-  CancelamentoPayload,
-  ItemDevolvido,
-  VendaDetalhe,
-  VendaResumo,
-  VendasEstatisticas,
+import {
+  MODALIDADES_PAGAMENTO,
+  type CancelamentoPayload,
+  type ItemDevolvido,
+  type ModalidadePagamento,
+  type RegistrarRecebimentoPayload,
+  type VendaDetalhe,
+  type VendaResumo,
+  type VendasEstatisticas,
 } from "@/types/venda";
 
 function arredondar(valor: number): number {
@@ -133,6 +141,110 @@ export function registerVendasMocks(): void {
 
     // O valor recebido entra no caixa aberto (regra financeira do módulo Caixa).
     registrarRecebimentoParcela(venda, parcela, forma);
+
+    sincronizarResumo(venda);
+    return { data: clonar(venda) };
+  });
+
+  /**
+   * Recebimento posterior (Etapa 18.29) — valor livre contra o saldo
+   * pendente, independente de parcela formal. Espelha
+   * `VendasService.receberPagamento` do mariela-backend, incluindo a
+   * deduplicação por `idempotencyKey`.
+   */
+  registerMock("POST", "/vendas/:id/recebimentos", ({ params, body }) => {
+    const venda = encontrar(params["id"]!);
+    if (venda.status === "cancelada")
+      throw ApiError.validation("Venda cancelada não aceita novos recebimentos.");
+
+    if (!caixaAberto())
+      throw ApiError.validation("Nenhum caixa aberto. Abra o caixa antes de registrar o recebimento.");
+
+    const payload = (body ?? {}) as Partial<RegistrarRecebimentoPayload>;
+    const forma = (payload.forma ?? "").trim();
+    const valor = Number(payload.valor);
+
+    if (!forma)
+      throw ApiError.validation("Dados inválidos.", [
+        { field: "forma", message: "Informe a forma de pagamento." },
+      ]);
+    if (!Number.isFinite(valor) || valor <= 0)
+      throw ApiError.validation("Dados inválidos.", [
+        { field: "valor", message: "Informe um valor maior que zero." },
+      ]);
+
+    if (venda.valorPendente <= 0)
+      throw ApiError.validation("Esta venda já está quitada; nenhum recebimento é necessário.");
+
+    if (arredondar(valor) > venda.valorPendente)
+      throw ApiError.validation("Dados inválidos.", [
+        {
+          field: "valor",
+          message: `Recebimento maior que o saldo pendente (${venda.valorPendente.toFixed(2)}).`,
+        },
+      ]);
+
+    const idempotencyKey = payload.idempotencyKey?.trim() || undefined;
+    if (idempotencyKey) {
+      const existente = venda.pagamentos.find((item) => item.idempotencyKey === idempotencyKey);
+      if (existente) {
+        if (arredondar(existente.valor) !== arredondar(valor))
+          throw ApiError.conflict(
+            "Esta idempotencyKey já foi usada para um recebimento com valor diferente. Gere uma nova chave para esta operação.",
+          );
+        return { data: clonar(venda) };
+      }
+    }
+
+    const modalidade = payload.modalidade;
+    if (modalidade !== undefined && !MODALIDADES_PAGAMENTO.includes(modalidade))
+      throw ApiError.validation("Modalidade de pagamento inválida.");
+
+    if (modalidade === "dinheiro" || modalidade === "pix") {
+      if (payload.adquirenteId)
+        throw ApiError.validation(
+          "Adquirente não deve ser informado para pagamento em dinheiro/PIX.",
+        );
+    } else if (modalidade === "debito" || modalidade === "credito") {
+      if (!payload.adquirenteId)
+        throw ApiError.validation("Adquirente é obrigatório para pagamento no crédito/débito.");
+      if (modalidade === "debito" && payload.parcelas !== undefined && payload.parcelas !== 1)
+        throw ApiError.validation("Pagamento no débito deve ser em 1 parcela.");
+      if (modalidade === "credito") {
+        if (payload.parcelas === undefined)
+          throw ApiError.validation("Parcelamento no crédito deve ser informado.");
+        if (!Number.isInteger(payload.parcelas) || payload.parcelas < 1 || payload.parcelas > 24)
+          throw ApiError.validation("Parcelamento no crédito deve estar entre 1 e 24 parcelas.");
+      }
+    }
+
+    const dataHora = agora();
+    const observacao = payload.observacao?.trim() || undefined;
+    venda.pagamentos.push({
+      id: gerarId("pag"),
+      forma,
+      valor: arredondar(valor),
+      dataPagamento: dataHora,
+      parcelas: payload.parcelas ?? 1,
+      ...(observacao ? { observacao } : {}),
+      ...(modalidade ? { modalidade: modalidade as ModalidadePagamento } : {}),
+      ...(payload.adquirenteId ? { adquirenteId: payload.adquirenteId } : {}),
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+    });
+    venda.valorPago = arredondar(
+      venda.pagamentos.reduce((total, pagamento) => total + pagamento.valor, 0),
+    );
+    venda.valorPendente = arredondar(Math.max(0, venda.valorFinal - venda.valorPago));
+    if (venda.valorPendente === 0) venda.status = "concluida";
+    venda.historico.push({
+      id: gerarId("ev"),
+      dataHora,
+      tipo: "pagamento",
+      descricao: `Recebimento posterior de ${arredondar(valor).toFixed(2)} em ${forma}`,
+      autor: "Backoffice",
+    });
+
+    registrarRecebimentoPosterior(venda, arredondar(valor), forma, dataHora);
 
     sincronizarResumo(venda);
     return { data: clonar(venda) };

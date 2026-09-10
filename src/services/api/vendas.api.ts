@@ -2,6 +2,7 @@ import { apiClient } from "./client";
 import type {
   BaixaParcelaPayload,
   CancelamentoPayload,
+  RegistrarRecebimentoPayload,
   VendaDetalhe,
   VendaResumo,
   VendasEstatisticas,
@@ -37,6 +38,13 @@ export const vendasApi = {
   },
   async cancelar(id: string, payload: CancelamentoPayload): Promise<VendaDetalhe> {
     const { data } = await apiClient.post<VendaDetalhe>(`/vendas/${id}/cancelamento`, payload);
+    return data;
+  },
+  async receberPagamento(
+    id: string,
+    payload: RegistrarRecebimentoPayload,
+  ): Promise<VendaDetalhe> {
+    const { data } = await apiClient.post<VendaDetalhe>(`/vendas/${id}/recebimentos`, payload);
     return data;
   },
 };
