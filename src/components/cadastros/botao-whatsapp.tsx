@@ -28,7 +28,11 @@ export function BotaoWhatsapp({
         size="sm"
         disabled={!habilitado}
         onClick={onClick}
-        title={habilitado ? `Enviar mensagem para ${numero}` : "Sem telefone cadastrado"}
+        title={
+          habilitado
+            ? `Enviar mensagem para ${numero} (envio simulado)`
+            : "Sem telefone cadastrado"
+        }
         className="border-success/40 text-success hover:bg-success/10 hover:text-success"
       >
         <MessageCircle aria-hidden className="size-4" />
@@ -44,8 +48,10 @@ export function BotaoWhatsapp({
       size="icon"
       disabled={!habilitado}
       onClick={onClick}
-      aria-label={`Enviar mensagem de WhatsApp para ${nome}`}
-      title={habilitado ? `Enviar mensagem para ${numero}` : "Sem telefone cadastrado"}
+      aria-label={`Enviar mensagem de WhatsApp para ${nome} (envio simulado)`}
+      title={
+        habilitado ? `Enviar mensagem para ${numero} (envio simulado)` : "Sem telefone cadastrado"
+      }
       className="text-success hover:bg-success/10 hover:text-success"
     >
       <MessageCircle aria-hidden className="size-4" />
