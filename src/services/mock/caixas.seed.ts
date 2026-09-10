@@ -1,5 +1,5 @@
 import { formatarCodigo } from "@/lib/codigos";
-import type { Caixa, MovimentacaoCaixa, RecebimentoCaixa, ResumoCaixa } from "@/types/caixa";
+import type { Caixa, MovimentacaoCaixa, ResumoCaixa } from "@/types/caixa";
 import type { VendaDetalhe, VendaResumo } from "@/types/venda";
 import type { Vendedor } from "@/types/vendedor";
 
@@ -19,7 +19,6 @@ import type { Vendedor } from "@/types/vendedor";
 export interface CaixasSeed {
   caixas: Caixa[];
   movimentacoes: MovimentacaoCaixa[];
-  recebimentos: RecebimentoCaixa[];
 }
 
 function arredondar(valor: number): number {
@@ -66,7 +65,13 @@ const DESCRICOES_SAIDA_SEED = [
   "Retirada para depósito bancário",
 ];
 
-/** Resumo derivado das movimentações — mesma fórmula usada pelo serviço mock. */
+/**
+ * Resumo derivado das movimentações — mesma fórmula usada pelo serviço mock.
+ * Etapa 18.6 — `recebimentos` é sempre 0: o conceito de "recebimento de
+ * parcela" como movimento distinto de "venda" foi abolido (Etapa 18.2 do
+ * backend); qualquer entrada de uma venda, à vista ou parcela paga depois,
+ * já está somada em `totalVendas` (tipo único `"venda"`).
+ */
 export function resumoDeMovimentacoes(
   valorAbertura: number,
   movimentacoes: MovimentacaoCaixa[],
@@ -79,10 +84,10 @@ export function resumoDeMovimentacoes(
     );
 
   const totalVendas = somar(["venda"]);
-  const recebimentos = somar(["recebimento_parcela"]);
-  const entradasManuais = somar(["entrada"]);
-  const saidasManuais = somar(["saida"]);
-  const devolucoes = somar(["devolucao", "cancelamento"]);
+  const recebimentos = 0;
+  const entradasManuais = somar(["injecao"]);
+  const saidasManuais = somar(["sangria"]);
+  const devolucoes = somar(["cancelamento"]);
   const totalEntradas = arredondar(totalVendas + recebimentos + entradasManuais);
   const totalSaidas = arredondar(saidasManuais + devolucoes);
 
@@ -109,7 +114,7 @@ export function seedCaixas(
   vendedores: Vendedor[],
 ): CaixasSeed {
   const equipe = vendedores.filter((vendedor) => vendedor.ativo);
-  if (!vendas.length || !equipe.length) return { caixas: [], movimentacoes: [], recebimentos: [] };
+  if (!vendas.length || !equipe.length) return { caixas: [], movimentacoes: [] };
 
   // Um caixa por DIA de movimento: vendas, pagamentos de parcela e devoluções.
   const diasSet = new Set(vendas.map((venda) => dia(venda.dataVenda)));
@@ -150,7 +155,6 @@ export function seedCaixas(
   }
 
   const movimentacoes: MovimentacaoCaixa[] = [];
-  const recebimentos: RecebimentoCaixa[] = [];
   let sequencia = 0;
 
   function idMovimentacao(): string {
@@ -178,12 +182,16 @@ export function seedCaixas(
       );
       const recebimentoDeParcela = !noAto && Boolean(parcela);
 
+      // Etapa 18.6 — recebimento de parcela é só mais um movimento
+      // `tipo: "venda"` (o Caixa não distingue mais "à vista" de "baixa de
+      // parcela"); a descrição continua diferenciando os dois casos para o
+      // operador, exatamente como o backend real faz.
       const movimentacao: MovimentacaoCaixa = {
         id: idMovimentacao(),
         caixaId: caixa.id,
         dataHora: pagamento.dataPagamento,
-        tipo: recebimentoDeParcela ? "recebimento_parcela" : "venda",
-        origem: recebimentoDeParcela ? "parcela" : "venda",
+        tipo: "venda",
+        origem: "venda",
         descricao: recebimentoDeParcela
           ? `Recebimento da parcela ${parcela!.numero}/${parcela!.total} · ${venda.clienteNome}`
           : `Venda ${venda.codigo} · ${venda.clienteNome}`,
@@ -193,28 +201,10 @@ export function seedCaixas(
         formaPagamento: pagamento.forma,
         valor: arredondar(pagamento.valor),
         sentido: "entrada",
-        responsavelId: venda.vendedorId,
-        responsavelNome: venda.vendedorNome,
         observacao: pagamento.observacao ?? "",
         motivo: null,
       };
       movimentacoes.push(movimentacao);
-
-      if (recebimentoDeParcela && parcela) {
-        recebimentos.push({
-          id: `rec_${movimentacao.id}`,
-          dataHora: pagamento.dataPagamento,
-          vendaId: venda.id,
-          vendaCodigo: venda.codigo,
-          clienteNome: venda.clienteNome,
-          parcelaNumero: parcela.numero,
-          parcelaTotal: parcela.total,
-          vencimento: parcela.vencimento,
-          valor: arredondar(parcela.valor),
-          formaPagamento: parcela.formaPagamento ?? pagamento.forma,
-          responsavelNome: venda.vendedorNome,
-        });
-      }
     });
 
     // Devolução/cancelamento: saída limitada ao valor efetivamente recebido.
@@ -223,12 +213,15 @@ export function seedCaixas(
       const caixa = caixaDaData(cancelamento.dataHora);
       const valor = arredondar(Math.min(cancelamento.valorDevolvido, detalhe.valorPago));
       if (valor > 0) {
+        // Etapa 18.6 — cancelamento/devolução (total ou parcial) é sempre
+        // `tipo: "cancelamento"` (o Caixa não distingue mais os dois); a
+        // distinção continua só na descrição, mesma regra do backend real.
         movimentacoes.push({
           id: idMovimentacao(),
           caixaId: caixa.id,
           dataHora: cancelamento.dataHora,
-          tipo: cancelamento.tipo === "integral" ? "cancelamento" : "devolucao",
-          origem: cancelamento.tipo === "integral" ? "cancelamento" : "devolucao",
+          tipo: "cancelamento",
+          origem: "cancelamento",
           descricao:
             cancelamento.tipo === "integral"
               ? `Cancelamento da venda ${venda.codigo} · ${venda.clienteNome}`
@@ -239,8 +232,6 @@ export function seedCaixas(
           formaPagamento: venda.formaPagamento,
           valor,
           sentido: "saida",
-          responsavelId: null,
-          responsavelNome: cancelamento.autor,
           observacao: cancelamento.motivo,
           motivo: cancelamento.motivo,
         });
@@ -256,7 +247,7 @@ export function seedCaixas(
         id: idMovimentacao(),
         caixaId: caixa.id,
         dataHora: comHorario(diaIso, 11, 15),
-        tipo: "entrada",
+        tipo: "injecao",
         origem: "manual",
         descricao: "Suprimento de troco",
         referencia: null,
@@ -265,8 +256,6 @@ export function seedCaixas(
         formaPagamento: "Dinheiro",
         valor: 100,
         sentido: "entrada",
-        responsavelId: caixa.abertura.responsavelId,
-        responsavelNome: caixa.abertura.responsavelNome,
         observacao: "Reforço de troco solicitado pela loja.",
         motivo: null,
       });
@@ -277,7 +266,7 @@ export function seedCaixas(
         id: idMovimentacao(),
         caixaId: caixa.id,
         dataHora: comHorario(diaIso, 16, 40),
-        tipo: "saida",
+        tipo: "sangria",
         origem: "manual",
         descricao: DESCRICOES_SAIDA_SEED[posicao]!,
         referencia: null,
@@ -286,8 +275,6 @@ export function seedCaixas(
         formaPagamento: "Dinheiro",
         valor: 30 + posicao * 10,
         sentido: "saida",
-        responsavelId: caixa.abertura.responsavelId,
-        responsavelNome: caixa.abertura.responsavelNome,
         observacao: "",
         motivo: MOTIVOS_SAIDA_SEED[posicao]!,
       });
@@ -295,7 +282,6 @@ export function seedCaixas(
   });
 
   movimentacoes.sort((a, b) => a.dataHora.localeCompare(b.dataHora));
-  recebimentos.sort((a, b) => b.dataHora.localeCompare(a.dataHora));
 
   // Resumo financeiro de cada caixa, sempre derivado das movimentações.
   caixas.forEach((caixa) => {
@@ -331,5 +317,5 @@ export function seedCaixas(
     };
   });
 
-  return { caixas, movimentacoes, recebimentos };
+  return { caixas, movimentacoes };
 }

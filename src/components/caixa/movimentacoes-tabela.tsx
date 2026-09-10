@@ -43,9 +43,6 @@ export function MovimentacoesTabela({
             <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">
               Valor
             </th>
-            <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
-              Responsável
-            </th>
           </tr>
         </thead>
         <tbody>
@@ -86,7 +83,6 @@ export function MovimentacoesTabela({
               >
                 {movimentacao.sentido === "entrada" ? "+" : "−"} {formatarMoeda(movimentacao.valor)}
               </td>
-              <td className="py-2.5 text-muted-foreground">{movimentacao.responsavelNome}</td>
             </tr>
           ))}
         </tbody>

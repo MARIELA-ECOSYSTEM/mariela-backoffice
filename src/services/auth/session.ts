@@ -5,7 +5,7 @@
  * Os handlers (limpar usuário do contexto, limpar cache do TanStack Query e
  * redirecionar) são registrados uma vez na raiz da aplicação.
  */
-import { tokenStorage } from "./token-storage";
+import { limparSessao } from "./token-storage";
 
 export interface SessionHandlers {
   /** Remove o usuário do contexto de autenticação. */
@@ -30,7 +30,7 @@ export async function encerrarSessao({ redirecionar }: { redirecionar: boolean }
   if (encerrando) return;
   encerrando = true;
   try {
-    tokenStorage.clear();
+    limparSessao();
     handlers?.limparUsuario();
     await handlers?.limparCache();
     if (redirecionar && handlers && !handlers.rotaAtual().startsWith("/login")) {

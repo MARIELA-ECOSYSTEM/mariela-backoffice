@@ -52,8 +52,10 @@ export function FechamentoCaixaDialog({
 
   const esperado = caixa.resumo.saldoEsperado;
   const informado = Number(valorInformado.replace(",", "."));
-  const informadoInvalido =
-    valorInformado.trim() === "" || !Number.isFinite(informado) || informado < 0;
+  // Etapa 18.6 — sem piso zero: o Caixa pode fechar negativo (Etapas
+  // 18.2-18.4), então `valorInformado` precisa aceitar número negativo. Só
+  // exigimos que o campo tenha sido preenchido com um número válido.
+  const informadoInvalido = valorInformado.trim() === "" || !Number.isFinite(informado);
   const diferenca = informadoInvalido ? 0 : Number((informado - esperado).toFixed(2));
   const situacao = situacaoDiferenca(diferenca);
   const exigeObservacao = !informadoInvalido && situacao !== "conferido";

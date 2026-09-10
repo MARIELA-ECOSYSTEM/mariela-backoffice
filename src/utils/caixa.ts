@@ -1,24 +1,10 @@
-import type { Caixa, CaixaStatus, MovimentacaoCaixa, TipoMovimentacaoCaixa } from "@/types/caixa";
+import type { Caixa, CaixaStatus } from "@/types/caixa";
 
 /** Badge do status do caixa — roxo (aberto) é a identidade da marca. */
 export const VARIANTE_STATUS_CAIXA: Record<CaixaStatus, "default" | "outline"> = {
   aberto: "default",
   fechado: "outline",
 };
-
-/** Sentido financeiro de cada tipo de movimentação. */
-export const SENTIDO_MOVIMENTACAO: Record<TipoMovimentacaoCaixa, "entrada" | "saida"> = {
-  venda: "entrada",
-  recebimento_parcela: "entrada",
-  entrada: "entrada",
-  saida: "saida",
-  devolucao: "saida",
-  cancelamento: "saida",
-};
-
-export function valorAssinado(movimentacao: MovimentacaoCaixa): number {
-  return movimentacao.sentido === "saida" ? -movimentacao.valor : movimentacao.valor;
-}
 
 export type SituacaoDiferenca = "conferido" | "sobra" | "falta";
 

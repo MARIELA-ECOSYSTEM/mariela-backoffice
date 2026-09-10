@@ -1,6 +1,13 @@
 import { ApiError, type ApiResponse, type QueryParams } from "@/types/api";
 import { handleMockRequest } from "@/services/mock/mock-transport";
-import { tokenStorage, TOKEN_STORAGE_KEY } from "@/services/auth/token-storage";
+import {
+  limparSessao,
+  obterExpiraEm,
+  refreshTokenStorage,
+  salvarSessao,
+  tokenStorage,
+  TOKEN_STORAGE_KEY,
+} from "@/services/auth/token-storage";
 import { handleUnauthorized } from "@/services/auth/session";
 
 /**
@@ -103,11 +110,81 @@ async function httpRequest<T>(request: ApiRequest): Promise<ApiResponse<T>> {
   }
 }
 
+/** Rotas de autenticação nunca disparam renovação (evita loop) nem o tratamento global de 401. */
+function ehRotaDeAutenticacao(path: string): boolean {
+  return path.startsWith("/auth/login") || path.startsWith("/auth/refresh") || path.startsWith("/auth/logout");
+}
+
+/** Margem de segurança: renova um pouco ANTES do vencimento exato, nunca depois. */
+const MARGEM_RENOVACAO_MS = 10_000;
+
+function tokenProximoOuJaExpirado(): boolean {
+  const expiraEm = obterExpiraEm();
+  if (expiraEm === null) return false; // sem sessão rastreada — nada a renovar.
+  return Date.now() + MARGEM_RENOVACAO_MS >= expiraEm;
+}
+
+interface ResultadoRenovacao {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
+/**
+ * Renovação DEDUPLICADA: múltiplas chamadas concorrentes (ex.: várias queries
+ * do TanStack Query disparando perto da expiração) aguardam a MESMA promessa
+ * em vez de cada uma rotacionar o refresh token — o backend só aceita UMA
+ * rotação por vez (índice único/CAS); uma segunda tentativa com o token já
+ * rotacionado seria tratada como REUSO e derrubaria a sessão inteira.
+ */
+let renovacaoEmAndamento: Promise<boolean> | null = null;
+
+function renovarSessao(): Promise<boolean> {
+  renovacaoEmAndamento ??= executarRenovacao().finally(() => {
+    renovacaoEmAndamento = null;
+  });
+  return renovacaoEmAndamento;
+}
+
+async function executarRenovacao(): Promise<boolean> {
+  const refreshToken = refreshTokenStorage.get();
+  if (!refreshToken) return false;
+
+  const requisicao: ApiRequest = { method: "POST", path: "/auth/refresh", params: {}, body: { refreshToken }, token: null };
+  try {
+    const resposta = USE_MOCK_API
+      ? await handleMockRequest<ResultadoRenovacao>(requisicao)
+      : await httpRequest<ResultadoRenovacao>(requisicao);
+    salvarSessao(resposta.data);
+    return true;
+  } catch (error) {
+    // Falha de rede/timeout é transitória — preserva a sessão local para tentar de novo depois.
+    // Uma rejeição EXPLÍCITA do servidor (token inválido/revogado/reutilizado, usuário inativo)
+    // significa que a sessão não é mais válida: limpa para não tentar de novo em vão.
+    if (error instanceof ApiError && error.statusCode !== 0 && error.statusCode !== 408) {
+      limparSessao();
+    }
+    return false;
+  }
+}
+
+async function executarComTransporte<T>(apiRequest: ApiRequest): Promise<ApiResponse<T>> {
+  return USE_MOCK_API ? await handleMockRequest<T>(apiRequest) : await httpRequest<T>(apiRequest);
+}
+
 async function request<T>(
   method: HttpMethod,
   path: string,
   options: RequestOptions = {},
 ): Promise<ApiResponse<T>> {
+  const renovavel = !ehRotaDeAutenticacao(path);
+
+  // Renovação PROATIVA: evita a ida e volta extra de um 401 quando já se sabe
+  // que o accessToken está vencido/perto de vencer.
+  if (renovavel && tokenProximoOuJaExpirado()) {
+    await renovarSessao();
+  }
+
   const apiRequest: ApiRequest = {
     method,
     path,
@@ -117,11 +194,21 @@ async function request<T>(
   };
 
   try {
-    return USE_MOCK_API ? await handleMockRequest<T>(apiRequest) : await httpRequest<T>(apiRequest);
+    return await executarComTransporte<T>(apiRequest);
   } catch (error) {
-    // Tratamento global de 401: encerra a sessão e volta para o login.
-    // O login em si não conta — ali o 401 é apenas credencial inválida.
-    if (error instanceof ApiError && error.statusCode === 401 && !path.startsWith("/auth/login")) {
+    if (error instanceof ApiError && error.statusCode === 401 && renovavel) {
+      // Renovação REATIVA: tenta UMA única vez (a deduplicação acima garante
+      // isso mesmo sob concorrência) e refaz a MESMA requisição original.
+      const renovou = await renovarSessao();
+      if (renovou) {
+        try {
+          return await executarComTransporte<T>({ ...apiRequest, token: getToken() });
+        } catch (erroRetentativa) {
+          if (erroRetentativa instanceof ApiError && erroRetentativa.statusCode === 401) handleUnauthorized();
+          throw erroRetentativa;
+        }
+      }
+      // Renovação falhou (sem refresh token, ou rejeitado pelo servidor): a sessão acabou.
       handleUnauthorized();
     }
     throw error;

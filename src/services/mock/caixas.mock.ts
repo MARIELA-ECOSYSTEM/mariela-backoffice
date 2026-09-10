@@ -5,7 +5,6 @@ import {
   caixaAberto,
   calcularResumoCaixa,
   movimentacoesDoCaixa,
-  recebimentosDoCaixa,
   registrarMovimentacao,
   sincronizarResumosCaixas,
 } from "./caixas.lancamentos";
@@ -19,6 +18,16 @@ import type {
   FechamentoCaixaPayload,
   SaidaCaixaPayload,
 } from "@/types/caixa";
+
+/**
+ * Etapa 18.6 — o Caixa Geral da Loja não tem responsável/vendedor vinculado
+ * (Etapas 18.2-18.5 do backend real). `abertura.responsavelNome`/
+ * `fechamento.responsavelNome` continuam existindo na resposta só por
+ * compatibilidade de tela (o Backoffice ainda exibe/filtra por eles — ver
+ * auditoria da Etapa 18.5), sempre com este valor fixo, exatamente como o
+ * backend real sempre devolve `"Loja"` independentemente de quem operou.
+ */
+const RESPONSAVEL_FIXO = { id: null as string | null, nome: "Loja" };
 
 function arredondar(valor: number): number {
   return Number(valor.toFixed(2));
@@ -50,7 +59,9 @@ function detalhar(caixa: Caixa): CaixaDetalhe {
     vendas: db.vendas
       .filter((venda) => venda.caixaId === caixa.id || vendasIds.has(venda.id))
       .sort((a, b) => b.dataVenda.localeCompare(a.dataVenda)),
-    recebimentos: recebimentosDoCaixa(caixa),
+    // Etapa 18.6 — "recebimento" não é mais um conceito do domínio (ver
+    // types/caixa.ts): sempre vazio, igual ao backend real.
+    recebimentos: [],
   };
 }
 
@@ -85,20 +96,14 @@ function estatisticas(): CaixaEstatisticas {
         .reduce((total, item) => total + item.valor, 0),
     ),
     vendasHoje: somar(["venda"]),
-    recebimentosHoje: somar(["recebimento_parcela"]),
-    devolucoesHoje: somar(["devolucao", "cancelamento"]),
+    // Etapa 18.6 — "recebimento" não é mais um tipo distinto; sempre 0 (mesma regra do backend real).
+    recebimentosHoje: 0,
+    devolucoesHoje: somar(["cancelamento"]),
     saldoEsperadoAtual: aberto ? calcularResumoCaixa(aberto).saldoEsperado : 0,
     diferencaAcumulada: arredondar(
       db.caixas.reduce((total, caixa) => total + (caixa.fechamento?.diferenca ?? 0), 0),
     ),
   };
-}
-
-function responsavel(id: string | null | undefined): { id: string | null; nome: string } {
-  if (!id) return { id: null, nome: "Backoffice" };
-  const vendedor = db.vendedores.find((item) => item.id === id);
-  if (!vendedor) throw ApiError.notFound("Responsável não encontrado.");
-  return { id: vendedor.id, nome: vendedor.nome };
 }
 
 function validarMovimento(payload: Partial<SaidaCaixaPayload>, exigirMotivo: boolean): void {
@@ -142,13 +147,10 @@ export function registerCaixasMocks(): void {
     data: clonar(movimentacoesDoCaixa(encontrar(params["id"]!).id)),
   }));
 
-  registerMock("GET", "/caixas/:id/vendas", ({ params }) => ({
-    data: clonar(detalhar(encontrar(params["id"]!)).vendas),
-  }));
-
-  registerMock("GET", "/caixas/:id/recebimentos", ({ params }) => ({
-    data: clonar(recebimentosDoCaixa(encontrar(params["id"]!))),
-  }));
+  // Etapa 18.6 — `/caixas/:id/vendas` e `/caixas/:id/recebimentos` não são
+  // registradas: não existem no backend real desde a Etapa 18.2 (as vendas
+  // do caixa já vêm embutidas em `CaixaDetalhe.vendas`, ver `detalhar()`) e
+  // `caixasApi` não tem mais métodos apontando para elas (Etapa 18.5/18.6).
 
   /** Abertura: apenas um caixa aberto por vez. */
   registerMock("POST", "/caixas", ({ body }) => {
@@ -161,15 +163,14 @@ export function registerCaixasMocks(): void {
         { field: "valorInicial", message: "Informe o valor inicial do caixa." },
       ]);
 
-    const autor = responsavel(payload.responsavelId);
     const caixa: Caixa = {
       id: gerarId("cx"),
       codigo: proximoCodigo("caixa"),
       status: "aberto",
       abertura: {
         dataHora: agora(),
-        responsavelId: autor.id,
-        responsavelNome: autor.nome,
+        responsavelId: RESPONSAVEL_FIXO.id,
+        responsavelNome: RESPONSAVEL_FIXO.nome,
         valorInicial: arredondar(valorInicial),
         observacao: payload.observacao?.trim() ?? "",
       },
@@ -197,12 +198,11 @@ export function registerCaixasMocks(): void {
     exigirAberto(caixa);
     const payload = (body ?? {}) as Partial<EntradaCaixaPayload>;
     validarMovimento(payload, false);
-    const autor = responsavel(payload.responsavelId ?? caixa.abertura.responsavelId);
 
     registrarMovimentacao({
       caixaId: caixa.id,
       dataHora: agora(),
-      tipo: "entrada",
+      tipo: "injecao",
       origem: "manual",
       descricao: payload.descricao!.trim(),
       referencia: null,
@@ -211,8 +211,6 @@ export function registerCaixasMocks(): void {
       formaPagamento: payload.formaPagamento!.trim(),
       valor: Number(payload.valor),
       sentido: "entrada",
-      responsavelId: autor.id,
-      responsavelNome: autor.nome,
       observacao: payload.observacao?.trim() ?? "",
       motivo: null,
     });
@@ -220,31 +218,24 @@ export function registerCaixasMocks(): void {
     return { data: clonar(detalhar(caixa)) };
   });
 
-  /** Saída: nunca pode deixar o caixa negativo. */
+  /**
+   * Saída (sangria). Etapa 18.6 — NÃO bloqueia por saldo: o backend real
+   * permite sangria maior que o saldo disponível, deixando o Caixa negativo
+   * (Etapas 18.2-18.4). O mock precisa simular o mesmo comportamento, senão
+   * o Backoffice rodando contra o mock ficaria mais restritivo que contra a
+   * API real.
+   */
   registerMock("POST", "/caixas/:id/saida", ({ params, body }) => {
     const caixa = encontrar(params["id"]!);
     exigirAberto(caixa);
     const payload = (body ?? {}) as Partial<SaidaCaixaPayload>;
     validarMovimento(payload, true);
-
-    const saldo = calcularResumoCaixa(caixa).saldoEsperado;
     const valor = Number(payload.valor);
-    if (valor > saldo)
-      throw ApiError.validation("Dados inválidos.", [
-        {
-          field: "valor",
-          message: `Saída maior que o saldo disponível (${saldo.toLocaleString("pt-BR", {
-            style: "currency",
-            currency: "BRL",
-          })}).`,
-        },
-      ]);
 
-    const autor = responsavel(payload.responsavelId ?? caixa.abertura.responsavelId);
     registrarMovimentacao({
       caixaId: caixa.id,
       dataHora: agora(),
-      tipo: "saida",
+      tipo: "sangria",
       origem: "manual",
       descricao: payload.descricao!.trim(),
       referencia: null,
@@ -253,8 +244,6 @@ export function registerCaixasMocks(): void {
       formaPagamento: payload.formaPagamento!.trim(),
       valor,
       sentido: "saida",
-      responsavelId: autor.id,
-      responsavelNome: autor.nome,
       observacao: payload.observacao?.trim() ?? "",
       motivo: payload.motivo!.trim(),
     });
@@ -262,14 +251,18 @@ export function registerCaixasMocks(): void {
     return { data: clonar(detalhar(caixa)) };
   });
 
-  /** Fechamento: conferência física + registro da diferença. */
+  /**
+   * Fechamento: conferência física + registro da diferença. Etapa 18.6 — SEM
+   * piso zero: `valorInformado` pode ser negativo, porque o Caixa pode
+   * fechar negativo (Etapas 18.2-18.4). Só `Number.isFinite` é exigido.
+   */
   registerMock("POST", "/caixas/:id/fechamento", ({ params, body }) => {
     const caixa = encontrar(params["id"]!);
     exigirAberto(caixa);
 
     const payload = (body ?? {}) as Partial<FechamentoCaixaPayload>;
     const valorInformado = Number(payload.valorInformado ?? NaN);
-    if (!Number.isFinite(valorInformado) || valorInformado < 0)
+    if (!Number.isFinite(valorInformado))
       throw ApiError.validation("Dados inválidos.", [
         { field: "valorInformado", message: "Informe o valor contado no caixa." },
       ]);
@@ -285,11 +278,10 @@ export function registerCaixasMocks(): void {
         },
       ]);
 
-    const autor = responsavel(payload.responsavelId ?? caixa.abertura.responsavelId);
     caixa.fechamento = {
       dataHora: agora(),
-      responsavelId: autor.id,
-      responsavelNome: autor.nome,
+      responsavelId: RESPONSAVEL_FIXO.id,
+      responsavelNome: RESPONSAVEL_FIXO.nome,
       valorInformado: arredondar(valorInformado),
       valorEsperado: esperado,
       diferenca,

@@ -11,19 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { useVendedores } from "@/hooks/use-vendedores";
 import { formatarMoeda } from "@/utils/format";
 import type { AberturaCaixaPayload } from "@/types/caixa";
 
-/** Abertura de caixa: código, data e hora são gerados pelo sistema. */
+/**
+ * Abertura de caixa: código, data e hora são gerados pelo sistema. Etapa
+ * 18.6 — sem seletor de responsável: o Caixa Geral da Loja não tem vínculo
+ * de vendedor (Etapas 18.2-18.5), então o payload nunca envia `responsavelId`.
+ */
 export function AberturaCaixaDialog({
   open,
   onOpenChange,
@@ -35,14 +31,11 @@ export function AberturaCaixaDialog({
   salvando: boolean;
   onConfirmar: (payload: AberturaCaixaPayload) => void;
 }) {
-  const { data: vendedores } = useVendedores();
-  const [responsavelId, setResponsavelId] = useState("backoffice");
   const [valorInicial, setValorInicial] = useState("");
   const [observacao, setObservacao] = useState("");
 
   useEffect(() => {
     if (!open) return;
-    setResponsavelId("backoffice");
     setValorInicial("");
     setObservacao("");
   }, [open]);
@@ -65,23 +58,6 @@ export function AberturaCaixaDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="abertura-responsavel">Responsável</Label>
-            <Select value={responsavelId} onValueChange={setResponsavelId}>
-              <SelectTrigger id="abertura-responsavel">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="backoffice">Backoffice</SelectItem>
-                {(vendedores ?? []).map((vendedor) => (
-                  <SelectItem key={vendedor.id} value={vendedor.id}>
-                    {vendedor.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="abertura-valor">Valor inicial *</Label>
             <Input
@@ -119,7 +95,6 @@ export function AberturaCaixaDialog({
             disabled={invalido || salvando}
             onClick={() =>
               onConfirmar({
-                responsavelId: responsavelId === "backoffice" ? null : responsavelId,
                 valorInicial: valor,
                 observacao: observacao.trim(),
               })

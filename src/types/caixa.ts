@@ -1,30 +1,40 @@
 /**
  * Contratos do módulo CAIXA do MARIELA BACKOFFICE.
  *
- * O caixa é um registro FINANCEIRO INDEPENDENTE: cada abertura gera um registro
- * (`CAIXA-0001`) com suas movimentações. As vendas nascem no MARIELA PDV e são
- * apenas VINCULADAS ao caixa aberto no momento da operação.
+ * Etapa 18.6 — alinhado ao domínio definitivo do backend (Etapas 18.2-18.5):
+ * o Caixa é um CAIXA GERAL DA LOJA (não há caixa por vendedor), sem vínculo
+ * de responsável/vendedor, com exatamente 4 tipos de movimento. Vendedor
+ * pertence exclusivamente à Venda — quando o Caixa exibe uma venda (`vendas`
+ * em `CaixaDetalhe`), o vendedor vem de `VendaResumo`, nunca de um campo do
+ * próprio Caixa/movimento.
  *
- * Regras que a API NestJS deverá reproduzir:
+ * Regras vigentes:
  * 1. Somente o valor EFETIVAMENTE RECEBIDO entra no caixa. Uma venda
  *    EM_PAGAMENTO não lança o valor pendente.
- * 2. A baixa de parcela gera um recebimento (entrada) vinculado à venda/parcela.
- * 3. Cancelamento/devolução gera uma SAÍDA correspondente ao valor devolvido.
+ * 2. Recebimento posterior de parcela é só mais um movimento `tipo: "venda"`
+ *    (o Caixa não distingue mais "à vista" de "baixa de parcela").
+ * 3. Cancelamento/devolução (parcial ou total) gera um movimento
+ *    `tipo: "cancelamento"` com o valor já calculado por Vendas.
  * 4. Caixa FECHADO é histórico imutável: não há PUT/DELETE de movimentações.
  *    Correções futuras nascem de uma nova movimentação de ajuste.
- * 5. Não existe saldo negativo: uma saída nunca pode exceder o saldo disponível.
+ * 5. O saldo PODE ficar negativo: sangria e cancelamento nunca são bloqueados
+ *    por saldo insuficiente, e o fechamento aceita `valorInformado` negativo.
+ *    O backend é sempre a autoridade sobre saldo/valorEsperado/diferença.
  *
- * Endpoints previstos:
- *   GET  /caixas                        → PaginatedResponse<Caixa>
+ * Endpoints realmente consumidos:
+ *   GET  /caixas                        → PaginatedResponse<Caixa> (ou array completo sem params)
  *   GET  /caixas/atual                  → ApiResponse<Caixa | null>
+ *   GET  /caixas/estatisticas           → ApiResponse<CaixaEstatisticas>
  *   GET  /caixas/:id                    → ApiResponse<CaixaDetalhe>
- *   POST /caixas                        → ApiResponse<Caixa>
+ *   GET  /caixas/:id/movimentacoes      → ApiResponse<MovimentacaoCaixa[]>
+ *   POST /caixas                        → ApiResponse<CaixaDetalhe>
  *   POST /caixas/:id/entrada            → ApiResponse<CaixaDetalhe>
  *   POST /caixas/:id/saida              → ApiResponse<CaixaDetalhe>
- *   GET  /caixas/:id/movimentacoes      → ApiResponse<MovimentacaoCaixa[]>
- *   GET  /caixas/:id/vendas             → ApiResponse<VendaResumo[]>
- *   GET  /caixas/:id/recebimentos       → ApiResponse<RecebimentoCaixa[]>
- *   POST /caixas/:id/fechamento         → ApiResponse<Caixa>
+ *   POST /caixas/:id/fechamento         → ApiResponse<CaixaDetalhe>
+ *
+ * `GET /caixas/:id/vendas` e `GET /caixas/:id/recebimentos` NÃO existem no
+ * backend (removidos na Etapa 18.2) — as vendas do caixa vêm embutidas em
+ * `CaixaDetalhe.vendas`, projeção de Vendas.
  */
 import type { VendaResumo } from "./venda";
 
@@ -37,46 +47,41 @@ export const LABEL_STATUS_CAIXA: Record<CaixaStatus, string> = {
 
 export const STATUS_CAIXA: CaixaStatus[] = ["aberto", "fechado"];
 
-export type TipoMovimentacaoCaixa =
-  | "venda"
-  | "recebimento_parcela"
-  | "entrada"
-  | "saida"
-  | "devolucao"
-  | "cancelamento";
+/** Os 4 únicos tipos de movimento do Caixa Geral da Loja (Etapa 18.2). */
+export type TipoMovimentacaoCaixa = "injecao" | "sangria" | "venda" | "cancelamento";
 
 export const LABEL_TIPO_MOVIMENTACAO: Record<TipoMovimentacaoCaixa, string> = {
+  injecao: "Injeção",
+  sangria: "Sangria",
   venda: "Venda",
-  recebimento_parcela: "Recebimento de parcela",
-  entrada: "Entrada",
-  saida: "Saída",
-  devolucao: "Devolução",
   cancelamento: "Cancelamento",
 };
 
 export const TIPOS_MOVIMENTACAO: TipoMovimentacaoCaixa[] = [
+  "injecao",
+  "sangria",
   "venda",
-  "recebimento_parcela",
-  "entrada",
-  "saida",
-  "devolucao",
   "cancelamento",
 ];
 
-export type OrigemMovimentacao = "venda" | "parcela" | "manual" | "devolucao" | "cancelamento";
+export type OrigemMovimentacao = "manual" | "venda" | "cancelamento";
 
 export const LABEL_ORIGEM_MOVIMENTACAO: Record<OrigemMovimentacao, string> = {
-  venda: "Venda",
-  parcela: "Parcela",
   manual: "Ajuste manual",
-  devolucao: "Devolução",
+  venda: "Venda",
   cancelamento: "Cancelamento",
 };
 
 /** Forma de pagamento — as opções vivem em Configurações (`FORMAS_PAGAMENTO`). */
 export type FormaPagamento = string;
 
-/** Movimentação financeira — registro imutável após criado. */
+/**
+ * Movimentação financeira — registro imutável após criado. Etapa 18.6: sem
+ * `responsavelId`/`responsavelNome` — o Caixa não tem vínculo de vendedor em
+ * nenhum nível, incluindo o do movimento individual (o backend não envia mais
+ * esses campos desde a Etapa 18.2). Quando o movimento é `venda`/`cancelamento`,
+ * quem quiser saber o vendedor consulta `vendaId` → `VendaResumoDoCaixa`.
+ */
 export interface MovimentacaoCaixa {
   id: string;
   caixaId: string;
@@ -94,13 +99,21 @@ export interface MovimentacaoCaixa {
   /** Sempre positivo; o sinal é determinado por `sentido`. */
   valor: number;
   sentido: "entrada" | "saida";
-  responsavelId: string | null;
-  responsavelNome: string;
   observacao: string;
   /** Motivo obrigatório nas saídas manuais. */
   motivo: string | null;
 }
 
+/**
+ * `responsavelId`/`responsavelNome` continuam existindo só aqui (abertura e
+ * fechamento do Caixa como um todo, nunca no movimento individual) porque o
+ * backend efetivamente os devolve na resposta pública por compatibilidade de
+ * tela (sempre `null`/`"Loja"` — não é um vínculo de vendedor real, ver
+ * `caixas.service.ts` do backend). O Backoffice ainda os EXIBE (badge/filtro
+ * de "Responsável" em `caixa.index.tsx`/`caixa.$id.tsx`/`caixa-card.tsx`),
+ * mas não envia mais `responsavelId` em nenhum payload (Etapa 18.6 — ver
+ * `AberturaCaixaPayload`/`EntradaCaixaPayload`/`FechamentoCaixaPayload`).
+ */
 export interface AberturaCaixa {
   dataHora: string;
   responsavelId: string | null;
@@ -150,8 +163,18 @@ export interface Caixa {
   resumo: ResumoCaixa;
 }
 
-/** Recebimento de fiado: baixa de parcela ocorrida dentro do caixa. */
-export interface RecebimentoCaixa {
+/**
+ * Etapa 18.2 (backend) / 18.6 (frontend) — o conceito de "recebimento" como
+ * tipo de movimento distinto de "venda" foi abolido do domínio do Caixa; o
+ * backend sempre devolve `CaixaDetalhe.recebimentos` vazio (ver
+ * `CaixaDetalheResposta.recebimentos: never[]` em `caixas.service.ts`).
+ * Este tipo NÃO é reintroduzido como conceito de domínio — existe só porque
+ * `caixa.$id.tsx` ("Recebimentos de fiado") ainda desestrutura os campos de
+ * cada item num `.map()`, e um array sempre vazio ainda precisa de um
+ * elemento tipado para essa leitura continuar compilando sem reescrever a
+ * tela (fora do escopo desta etapa — não redesenhar telas).
+ */
+export interface ItemRecebimentoLegado {
   id: string;
   dataHora: string;
   vendaId: string;
@@ -168,7 +191,8 @@ export interface RecebimentoCaixa {
 export interface CaixaDetalhe extends Caixa {
   movimentacoes: MovimentacaoCaixa[];
   vendas: VendaResumo[];
-  recebimentos: RecebimentoCaixa[];
+  /** Sempre `[]` na prática (ver `ItemRecebimentoLegado`). */
+  recebimentos: ItemRecebimentoLegado[];
 }
 
 export interface CaixaEstatisticas {
@@ -184,8 +208,14 @@ export interface CaixaEstatisticas {
   diferencaAcumulada: number;
 }
 
+/**
+ * Etapa 18.6 — nenhum payload do Caixa envia `responsavelId`: o backend até
+ * aceita o campo por compatibilidade (Etapas 18.2/18.5), mas ignora
+ * completamente, e o Caixa não tem vínculo de vendedor/responsável. O
+ * Backoffice para de enviá-lo para refletir o contrato conceitual real, sem
+ * depender de uma remoção do backend.
+ */
 export interface AberturaCaixaPayload {
-  responsavelId: string | null;
   valorInicial: number;
   observacao?: string | undefined;
 }
@@ -194,7 +224,6 @@ export interface EntradaCaixaPayload {
   descricao: string;
   valor: number;
   formaPagamento: FormaPagamento;
-  responsavelId?: string | null | undefined;
   observacao?: string | undefined;
 }
 
@@ -205,7 +234,6 @@ export interface SaidaCaixaPayload extends EntradaCaixaPayload {
 
 export interface FechamentoCaixaPayload {
   valorInformado: number;
-  responsavelId?: string | null | undefined;
   /** Obrigatório quando existir diferença de caixa. */
   observacao?: string | undefined;
 }

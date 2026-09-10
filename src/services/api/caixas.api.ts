@@ -7,14 +7,19 @@ import type {
   EntradaCaixaPayload,
   FechamentoCaixaPayload,
   MovimentacaoCaixa,
-  RecebimentoCaixa,
   SaidaCaixaPayload,
 } from "@/types/caixa";
-import type { VendaResumo } from "@/types/venda";
 
 /**
  * Serviço de CAIXA. Não existe PUT/DELETE de movimentação: o histórico
  * financeiro é imutável e correções nascem de novas movimentações.
+ *
+ * Etapa 18.6 — `GET /caixas/:id/vendas` e `GET /caixas/:id/recebimentos` não
+ * existem no backend desde a Etapa 18.2 (removidos junto com o conceito de
+ * "recebimento" como movimento distinto): as vendas do caixa já vêm
+ * embutidas em `CaixaDetalhe.vendas` (`obter()` abaixo). Os métodos que
+ * apontavam para essas rotas foram removidos por serem dead code (nunca
+ * chamados — confirmado na auditoria da Etapa 18.5).
  */
 export const caixasApi = {
   async listar(): Promise<Caixa[]> {
@@ -35,14 +40,6 @@ export const caixasApi = {
   },
   async movimentacoes(id: string): Promise<MovimentacaoCaixa[]> {
     const { data } = await apiClient.get<MovimentacaoCaixa[]>(`/caixas/${id}/movimentacoes`);
-    return data;
-  },
-  async vendas(id: string): Promise<VendaResumo[]> {
-    const { data } = await apiClient.get<VendaResumo[]>(`/caixas/${id}/vendas`);
-    return data;
-  },
-  async recebimentos(id: string): Promise<RecebimentoCaixa[]> {
-    const { data } = await apiClient.get<RecebimentoCaixa[]>(`/caixas/${id}/recebimentos`);
     return data;
   },
   async abrir(payload: AberturaCaixaPayload): Promise<CaixaDetalhe> {

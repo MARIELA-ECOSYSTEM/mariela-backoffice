@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const atual = await authApi.me();
         if (ativo) setUsuario(atual);
       } catch {
-        authApi.logout();
+        await authApi.logout();
       } finally {
         if (ativo) setCarregando(false);
       }
@@ -56,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    await authApi.logout();
     await encerrarSessao({ redirecionar: true });
   }, []);
 

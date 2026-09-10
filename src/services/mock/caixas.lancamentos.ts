@@ -1,4 +1,4 @@
-import type { Caixa, MovimentacaoCaixa, RecebimentoCaixa, ResumoCaixa } from "@/types/caixa";
+import type { Caixa, MovimentacaoCaixa, ResumoCaixa } from "@/types/caixa";
 import type { ParcelaVenda, VendaDetalhe } from "@/types/venda";
 import { agora, db, gerarId } from "./db";
 
@@ -6,8 +6,8 @@ import { agora, db, gerarId } from "./db";
  * Lançamentos financeiros do caixa.
  *
  * Vive separado do handler HTTP porque o módulo de VENDAS também precisa
- * lançar no caixa (baixa de parcela e devolução) — exatamente como o serviço
- * de vendas do NestJS chamará o serviço de caixa.
+ * lançar no caixa (baixa de parcela e cancelamento) — exatamente como o
+ * serviço de vendas do NestJS chama `CaixasService.registrarMovimentoDeVenda`.
  */
 
 function arredondar(valor: number): number {
@@ -31,10 +31,10 @@ export function calcularResumoCaixa(caixa: Caixa): ResumoCaixa {
     );
 
   const totalVendas = somar(["venda"]);
-  const recebimentos = somar(["recebimento_parcela"]);
-  const entradasManuais = somar(["entrada"]);
-  const saidasManuais = somar(["saida"]);
-  const devolucoes = somar(["devolucao", "cancelamento"]);
+  const recebimentos = 0;
+  const entradasManuais = somar(["injecao"]);
+  const saidasManuais = somar(["sangria"]);
+  const devolucoes = somar(["cancelamento"]);
   const totalEntradas = arredondar(totalVendas + recebimentos + entradasManuais);
   const totalSaidas = arredondar(saidasManuais + devolucoes);
 
@@ -91,19 +91,21 @@ export function registrarMovimentacao(
 }
 
 /**
- * Baixa de parcela feita no backoffice → entrada no caixa aberto + recebimento.
- * Quando não existe caixa aberto, nada é lançado (o valor entrará no próximo
- * caixa, pela regra de não alterar histórico já fechado).
+ * Baixa de parcela feita no backoffice → movimento `tipo: "venda"` no caixa
+ * aberto (Etapa 18.6: o Caixa não distingue mais "recebimento de parcela" de
+ * "venda" — ver `MovimentosCaixaRepository`/`caixas.constants.ts` no
+ * backend). Quando não existe caixa aberto, nada é lançado (o valor entrará
+ * no próximo caixa, pela regra de não alterar histórico já fechado).
  */
 export function registrarRecebimentoParcela(
   venda: VendaDetalhe,
   parcela: ParcelaVenda,
   formaPagamento: string,
 ): void {
-  const movimentacao = registrarMovimentacao({
+  registrarMovimentacao({
     dataHora: parcela.pagoEm ?? agora(),
-    tipo: "recebimento_parcela",
-    origem: "parcela",
+    tipo: "venda",
+    origem: "venda",
     descricao: `Recebimento da parcela ${parcela.numero}/${parcela.total} · ${venda.clienteNome}`,
     referencia: venda.codigo,
     vendaId: venda.id,
@@ -111,30 +113,17 @@ export function registrarRecebimentoParcela(
     formaPagamento,
     valor: parcela.valor,
     sentido: "entrada",
-    responsavelId: null,
-    responsavelNome: "Backoffice",
     observacao: `Baixa registrada no backoffice`,
     motivo: null,
   });
-  if (!movimentacao) return;
-
-  const recebimento: RecebimentoCaixa = {
-    id: gerarId("rec"),
-    dataHora: movimentacao.dataHora,
-    vendaId: venda.id,
-    vendaCodigo: venda.codigo,
-    clienteNome: venda.clienteNome,
-    parcelaNumero: parcela.numero,
-    parcelaTotal: parcela.total,
-    vencimento: parcela.vencimento,
-    valor: arredondar(parcela.valor),
-    formaPagamento,
-    responsavelNome: "Backoffice",
-  };
-  db.caixasRecebimentos.push(recebimento);
 }
 
-/** Cancelamento/devolução → saída no caixa aberto, limitada ao valor recebido. */
+/**
+ * Cancelamento/devolução (total ou parcial) → sempre `tipo: "cancelamento"`
+ * no caixa aberto, limitado ao valor efetivamente recebido (Etapa 18.6: o
+ * Caixa não distingue mais os dois casos — a distinção continua só na
+ * descrição, mesma regra do backend real).
+ */
 export function registrarDevolucao(
   venda: VendaDetalhe,
   tipo: "integral" | "parcial",
@@ -145,8 +134,8 @@ export function registrarDevolucao(
   if (valor <= 0) return;
   registrarMovimentacao({
     dataHora: agora(),
-    tipo: tipo === "integral" ? "cancelamento" : "devolucao",
-    origem: tipo === "integral" ? "cancelamento" : "devolucao",
+    tipo: "cancelamento",
+    origem: "cancelamento",
     descricao:
       tipo === "integral"
         ? `Cancelamento da venda ${venda.codigo} · ${venda.clienteNome}`
@@ -157,20 +146,7 @@ export function registrarDevolucao(
     formaPagamento: venda.formaPagamento,
     valor,
     sentido: "saida",
-    responsavelId: null,
-    responsavelNome: "Backoffice",
     observacao: motivo,
     motivo,
   });
-}
-
-export function recebimentosDoCaixa(caixa: Caixa): RecebimentoCaixa[] {
-  const ids = new Set(
-    db.caixasMovimentacoes
-      .filter((item) => item.caixaId === caixa.id && item.tipo === "recebimento_parcela")
-      .map((item) => `${item.vendaId}-${item.dataHora}`),
-  );
-  return db.caixasRecebimentos
-    .filter((item) => ids.has(`${item.vendaId}-${item.dataHora}`))
-    .sort((a, b) => b.dataHora.localeCompare(a.dataHora));
 }

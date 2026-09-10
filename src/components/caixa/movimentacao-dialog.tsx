@@ -19,13 +19,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
-import { useVendedores } from "@/hooks/use-vendedores";
 import { formatarMoeda } from "@/utils/format";
 import { MOTIVOS_ENTRADA, MOTIVOS_SAIDA, type SaidaCaixaPayload } from "@/types/caixa";
 
 /**
- * Entrada/saída manual. A saída exige motivo e nunca pode exceder o saldo
- * disponível — a mesma validação existe no mock e existirá no NestJS.
+ * Entrada/saída manual. A saída exige motivo, descrição e forma de pagamento
+ * — mas NÃO bloqueia por saldo (Etapa 18.6): o backend permite sangria maior
+ * que o saldo disponível (Caixa pode ficar negativo, ver Etapas 18.2-18.4),
+ * então o frontend não pode impedir uma operação que o backend permite
+ * deliberadamente. `saldoDisponivel` continua exibido apenas como informação
+ * ao operador, nunca como limite de validação.
  */
 export function MovimentacaoCaixaDialog({
   tipo,
@@ -43,7 +46,6 @@ export function MovimentacaoCaixaDialog({
   onConfirmar: (payload: SaidaCaixaPayload) => void;
 }) {
   const { data: configuracoes } = useConfiguracoes();
-  const { data: vendedores } = useVendedores();
   const formas = configuracoes?.formasPagamento ?? ["Dinheiro"];
   const sugestoes = tipo === "entrada" ? MOTIVOS_ENTRADA : MOTIVOS_SAIDA;
 
@@ -52,7 +54,6 @@ export function MovimentacaoCaixaDialog({
   const [formaPagamento, setFormaPagamento] = useState("");
   const [motivo, setMotivo] = useState<string>(sugestoes[0]!);
   const [observacao, setObservacao] = useState("");
-  const [responsavelId, setResponsavelId] = useState("backoffice");
   const [confirmando, setConfirmando] = useState(false);
 
   useEffect(() => {
@@ -62,14 +63,12 @@ export function MovimentacaoCaixaDialog({
     setFormaPagamento(formas[0] ?? "Dinheiro");
     setMotivo(sugestoes[0]!);
     setObservacao("");
-    setResponsavelId("backoffice");
     setConfirmando(false);
   }, [open, formas, sugestoes]);
 
   const numero = Number(valor.replace(",", "."));
   const valorInvalido = !Number.isFinite(numero) || numero <= 0;
-  const excedeSaldo = tipo === "saida" && !valorInvalido && numero > saldoDisponivel;
-  const invalido = descricao.trim().length < 3 || valorInvalido || !formaPagamento || excedeSaldo;
+  const invalido = descricao.trim().length < 3 || valorInvalido || !formaPagamento;
 
   function confirmar() {
     onConfirmar({
@@ -78,7 +77,6 @@ export function MovimentacaoCaixaDialog({
       formaPagamento,
       motivo: motivo,
       observacao: observacao.trim(),
-      responsavelId: responsavelId === "backoffice" ? null : responsavelId,
     });
   }
 
@@ -150,11 +148,6 @@ export function MovimentacaoCaixaDialog({
                   value={valor}
                   onChange={(evento) => setValor(evento.target.value)}
                 />
-                {excedeSaldo ? (
-                  <p className="text-xs text-rose-600">
-                    A saída não pode exceder o saldo de {formatarMoeda(saldoDisponivel)}.
-                  </p>
-                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="mov-forma">Forma de pagamento *</Label>
@@ -173,38 +166,20 @@ export function MovimentacaoCaixaDialog({
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="mov-motivo">{tipo === "saida" ? "Motivo *" : "Motivo"}</Label>
-                <Select value={motivo} onValueChange={setMotivo}>
-                  <SelectTrigger id="mov-motivo">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sugestoes.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {item}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mov-responsavel">Responsável</Label>
-                <Select value={responsavelId} onValueChange={setResponsavelId}>
-                  <SelectTrigger id="mov-responsavel">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="backoffice">Backoffice</SelectItem>
-                    {(vendedores ?? []).map((vendedor) => (
-                      <SelectItem key={vendedor.id} value={vendedor.id}>
-                        {vendedor.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="mov-motivo">{tipo === "saida" ? "Motivo *" : "Motivo"}</Label>
+              <Select value={motivo} onValueChange={setMotivo}>
+                <SelectTrigger id="mov-motivo">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {sugestoes.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

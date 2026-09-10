@@ -7,7 +7,7 @@ import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
 import type { VendaDetalhe, VendaResumo } from "@/types/venda";
-import type { Caixa, MovimentacaoCaixa, RecebimentoCaixa } from "@/types/caixa";
+import type { Caixa, MovimentacaoCaixa } from "@/types/caixa";
 import { calcularMargem, precoFinal } from "@/utils/produto";
 import {
   seedCampanhas,
@@ -45,8 +45,6 @@ export interface MockDatabase {
   caixas: Caixa[];
   /** Movimentações financeiras dos caixas — imutáveis após criadas. */
   caixasMovimentacoes: MovimentacaoCaixa[];
-  /** Recebimentos de fiado vinculados a vendas/parcelas. */
-  caixasRecebimentos: RecebimentoCaixa[];
 }
 
 export const db: MockDatabase = {
@@ -63,7 +61,6 @@ export const db: MockDatabase = {
   fornecedoresHistorico: [],
   caixas: [],
   caixasMovimentacoes: [],
-  caixasRecebimentos: [],
 };
 
 // Vendas anônimas (consumidor final) + vendas determinísticas vinculadas às clientes.
@@ -81,7 +78,6 @@ db.fornecedoresHistorico = seedHistoricoFornecedores(db.produtos, db.fornecedore
 const caixasSeed = seedCaixas(db.vendas, db.vendasDetalhes, db.vendedores);
 db.caixas = caixasSeed.caixas;
 db.caixasMovimentacoes = caixasSeed.movimentacoes;
-db.caixasRecebimentos = caixasSeed.recebimentos;
 
 /** Reaplica os agregados de compras em todas as clientes do banco mock. */
 export function sincronizarAgregadosClientes(): void {
