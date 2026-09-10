@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AtivoBadge, DataToolbar, Paginacao } from "@/components/common/data-toolbar";
+import { AcoesLinha } from "@/components/common/acoes-linha";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/common/states";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
