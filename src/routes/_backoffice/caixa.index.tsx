@@ -208,22 +208,26 @@ function CaixaPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid gap-4 text-sm sm:grid-cols-3 xl:grid-cols-4">
-              <div>
+            <div className="grid gap-x-6 gap-y-4 sm:grid-cols-3 xl:grid-cols-4">
+              <div className="space-y-0.5">
                 <p className="text-xs font-medium text-muted-foreground">Responsável</p>
-                <p>{atual.abertura.responsavelNome}</p>
+                <p className="text-base">{atual.abertura.responsavelNome}</p>
               </div>
-              <div>
+              <div className="space-y-0.5">
                 <p className="text-xs font-medium text-muted-foreground">Abertura</p>
-                <p>{formatarDataHora(atual.abertura.dataHora)}</p>
+                <p className="text-base tabular-nums">
+                  {formatarDataHora(atual.abertura.dataHora)}
+                </p>
               </div>
-              <div>
+              <div className="space-y-0.5">
                 <p className="text-xs font-medium text-muted-foreground">Valor de abertura</p>
-                <p className="tabular-nums">{formatarMoeda(atual.resumo.valorAbertura)}</p>
+                <p className="text-base tabular-nums">
+                  {formatarMoeda(atual.resumo.valorAbertura)}
+                </p>
               </div>
-              <div>
+              <div className="space-y-0.5">
                 <p className="text-xs font-medium text-muted-foreground">Saldo esperado</p>
-                <p className="font-medium tabular-nums text-primary">
+                <p className="text-xl font-semibold tabular-nums text-primary">
                   {formatarMoeda(atual.resumo.saldoEsperado)}
                 </p>
               </div>
