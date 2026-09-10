@@ -109,8 +109,8 @@ export function MovimentacaoCaixaDialog({
                 <dd
                   className={
                     tipo === "entrada"
-                      ? "tabular-nums text-emerald-600"
-                      : "tabular-nums text-rose-600"
+                      ? "text-base font-semibold tabular-nums text-success"
+                      : "text-base font-semibold tabular-nums text-destructive"
                   }
                 >
                   {tipo === "entrada" ? "+" : "−"} {formatarMoeda(numero)}
