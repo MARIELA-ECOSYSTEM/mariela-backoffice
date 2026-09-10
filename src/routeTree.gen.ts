@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BackofficeRouteImport } from './routes/_backoffice'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as BackofficeAdquirentesRouteImport } from './routes/_backoffice/adquirentes'
 import { Route as BackofficeClientesRouteImport } from './routes/_backoffice/clientes'
 import { Route as BackofficeConfiguracoesRouteImport } from './routes/_backoffice/configuracoes'
 import { Route as BackofficeDashboardRouteImport } from './routes/_backoffice/dashboard'
@@ -48,6 +49,11 @@ const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
+} as any)
+const BackofficeAdquirentesRoute = BackofficeAdquirentesRouteImport.update({
+  id: '/adquirentes',
+  path: '/adquirentes',
+  getParentRoute: () => BackofficeRoute,
 } as any)
 const BackofficeClientesRoute = BackofficeClientesRouteImport.update({
   id: '/clientes',
@@ -168,6 +174,7 @@ const BackofficeProdutosIdVariantesRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/adquirentes': typeof BackofficeAdquirentesRoute
   '/clientes': typeof BackofficeClientesRoute
   '/configuracoes': typeof BackofficeConfiguracoesRoute
   '/dashboard': typeof BackofficeDashboardRoute
@@ -194,6 +201,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/adquirentes': typeof BackofficeAdquirentesRoute
   '/clientes': typeof BackofficeClientesRoute
   '/configuracoes': typeof BackofficeConfiguracoesRoute
   '/dashboard': typeof BackofficeDashboardRoute
@@ -222,6 +230,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_backoffice': typeof BackofficeRouteWithChildren
   '/login': typeof LoginRoute
+  '/_backoffice/adquirentes': typeof BackofficeAdquirentesRoute
   '/_backoffice/clientes': typeof BackofficeClientesRoute
   '/_backoffice/configuracoes': typeof BackofficeConfiguracoesRoute
   '/_backoffice/dashboard': typeof BackofficeDashboardRoute
@@ -250,6 +259,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/adquirentes'
     | '/clientes'
     | '/configuracoes'
     | '/dashboard'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/adquirentes'
     | '/clientes'
     | '/configuracoes'
     | '/dashboard'
@@ -303,6 +314,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_backoffice'
     | '/login'
+    | '/_backoffice/adquirentes'
     | '/_backoffice/clientes'
     | '/_backoffice/configuracoes'
     | '/_backoffice/dashboard'
@@ -355,6 +367,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_backoffice/adquirentes': {
+      id: '/_backoffice/adquirentes'
+      path: '/adquirentes'
+      fullPath: '/adquirentes'
+      preLoaderRoute: typeof BackofficeAdquirentesRouteImport
+      parentRoute: typeof BackofficeRoute
     }
     '/_backoffice/clientes': {
       id: '/_backoffice/clientes'
@@ -514,6 +533,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface BackofficeRouteChildren {
+  BackofficeAdquirentesRoute: typeof BackofficeAdquirentesRoute
   BackofficeClientesRoute: typeof BackofficeClientesRoute
   BackofficeConfiguracoesRoute: typeof BackofficeConfiguracoesRoute
   BackofficeDashboardRoute: typeof BackofficeDashboardRoute
@@ -539,6 +559,7 @@ interface BackofficeRouteChildren {
 }
 
 const BackofficeRouteChildren: BackofficeRouteChildren = {
+  BackofficeAdquirentesRoute: BackofficeAdquirentesRoute,
   BackofficeClientesRoute: BackofficeClientesRoute,
   BackofficeConfiguracoesRoute: BackofficeConfiguracoesRoute,
   BackofficeDashboardRoute: BackofficeDashboardRoute,

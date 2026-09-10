@@ -8,8 +8,10 @@ import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
 import type { VendaDetalhe, VendaResumo } from "@/types/venda";
 import type { Caixa, MovimentacaoCaixa } from "@/types/caixa";
+import type { Adquirente } from "@/types/adquirente";
 import { calcularMargem, precoFinal } from "@/utils/produto";
 import {
+  seedAdquirentes,
   seedCampanhas,
   seedClientes,
   seedColecoes,
@@ -45,6 +47,8 @@ export interface MockDatabase {
   caixas: Caixa[];
   /** Movimentações financeiras dos caixas — imutáveis após criadas. */
   caixasMovimentacoes: MovimentacaoCaixa[];
+  /** Adquirentes de cartão (catálogo administrativo) — só consultadas por Vendas, nunca alteradas por ela. */
+  adquirentes: Adquirente[];
 }
 
 export const db: MockDatabase = {
@@ -61,6 +65,7 @@ export const db: MockDatabase = {
   fornecedoresHistorico: [],
   caixas: [],
   caixasMovimentacoes: [],
+  adquirentes: seedAdquirentes(),
 };
 
 // Vendas anônimas (consumidor final) + vendas determinísticas vinculadas às clientes.

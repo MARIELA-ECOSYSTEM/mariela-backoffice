@@ -3,6 +3,7 @@ import {
   BarChart3,
   Boxes,
   Building2,
+  CreditCard,
   Landmark,
   LayoutDashboard,
   Megaphone,
@@ -47,6 +48,7 @@ export const NAV_GRUPOS: NavGrupo[] = [
       { label: "Clientes", to: "/clientes", icon: Users },
       { label: "Fornecedores", to: "/fornecedores", icon: Building2 },
       { label: "Vendedores", to: "/vendedores", icon: BadgeCheck },
+      { label: "Adquirentes", to: "/adquirentes", icon: CreditCard },
     ],
   },
   {

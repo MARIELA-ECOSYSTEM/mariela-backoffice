@@ -6,6 +6,7 @@ import type { EnderecoFornecedor, Fornecedor } from "@/types/fornecedor";
 import type { Vendedor } from "@/types/vendedor";
 import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
+import type { Adquirente } from "@/types/adquirente";
 import { formatarCodigo } from "@/lib/codigos";
 import vestido1 from "@/assets/produtos/vestido-1.jpg";
 import vestido2 from "@/assets/produtos/vestido-2.jpg";
@@ -1039,4 +1040,47 @@ export function seedVendedores(): Vendedor[] {
       ultimaVenda: null,
     }),
   );
+}
+
+/** Adquirente NÃO tem `codigo` no contrato real — só id/nome/tarifas. */
+export function seedAdquirentes(): Adquirente[] {
+  return [
+    {
+      id: "adq_001",
+      nome: "Cielo",
+      ativo: true,
+      observacao: "Recebimento D+1 para crédito.",
+      tabelaTarifas: [
+        { id: "tar_001", modalidade: "debito", parcelas: 1, percentual: 1.99 },
+        { id: "tar_002", modalidade: "credito", parcelas: 1, percentual: 3.49 },
+        { id: "tar_003", modalidade: "credito", parcelas: 6, percentual: 5.99 },
+      ],
+      excluidoEm: null,
+      criadoEm: iso(200),
+      atualizadoEm: iso(30),
+    },
+    {
+      id: "adq_002",
+      nome: "Stone",
+      ativo: true,
+      observacao: null,
+      tabelaTarifas: [
+        { id: "tar_004", modalidade: "debito", parcelas: 1, percentual: 1.79 },
+        { id: "tar_005", modalidade: "credito", parcelas: 1, percentual: 3.29 },
+      ],
+      excluidoEm: null,
+      criadoEm: iso(120),
+      atualizadoEm: iso(120),
+    },
+    {
+      id: "adq_003",
+      nome: "Rede",
+      ativo: false,
+      observacao: "Descontinuada — mantida só para consulta histórica.",
+      tabelaTarifas: [],
+      excluidoEm: null,
+      criadoEm: iso(400),
+      atualizadoEm: iso(60),
+    },
+  ];
 }

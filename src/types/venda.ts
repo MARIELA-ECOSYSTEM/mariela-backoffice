@@ -14,6 +14,7 @@
  *   POST   /vendas/:id/recebimentos     (Etapa 18.29 — recebimento posterior)
  *   POST   /vendas/:id/cancelamento
  */
+import type { ModalidadeTarifa } from "./adquirente";
 
 /**
  * EM_PAGAMENTO → estoque já baixado no PDV, valor pendente > 0.
@@ -107,7 +108,7 @@ export const MODALIDADES_PAGAMENTO: ModalidadePagamento[] = [
 export interface TarifaAplicada {
   adquirenteId: string;
   adquirenteNome: string;
-  modalidade: "debito" | "credito";
+  modalidade: ModalidadeTarifa;
   parcelas: number;
   percentual: number;
   valorBruto: number;

@@ -1,4 +1,5 @@
 import { registerAuthMocks } from "./auth.mock";
+import { registerAdquirentesMocks } from "./adquirentes.mock";
 import { registerProdutosMocks } from "./produtos.mock";
 import { registerVariantesMocks } from "./variantes.mock";
 import { registerEstoqueMocks } from "./estoque.mock";
@@ -27,6 +28,7 @@ export function registrarMocks(): void {
   registrado = true;
 
   registerAuthMocks();
+  registerAdquirentesMocks();
   registerProdutosMocks();
   registerVariantesMocks();
   registerEstoqueMocks();
