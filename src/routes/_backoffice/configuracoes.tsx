@@ -238,7 +238,10 @@ function ConfiguracoesPage() {
                 </CardContent>
               </Card>
 
-              <div className="flex justify-end">
+              <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card/95 px-4 py-3 shadow-card backdrop-blur">
+                <p className="text-xs text-muted-foreground">
+                  As alterações passam a valer imediatamente após salvar.
+                </p>
                 <Button type="submit" disabled={atualizar.isPending}>
                   {atualizar.isPending ? (
                     <Loader2 aria-hidden className="size-4 animate-spin" />
