@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,10 +10,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/common/field";
+import { AcoesFormulario, CorpoFormulario, SecaoFormulario } from "@/components/common/form-layout";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 import { formatarTelefone } from "@/utils/cliente";
@@ -128,7 +127,7 @@ export function FornecedorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3 font-display text-3xl">
+          <DialogTitle className="flex flex-wrap items-center gap-3">
             {edicao ? "Editar fornecedor" : "Novo fornecedor"}
             {codigo ? <CodigoBadge codigo={codigo} /> : null}
           </DialogTitle>
@@ -136,65 +135,68 @@ export function FornecedorDialog({
             Dados de contato, documento e endereço. O código é gerado automaticamente.
           </DialogDescription>
         </DialogHeader>
-        <form
-          id="fornecedor-form"
-          noValidate
-          onSubmit={form.handleSubmit(enviar)}
-          className="max-h-[65vh] space-y-5 overflow-y-auto px-1"
-        >
-          <Field id="nome" label="Nome" erro={errors.nome?.message}>
-            <Input id="nome" {...form.register("nome")} />
-          </Field>
-          <Field id="foto" label="Logo/Foto (URL)" erro={errors.foto?.message}>
-            <Input id="foto" placeholder="https://…" {...form.register("foto")} />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="contato" label="Contato" erro={errors.contato?.message}>
-              <Input id="contato" {...form.register("contato")} />
+        <CorpoFormulario id="fornecedor-form" onSubmit={form.handleSubmit(enviar)}>
+          <SecaoFormulario titulo="Dados principais">
+            <Field id="nome" label="Nome" obrigatorio erro={errors.nome?.message}>
+              <Input id="nome" {...form.register("nome")} />
             </Field>
-            <Field
-              id="telefone"
-              label="Telefone / WhatsApp"
-              erro={errors.telefone?.message}
-              hint="Mesmo número usado para mensagens."
-            >
-              <Input
-                id="telefone"
-                placeholder="(00) 00000-0000"
-                value={form.watch("telefone")}
-                onChange={(evento) =>
-                  form.setValue("telefone", formatarTelefone(evento.target.value), {
-                    shouldDirty: true,
-                  })
-                }
-              />
-            </Field>
-          </div>
-          <Field id="email" label="E-mail" erro={errors.email?.message}>
-            <Input id="email" type="email" {...form.register("email")} />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="cnpj" label="CNPJ" erro={errors.cnpj?.message}>
-              <Input id="cnpj" placeholder="00.000.000/0000-00" {...form.register("cnpj")} />
-            </Field>
-            <Field id="instagram" label="Instagram" erro={errors.instagram?.message}>
-              <Input id="instagram" placeholder="@perfil" {...form.register("instagram")} />
-            </Field>
-          </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field id="cnpj" label="CNPJ" erro={errors.cnpj?.message}>
+                <Input id="cnpj" placeholder="00.000.000/0000-00" {...form.register("cnpj")} />
+              </Field>
+              <Field id="foto" label="Logo/Foto (URL)" erro={errors.foto?.message}>
+                <Input id="foto" placeholder="https://…" {...form.register("foto")} />
+              </Field>
+            </div>
+          </SecaoFormulario>
 
-          <fieldset className="space-y-4 rounded-lg border border-border p-4">
-            <legend className="px-1 font-brand text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
-              Endereço (opcional)
-            </legend>
+          <SecaoFormulario titulo="Contato">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field id="contato" label="Pessoa de contato" erro={errors.contato?.message}>
+                <Input id="contato" {...form.register("contato")} />
+              </Field>
+              <Field
+                id="telefone"
+                label="Telefone / WhatsApp"
+                erro={errors.telefone?.message}
+                hint="Mesmo número usado para mensagens."
+              >
+                <Input
+                  id="telefone"
+                  inputMode="tel"
+                  placeholder="(00) 00000-0000"
+                  value={form.watch("telefone")}
+                  onChange={(evento) =>
+                    form.setValue("telefone", formatarTelefone(evento.target.value), {
+                      shouldDirty: true,
+                    })
+                  }
+                />
+              </Field>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field id="email" label="E-mail" erro={errors.email?.message}>
+                <Input id="email" type="email" {...form.register("email")} />
+              </Field>
+              <Field id="instagram" label="Instagram" erro={errors.instagram?.message}>
+                <Input id="instagram" placeholder="@perfil" {...form.register("instagram")} />
+              </Field>
+            </div>
+          </SecaoFormulario>
+
+          <SecaoFormulario titulo="Endereço (opcional)">
             <div className="grid gap-4 sm:grid-cols-3">
               <Field id="cep" label="CEP" erro={errors.cep?.message}>
                 <Input id="cep" placeholder="00000-000" {...form.register("cep")} />
               </Field>
-              <div className="sm:col-span-2">
-                <Field id="logradouro" label="Logradouro" erro={errors.logradouro?.message}>
-                  <Input id="logradouro" {...form.register("logradouro")} />
-                </Field>
-              </div>
+              <Field
+                id="logradouro"
+                label="Logradouro"
+                className="sm:col-span-2"
+                erro={errors.logradouro?.message}
+              >
+                <Input id="logradouro" {...form.register("logradouro")} />
+              </Field>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field id="numero" label="Número" erro={errors.numero?.message}>
@@ -208,29 +210,32 @@ export function FornecedorDialog({
               </Field>
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="sm:col-span-2">
-                <Field id="cidade" label="Cidade" erro={errors.cidade?.message}>
-                  <Input id="cidade" {...form.register("cidade")} />
-                </Field>
-              </div>
+              <Field
+                id="cidade"
+                label="Cidade"
+                className="sm:col-span-2"
+                erro={errors.cidade?.message}
+              >
+                <Input id="cidade" {...form.register("cidade")} />
+              </Field>
               <Field id="estado" label="UF" erro={errors.estado?.message}>
                 <Input id="estado" maxLength={2} placeholder="SP" {...form.register("estado")} />
               </Field>
             </div>
-          </fieldset>
+          </SecaoFormulario>
 
-          <Field id="observacao" label="Observação" erro={errors.observacao?.message}>
-            <Textarea id="observacao" rows={3} {...form.register("observacao")} />
-          </Field>
-        </form>
+          <SecaoFormulario titulo="Observações">
+            <Field id="observacao" label="Observação" erro={errors.observacao?.message}>
+              <Textarea id="observacao" rows={3} {...form.register("observacao")} />
+            </Field>
+          </SecaoFormulario>
+        </CorpoFormulario>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button type="submit" form="fornecedor-form" disabled={salvando}>
-            {salvando ? <Loader2 aria-hidden className="size-4 animate-spin" /> : null}
-            Salvar
-          </Button>
+          <AcoesFormulario
+            formId="fornecedor-form"
+            salvando={salvando}
+            onCancelar={() => onOpenChange(false)}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

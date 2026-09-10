@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,12 +10,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Field } from "@/components/common/field";
+import {
+  AcoesFormulario,
+  AlternadorCampo,
+  CorpoFormulario,
+  SecaoFormulario,
+} from "@/components/common/form-layout";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 import { formatarTelefone } from "@/utils/cliente";
@@ -26,7 +28,14 @@ import { formatarTelefone } from "@/utils/cliente";
  * ao campo do formulário. `confirmacaoSenha` fica de fora de propósito: não
  * existe no payload enviado à API, é validação só do cliente (zod).
  */
-const CAMPOS_MAPEAVEIS = ["nome", "foto", "telefone", "dataNascimento", "observacao", "senha"] as const;
+const CAMPOS_MAPEAVEIS = [
+  "nome",
+  "foto",
+  "telefone",
+  "dataNascimento",
+  "observacao",
+  "senha",
+] as const;
 
 const vendedorSchema = z
   .object({
@@ -113,7 +122,7 @@ export function VendedorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-3 font-display text-3xl">
+          <DialogTitle className="flex flex-wrap items-center gap-3">
             {edicao ? "Editar vendedor(a)" : "Novo vendedor(a)"}
             {codigo ? <CodigoBadge codigo={codigo} /> : null}
           </DialogTitle>
@@ -122,90 +131,99 @@ export function VendedorDialog({
             exibe senhas.
           </DialogDescription>
         </DialogHeader>
-        <form
-          id="vendedor-form"
-          noValidate
-          onSubmit={form.handleSubmit(submeter)}
-          className="max-h-[65vh] space-y-5 overflow-y-auto px-1"
-        >
-          <Field id="nome" label="Nome" erro={errors.nome?.message}>
-            <Input id="nome" {...form.register("nome")} />
-          </Field>
-          <Field id="foto" label="Foto (URL)" erro={errors.foto?.message}>
-            <Input id="foto" placeholder="https://…" {...form.register("foto")} />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              id="telefone"
-              label="Telefone / WhatsApp"
-              erro={errors.telefone?.message}
-              hint="Mesmo número usado para mensagens."
-            >
-              <Input
+        <CorpoFormulario id="vendedor-form" onSubmit={form.handleSubmit(submeter)}>
+          <SecaoFormulario titulo="Dados pessoais">
+            <Field id="nome" label="Nome" obrigatorio erro={errors.nome?.message}>
+              <Input id="nome" autoComplete="name" {...form.register("nome")} />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
                 id="telefone"
-                placeholder="(00) 00000-0000"
-                value={form.watch("telefone")}
-                onChange={(evento) =>
-                  form.setValue("telefone", formatarTelefone(evento.target.value), {
-                    shouldDirty: true,
-                  })
-                }
-              />
+                label="Telefone / WhatsApp"
+                erro={errors.telefone?.message}
+                hint="Mesmo número usado para mensagens."
+              >
+                <Input
+                  id="telefone"
+                  inputMode="tel"
+                  placeholder="(00) 00000-0000"
+                  value={form.watch("telefone")}
+                  onChange={(evento) =>
+                    form.setValue("telefone", formatarTelefone(evento.target.value), {
+                      shouldDirty: true,
+                    })
+                  }
+                />
+              </Field>
+              <Field
+                id="dataNascimento"
+                label="Data de nascimento"
+                erro={errors.dataNascimento?.message}
+              >
+                <Input id="dataNascimento" type="date" {...form.register("dataNascimento")} />
+              </Field>
+            </div>
+            <Field id="foto" label="Foto (URL)" erro={errors.foto?.message}>
+              <Input id="foto" placeholder="https://…" {...form.register("foto")} />
             </Field>
-            <Field
-              id="dataNascimento"
-              label="Data de nascimento"
-              erro={errors.dataNascimento?.message}
-            >
-              <Input id="dataNascimento" type="date" {...form.register("dataNascimento")} />
-            </Field>
-          </div>
-          <Field id="observacao" label="Observação" erro={errors.observacao?.message}>
-            <Textarea id="observacao" rows={3} {...form.register("observacao")} />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              id="senha"
-              label={edicao ? "Nova senha (opcional)" : "Senha"}
-              erro={errors.senha?.message}
-            >
-              <Input
+          </SecaoFormulario>
+
+          <SecaoFormulario
+            titulo="Acesso ao PDV"
+            descricao={
+              edicao
+                ? "Deixe em branco para manter a senha atual."
+                : "Defina a senha inicial de acesso — ao menos 6 caracteres."
+            }
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
                 id="senha"
-                type="password"
-                autoComplete="new-password"
-                {...form.register("senha")}
-              />
-            </Field>
-            <Field
-              id="confirmacaoSenha"
-              label="Confirmar senha"
-              erro={errors.confirmacaoSenha?.message}
-            >
-              <Input
+                label={edicao ? "Nova senha (opcional)" : "Senha"}
+                obrigatorio={!edicao}
+                erro={errors.senha?.message}
+              >
+                <Input
+                  id="senha"
+                  type="password"
+                  autoComplete="new-password"
+                  {...form.register("senha")}
+                />
+              </Field>
+              <Field
                 id="confirmacaoSenha"
-                type="password"
-                autoComplete="new-password"
-                {...form.register("confirmacaoSenha")}
-              />
-            </Field>
-          </div>
-          <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-            <Label htmlFor="ativo">Vendedor(a) ativo(a)</Label>
-            <Switch
+                label="Confirmar senha"
+                erro={errors.confirmacaoSenha?.message}
+              >
+                <Input
+                  id="confirmacaoSenha"
+                  type="password"
+                  autoComplete="new-password"
+                  {...form.register("confirmacaoSenha")}
+                />
+              </Field>
+            </div>
+          </SecaoFormulario>
+
+          <SecaoFormulario titulo="Situação">
+            <AlternadorCampo
               id="ativo"
+              titulo="Vendedor(a) ativo(a)"
+              descricao="Vendedores inativos não podem registrar vendas no PDV."
               checked={form.watch("ativo")}
-              onCheckedChange={(valor) => form.setValue("ativo", valor)}
+              onChange={(valor) => form.setValue("ativo", valor)}
             />
-          </div>
-        </form>
+            <Field id="observacao" label="Observação" erro={errors.observacao?.message}>
+              <Textarea id="observacao" rows={3} {...form.register("observacao")} />
+            </Field>
+          </SecaoFormulario>
+        </CorpoFormulario>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button type="submit" form="vendedor-form" disabled={salvando}>
-            {salvando ? <Loader2 aria-hidden className="size-4 animate-spin" /> : null}
-            Salvar
-          </Button>
+          <AcoesFormulario
+            formId="vendedor-form"
+            salvando={salvando}
+            onCancelar={() => onOpenChange(false)}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

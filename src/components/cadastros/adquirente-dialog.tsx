@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,8 +14,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  AcoesFormulario,
+  AlternadorCampo,
+  CorpoFormulario,
+  SecaoFormulario,
+} from "@/components/common/form-layout";
 import {
   Select,
   SelectContent,
@@ -126,42 +131,36 @@ export function AdquirenteDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="lg">
         <DialogHeader>
-          <DialogTitle className="font-display text-3xl">
-            {edicao ? "Editar adquirente" : "Nova adquirente"}
-          </DialogTitle>
+          <DialogTitle>{edicao ? "Editar adquirente" : "Nova adquirente"}</DialogTitle>
           <DialogDescription>
             Adquirente de cartão (ex.: Cielo, Stone, Rede) e a tabela de tarifas usada no
             recebimento de vendas no débito/crédito.
           </DialogDescription>
         </DialogHeader>
 
-        <form
-          id="adquirente-form"
-          noValidate
-          onSubmit={form.handleSubmit(enviar)}
-          className="max-h-[65vh] space-y-5 overflow-y-auto px-1"
-        >
-          <Field id="nome" label="Nome" erro={errors.nome?.message}>
-            <Input id="nome" placeholder="Cielo" {...form.register("nome")} />
-          </Field>
+        <CorpoFormulario id="adquirente-form" onSubmit={form.handleSubmit(enviar)}>
+          <SecaoFormulario titulo="Dados da adquirente">
+            <Field id="nome" label="Nome" obrigatorio erro={errors.nome?.message}>
+              <Input id="nome" placeholder="Cielo" {...form.register("nome")} />
+            </Field>
 
-          <Field id="observacao" label="Observação" erro={errors.observacao?.message}>
-            <Textarea
-              id="observacao"
-              rows={2}
-              placeholder="Opcional"
-              {...form.register("observacao")}
-            />
-          </Field>
+            <Field id="observacao" label="Observação" erro={errors.observacao?.message}>
+              <Textarea
+                id="observacao"
+                rows={2}
+                placeholder="Opcional"
+                {...form.register("observacao")}
+              />
+            </Field>
 
-          <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-            <Label htmlFor="ativo">Adquirente ativa</Label>
-            <Switch
+            <AlternadorCampo
               id="ativo"
+              titulo="Adquirente ativa"
+              descricao="Adquirentes inativas não ficam disponíveis no recebimento de vendas."
               checked={form.watch("ativo")}
-              onCheckedChange={(valor) => form.setValue("ativo", valor)}
+              onChange={(valor) => form.setValue("ativo", valor)}
             />
-          </div>
+          </SecaoFormulario>
 
           <div className="space-y-3 rounded-xl border border-border bg-surface/50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -283,16 +282,14 @@ export function AdquirenteDialog({
               <p className="text-xs text-destructive">{errors.tabelaTarifas.message}</p>
             ) : null}
           </div>
-        </form>
+        </CorpoFormulario>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button type="submit" form="adquirente-form" disabled={salvando}>
-            {salvando ? <Loader2 aria-hidden className="size-4 animate-spin" /> : null}
-            Salvar
-          </Button>
+          <AcoesFormulario
+            formId="adquirente-form"
+            salvando={salvando}
+            onCancelar={() => onOpenChange(false)}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
