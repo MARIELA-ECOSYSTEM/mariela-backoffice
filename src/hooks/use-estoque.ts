@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { estoqueApi } from "@/services/api/estoque.api";
 import { produtosKeys } from "./use-produtos";
+import { dashboardKeys } from "./use-dashboard";
 import type { EntradaEstoqueRequest, SaidaEstoqueRequest } from "@/types/estoque";
 import type { FiltroDisponibilidade } from "@/types/produto";
 
@@ -27,6 +28,7 @@ function useInvalidarEstoque() {
   return (produtoId?: string) => {
     void queryClient.invalidateQueries({ queryKey: estoqueKeys.todos });
     void queryClient.invalidateQueries({ queryKey: produtosKeys.todos });
+    void queryClient.invalidateQueries({ queryKey: dashboardKeys.todos });
     if (produtoId)
       void queryClient.invalidateQueries({ queryKey: produtosKeys.detalhe(produtoId) });
   };

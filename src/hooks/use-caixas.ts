@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { caixasApi } from "@/services/api/caixas.api";
 import { vendasKeys } from "@/hooks/use-vendas";
+import { dashboardKeys } from "@/hooks/use-dashboard";
 import type {
   AberturaCaixaPayload,
   EntradaCaixaPayload,
@@ -15,13 +16,14 @@ export const caixasKeys = {
   detalhe: (id: string) => ["caixas", "detalhe", id] as const,
 };
 
-/** Movimentações de caixa refletem em vendas (recebimentos/devoluções). */
+/** Movimentações de caixa refletem em vendas (recebimentos/devoluções) e no resumo do Dashboard. */
 function useInvalidar() {
   const queryClient = useQueryClient();
   return async (id?: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: caixasKeys.todos }),
       queryClient.invalidateQueries({ queryKey: vendasKeys.todas }),
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.todos }),
       ...(id ? [queryClient.invalidateQueries({ queryKey: caixasKeys.detalhe(id) })] : []),
     ]);
   };

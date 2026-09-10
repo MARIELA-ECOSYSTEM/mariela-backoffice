@@ -135,7 +135,13 @@ export type TipoEventoVenda =
   | "cancelamento";
 
 export interface EventoVenda {
-  id: string;
+  /**
+   * Etapa 18.31 — o backend real (`GET /vendas/:id`) NUNCA envia `id` nos
+   * itens de `historico`; o campo era assumido incorretamente como sempre
+   * presente. Mantido opcional para refletir o contrato real — use uma
+   * chave derivada (`dataHora`+`tipo`) ao renderizar lista, nunca `evento.id`.
+   */
+  id?: string;
   dataHora: string;
   tipo: TipoEventoVenda;
   descricao: string;

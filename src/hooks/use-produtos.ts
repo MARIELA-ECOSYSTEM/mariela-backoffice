@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { produtosApi } from "@/services/api/produtos.api";
+import { dashboardKeys } from "@/hooks/use-dashboard";
 import type {
   FotoPrincipalRequest,
   NovidadeRequest,
@@ -35,6 +36,7 @@ function useInvalidarProdutos() {
   return (id?: string) => {
     void queryClient.invalidateQueries({ queryKey: produtosKeys.todos });
     void queryClient.invalidateQueries({ queryKey: ["estoque"] });
+    void queryClient.invalidateQueries({ queryKey: dashboardKeys.todos });
     if (id) void queryClient.invalidateQueries({ queryKey: produtosKeys.detalhe(id) });
   };
 }

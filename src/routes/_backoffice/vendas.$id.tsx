@@ -316,6 +316,12 @@ function VendaDetalhePage() {
                           <Badge variant="success">Paga</Badge>
                         ) : venda.status === "cancelada" ? (
                           <Badge variant="outline">Cancelada</Badge>
+                        ) : venda.valorPendente <= 0 ? (
+                          // Etapa 18.31 — venda pode quitar o saldo inteiro via
+                          // "Receber pagamento" sem baixar cada parcela formal
+                          // individualmente; sem isso, o botão "Dar baixa" ficava
+                          // visível numa venda já concluída e sempre falhava.
+                          <Badge variant="success">Quitada</Badge>
                         ) : (
                           <Button
                             size="sm"
@@ -437,8 +443,15 @@ function VendaDetalhePage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {venda.historico.map((evento) => (
-                    <div key={evento.id} className="border-l-2 border-primary/25 pl-3">
+                  {venda.historico.map((evento, index) => (
+                    // Etapa 18.31 — o backend real nunca envia `id` em eventos de
+                    // histórico (`EventoVenda.id` é só um resquício do mock); usar
+                    // `evento.id` aqui deixava TODOS os itens com a mesma key
+                    // (undefined).
+                    <div
+                      key={evento.id ?? `${evento.dataHora}-${index}`}
+                      className="border-l-2 border-primary/25 pl-3"
+                    >
                       <p className="text-sm">{evento.descricao}</p>
                       <p className="text-xs text-muted-foreground">
                         {formatarDataHora(evento.dataHora)} · {evento.autor}

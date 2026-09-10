@@ -3,6 +3,8 @@ import { vendasApi } from "@/services/api/vendas.api";
 import { clientesKeys, fornecedoresKeys } from "@/hooks/use-cadastros";
 import { vendedoresKeys } from "@/hooks/use-vendedores";
 import { produtosKeys } from "@/hooks/use-produtos";
+import { caixasKeys } from "@/hooks/use-caixas";
+import { dashboardKeys } from "@/hooks/use-dashboard";
 import type {
   BaixaParcelaPayload,
   CancelamentoPayload,
@@ -15,7 +17,11 @@ export const vendasKeys = {
   detalhe: (id: string) => ["vendas", "detalhe", id] as const,
 };
 
-/** Vendas afetam estoque e agregados de clientes/vendedores/fornecedores. */
+/**
+ * Vendas afetam estoque, agregados de clientes/vendedores/fornecedores, o
+ * saldo do Caixa (baixa/recebimento/cancelamento lançam movimentação no
+ * caixa aberto — ver `src/types/caixa.ts`) e o resumo do Dashboard.
+ */
 function useInvalidar() {
   const queryClient = useQueryClient();
   return async (id?: string) => {
@@ -25,6 +31,8 @@ function useInvalidar() {
       queryClient.invalidateQueries({ queryKey: clientesKeys.todos }),
       queryClient.invalidateQueries({ queryKey: fornecedoresKeys.todos }),
       queryClient.invalidateQueries({ queryKey: vendedoresKeys.todos }),
+      queryClient.invalidateQueries({ queryKey: caixasKeys.todos }),
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.todos }),
       ...(id ? [queryClient.invalidateQueries({ queryKey: vendasKeys.detalhe(id) })] : []),
     ]);
   };
