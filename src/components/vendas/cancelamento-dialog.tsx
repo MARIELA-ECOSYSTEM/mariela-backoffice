@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { formatarMoeda } from "@/utils/format";
+import { gerarIdempotencyKey } from "@/utils/idempotencia";
 import { descricaoItemVenda } from "@/utils/venda";
 import type { CancelamentoPayload, VendaDetalhe } from "@/types/venda";
 
@@ -204,8 +205,17 @@ export function CancelamentoDialog({
             onClick={() =>
               onConfirmar(
                 tipo === "integral"
-                  ? { tipo: "integral", motivo: motivo.trim() }
-                  : { tipo: "parcial", motivo: motivo.trim(), itens: itensSelecionados },
+                  ? {
+                      tipo: "integral",
+                      motivo: motivo.trim(),
+                      idempotencyKey: gerarIdempotencyKey(),
+                    }
+                  : {
+                      tipo: "parcial",
+                      motivo: motivo.trim(),
+                      itens: itensSelecionados,
+                      idempotencyKey: gerarIdempotencyKey(),
+                    },
               )
             }
           >

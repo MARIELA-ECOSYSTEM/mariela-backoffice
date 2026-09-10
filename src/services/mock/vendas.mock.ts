@@ -17,6 +17,7 @@ import {
 import { ApiError } from "@/types/api";
 import {
   MODALIDADES_PAGAMENTO,
+  type BaixaParcelaPayload,
   type CancelamentoPayload,
   type ItemDevolvido,
   type ModalidadePagamento,
@@ -110,9 +111,22 @@ export function registerVendasMocks(): void {
 
     const parcela = venda.parcelas.find((item) => item.id === params["parcelaId"]);
     if (!parcela) throw ApiError.notFound("Parcela não encontrada.");
+
+    const payload = (body ?? {}) as Partial<BaixaParcelaPayload>;
+    const idempotencyKey = payload.idempotencyKey?.trim() || undefined;
+    if (idempotencyKey) {
+      const existente = venda.pagamentos.find((item) => item.idempotencyKey === idempotencyKey);
+      if (existente) {
+        if (arredondar(existente.valor) !== arredondar(parcela.valor))
+          throw ApiError.conflict(
+            "Esta idempotencyKey já foi usada para baixar outra parcela desta venda. Gere uma nova chave para esta operação.",
+          );
+        return { data: clonar(venda) };
+      }
+    }
+
     if (parcela.pagoEm) throw ApiError.validation("Esta parcela já está baixada.");
 
-    const payload = (body ?? {}) as { formaPagamento?: string };
     const forma = (payload.formaPagamento ?? venda.formaPagamento).trim() || venda.formaPagamento;
 
     parcela.pagoEm = agora();
@@ -124,6 +138,7 @@ export function registerVendasMocks(): void {
       dataPagamento: parcela.pagoEm,
       parcelas: parcela.total,
       observacao: `Parcela ${parcela.numero}/${parcela.total} (baixa no backoffice)`,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     });
     venda.valorPago = arredondar(
       venda.pagamentos.reduce((total, pagamento) => total + pagamento.valor, 0),
@@ -257,16 +272,41 @@ export function registerVendasMocks(): void {
    */
   registerMock("POST", "/vendas/:id/cancelamento", ({ params, body }) => {
     const venda = encontrar(params["id"]!);
+    const payload = (body ?? {}) as Partial<CancelamentoPayload>;
+
+    // Checagem de idempotência ANTES do status: um cancelamento PARCIAL bem
+    // sucedido não muda o status da venda, então o retry precisa ser
+    // reconhecido mesmo com a venda continuando ativa.
+    const idempotencyKey = payload.idempotencyKey?.trim() || undefined;
+    const tipoSolicitado = payload.tipo === "parcial" ? "parcial" : "integral";
+    if (idempotencyKey && venda.cancelamento?.idempotencyKey === idempotencyKey) {
+      const itensSolicitados = (payload.itens ?? [])
+        .map((item) => item.itemId)
+        .sort()
+        .join(",");
+      const itensRegistrados = venda.cancelamento.itens
+        .map((item) => item.itemId)
+        .sort()
+        .join(",");
+      const mesmaOperacao =
+        venda.cancelamento.tipo === tipoSolicitado &&
+        (tipoSolicitado === "integral" || itensSolicitados === itensRegistrados);
+      if (!mesmaOperacao)
+        throw ApiError.conflict(
+          "Esta idempotencyKey já foi usada para um cancelamento diferente. Gere uma nova chave para esta operação.",
+        );
+      return { data: clonar(venda) };
+    }
+
     if (venda.status === "cancelada") throw ApiError.validation("Esta venda já está cancelada.");
 
-    const payload = (body ?? {}) as Partial<CancelamentoPayload>;
     const motivo = (payload.motivo ?? "").trim();
     if (!motivo)
       throw ApiError.validation("Dados inválidos.", [
         { field: "motivo", message: "Informe o motivo do cancelamento." },
       ]);
 
-    const tipo = payload.tipo === "parcial" ? "parcial" : "integral";
+    const tipo = tipoSolicitado;
     const devolvidos: ItemDevolvido[] = [];
 
     if (tipo === "integral") {
@@ -322,6 +362,7 @@ export function registerVendasMocks(): void {
       autor: "Backoffice",
       valorDevolvido,
       itens: devolvidos,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     };
     venda.historico.push({
       id: gerarId("ev"),

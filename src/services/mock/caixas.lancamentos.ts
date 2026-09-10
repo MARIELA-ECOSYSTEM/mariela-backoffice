@@ -66,6 +66,15 @@ export function caixaAberto(): Caixa | null {
   return db.caixas.find((caixa) => caixa.status === "aberto") ?? null;
 }
 
+/**
+ * `idempotencyKey` de movimentação manual é única GLOBALMENTE (Etapa 18.30),
+ * espelhando o índice do `MovimentosCaixaRepository` do backend — não é mais
+ * escopada por caixa.
+ */
+export function encontrarMovimentoPorIdempotencyKey(key: string): MovimentacaoCaixa | null {
+  return db.caixasMovimentacoes.find((item) => item.idempotencyKey === key) ?? null;
+}
+
 /** Caixa que deve receber um lançamento automático de venda/parcela/devolução. */
 function caixaDestino(): Caixa | null {
   return caixaAberto();

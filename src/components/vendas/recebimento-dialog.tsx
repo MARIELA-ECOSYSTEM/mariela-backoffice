@@ -21,6 +21,7 @@ import {
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { formatarMoeda } from "@/utils/format";
+import { gerarIdempotencyKey } from "@/utils/idempotencia";
 import type { RegistrarRecebimentoPayload, VendaDetalhe } from "@/types/venda";
 
 /**
@@ -72,7 +73,7 @@ export function RecebimentoDialog({
       forma,
       valor: Number(numero.toFixed(2)),
       ...(observacaoLimpa ? { observacao: observacaoLimpa } : {}),
-      idempotencyKey: crypto.randomUUID(),
+      idempotencyKey: gerarIdempotencyKey(),
     });
   }
 

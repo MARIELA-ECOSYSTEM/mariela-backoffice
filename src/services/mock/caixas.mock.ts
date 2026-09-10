@@ -4,6 +4,7 @@ import { proximoCodigo } from "./sequencias";
 import {
   caixaAberto,
   calcularResumoCaixa,
+  encontrarMovimentoPorIdempotencyKey,
   movimentacoesDoCaixa,
   registrarMovimentacao,
   sincronizarResumosCaixas,
@@ -106,6 +107,34 @@ function estatisticas(): CaixaEstatisticas {
   };
 }
 
+/**
+ * Dedupe global de movimentação manual por `idempotencyKey` (Etapa 18.30),
+ * espelhando `MovimentosCaixaRepository.criar` do backend: mesma key + mesma
+ * operação (tipo/valor/forma) → replay silencioso (retorna o caixa como
+ * está); mesma key + operação diferente → 409. Retorna `null` quando deve
+ * prosseguir com o registro normal (chave nova ou não informada).
+ */
+function tratarIdempotenciaMovimento(
+  caixa: Caixa,
+  idempotencyKey: string | undefined,
+  tipo: "injecao" | "sangria",
+  valor: number,
+  formaPagamento: string,
+): CaixaDetalhe | null {
+  if (!idempotencyKey) return null;
+  const existente = encontrarMovimentoPorIdempotencyKey(idempotencyKey);
+  if (!existente) return null;
+  const mesmaOperacao =
+    existente.tipo === tipo &&
+    arredondar(existente.valor) === arredondar(valor) &&
+    existente.formaPagamento === formaPagamento;
+  if (!mesmaOperacao)
+    throw ApiError.conflict(
+      "Esta idempotencyKey já foi usada para um movimento de caixa diferente. Gere uma nova chave para esta operação.",
+    );
+  return detalhar(caixa);
+}
+
 function validarMovimento(payload: Partial<SaidaCaixaPayload>, exigirMotivo: boolean): void {
   const erros = [];
   if (!payload.descricao?.trim())
@@ -199,6 +228,16 @@ export function registerCaixasMocks(): void {
     const payload = (body ?? {}) as Partial<EntradaCaixaPayload>;
     validarMovimento(payload, false);
 
+    const idempotencyKey = payload.idempotencyKey?.trim() || undefined;
+    const replay = tratarIdempotenciaMovimento(
+      caixa,
+      idempotencyKey,
+      "injecao",
+      Number(payload.valor),
+      payload.formaPagamento!.trim(),
+    );
+    if (replay) return { data: clonar(replay) };
+
     registrarMovimentacao({
       caixaId: caixa.id,
       dataHora: agora(),
@@ -213,6 +252,7 @@ export function registerCaixasMocks(): void {
       sentido: "entrada",
       observacao: payload.observacao?.trim() ?? "",
       motivo: null,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     });
 
     return { data: clonar(detalhar(caixa)) };
@@ -232,6 +272,16 @@ export function registerCaixasMocks(): void {
     validarMovimento(payload, true);
     const valor = Number(payload.valor);
 
+    const idempotencyKey = payload.idempotencyKey?.trim() || undefined;
+    const replay = tratarIdempotenciaMovimento(
+      caixa,
+      idempotencyKey,
+      "sangria",
+      valor,
+      payload.formaPagamento!.trim(),
+    );
+    if (replay) return { data: clonar(replay) };
+
     registrarMovimentacao({
       caixaId: caixa.id,
       dataHora: agora(),
@@ -246,6 +296,7 @@ export function registerCaixasMocks(): void {
       sentido: "saida",
       observacao: payload.observacao?.trim() ?? "",
       motivo: payload.motivo!.trim(),
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     });
 
     return { data: clonar(detalhar(caixa)) };

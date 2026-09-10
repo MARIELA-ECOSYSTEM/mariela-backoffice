@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { formatarMoeda } from "@/utils/format";
+import { gerarIdempotencyKey } from "@/utils/idempotencia";
 import { MOTIVOS_ENTRADA, MOTIVOS_SAIDA, type SaidaCaixaPayload } from "@/types/caixa";
 
 /**
@@ -77,6 +78,7 @@ export function MovimentacaoCaixaDialog({
       formaPagamento,
       motivo: motivo,
       observacao: observacao.trim(),
+      idempotencyKey: gerarIdempotencyKey(),
     });
   }
 

@@ -32,6 +32,7 @@ import {
 } from "@/hooks/use-vendas";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarData, formatarDataHora, formatarMoeda, pluralizar } from "@/utils/format";
+import { gerarIdempotencyKey } from "@/utils/idempotencia";
 import {
   LABEL_STATUS_VENDA,
   type CancelamentoPayload,
@@ -77,7 +78,10 @@ function VendaDetalhePage() {
 
   async function baixarParcela(parcelaId: string, formaPagamento: string) {
     try {
-      await baixar.mutateAsync({ parcelaId, payload: { formaPagamento } });
+      await baixar.mutateAsync({
+        parcelaId,
+        payload: { formaPagamento, idempotencyKey: gerarIdempotencyKey() },
+      });
       toast.success("Parcela baixada.");
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível baixar a parcela."));

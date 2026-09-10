@@ -157,6 +157,8 @@ export interface CancelamentoVenda {
   autor: string;
   valorDevolvido: number;
   itens: ItemDevolvido[];
+  /** idempotencyKey da requisição que gerou este cancelamento, quando informada. */
+  idempotencyKey?: string;
 }
 
 export interface VendaDetalhe extends VendaResumo {
@@ -183,6 +185,8 @@ export interface VendasEstatisticas {
 
 export interface BaixaParcelaPayload {
   formaPagamento: string;
+  /** Gerada no cliente a cada tentativa, para o backend deduplicar retries. */
+  idempotencyKey?: string;
 }
 
 /**
@@ -214,4 +218,6 @@ export interface CancelamentoPayload {
   motivo: string;
   /** Obrigatório na devolução parcial. */
   itens?: DevolucaoItemPayload[];
+  /** Gerada no cliente a cada tentativa, para o backend deduplicar retries. */
+  idempotencyKey?: string;
 }

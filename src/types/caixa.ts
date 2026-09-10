@@ -102,6 +102,8 @@ export interface MovimentacaoCaixa {
   observacao: string;
   /** Motivo obrigatório nas saídas manuais. */
   motivo: string | null;
+  /** idempotencyKey da requisição que originou o movimento, quando informada. */
+  idempotencyKey?: string;
 }
 
 /**
@@ -225,6 +227,13 @@ export interface EntradaCaixaPayload {
   valor: number;
   formaPagamento: FormaPagamento;
   observacao?: string | undefined;
+  /**
+   * Gerada no cliente a cada tentativa, para o backend deduplicar retries
+   * (Etapa 18.30). `FechamentoCaixaPayload` NÃO tem este campo: o backend
+   * real não aceita `idempotencyKey` no fechamento (`FechamentoCaixaDto`
+   * não a declara), então o frontend não deve enviá-la ali.
+   */
+  idempotencyKey?: string | undefined;
 }
 
 export interface SaidaCaixaPayload extends EntradaCaixaPayload {
