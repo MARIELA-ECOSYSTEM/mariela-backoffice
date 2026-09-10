@@ -4,14 +4,15 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { CreditCard, Loader2, Palette, Ruler, Store, Tags } from "lucide-react";
 import { Page } from "@/components/layout/page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Field } from "@/components/common/field";
-import { ErrorState, TableSkeleton } from "@/components/common/states";
+import { ErrorState } from "@/components/common/states";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ListaConfiguravel } from "@/components/configuracoes/lista-configuravel";
 import { useAtualizarLoja, useConfiguracoes } from "@/hooks/use-configuracoes";
 import { mensagemDeErro } from "@/services/api/client";
@@ -117,6 +118,14 @@ function ConfiguracoesPage() {
 
   const errors = form.formState.errors;
 
+  const secoes = [
+    { valor: "loja", label: "Dados da loja", icone: Store },
+    { valor: "categorias", label: "Categorias", icone: Tags },
+    { valor: "tamanhos", label: "Tamanhos", icone: Ruler },
+    { valor: "cores", label: "Cores", icone: Palette },
+    { valor: "pagamento", label: "Formas de pagamento", icone: CreditCard },
+  ] as const;
+
   return (
     <Page
       titulo="Configurações"
@@ -128,26 +137,48 @@ function ConfiguracoesPage() {
       }
     >
       {isPending ? (
-        <TableSkeleton linhas={6} colunas={3} />
+        <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Skeleton key={index} className="h-10 rounded-lg" />
+            ))}
+          </div>
+          <div className="space-y-6">
+            <Skeleton className="h-64 rounded-xl" />
+            <Skeleton className="h-48 rounded-xl" />
+          </div>
+        </div>
       ) : isError || !configuracoes ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : (
-        <Tabs defaultValue="loja">
-          <TabsList>
-            <TabsTrigger value="loja">Dados da loja</TabsTrigger>
-            <TabsTrigger value="categorias">Categorias</TabsTrigger>
-            <TabsTrigger value="tamanhos">Tamanhos</TabsTrigger>
-            <TabsTrigger value="cores">Cores</TabsTrigger>
-            <TabsTrigger value="pagamento">Formas de pagamento</TabsTrigger>
+        <Tabs
+          defaultValue="loja"
+          orientation="vertical"
+          className="grid items-start gap-6 lg:grid-cols-[220px_minmax(0,1fr)]"
+        >
+          <TabsList className="h-auto w-full flex-row overflow-x-auto rounded-xl border border-border bg-card p-1.5 shadow-card lg:flex-col lg:overflow-visible">
+            {secoes.map((secao) => (
+              <TabsTrigger
+                key={secao.valor}
+                value={secao.valor}
+                className="w-full justify-start gap-2 rounded-lg px-3 py-2 text-left data-[state=active]:bg-primary-soft data-[state=active]:text-primary data-[state=active]:shadow-none"
+              >
+                <secao.icone aria-hidden className="size-4 shrink-0" />
+                <span className="truncate">{secao.label}</span>
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          <TabsContent value="loja" className="mt-5">
+          <TabsContent value="loja" className="mt-0">
             <form onSubmit={form.handleSubmit(onSubmit)} className="max-w-4xl space-y-6" noValidate>
-              <Card className="shadow-card">
-                <CardHeader>
-                  <CardTitle className="font-display text-xl">Identificação</CardTitle>
+              <Card className="border-border shadow-card">
+                <CardHeader className="gap-1.5 border-b border-border/70 pb-4">
+                  <CardTitle className="font-display text-xl leading-none">Identificação</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Nome, marca e canais de contato exibidos nos documentos da loja.
+                  </p>
                 </CardHeader>
-                <CardContent className="grid gap-5 md:grid-cols-2">
+                <CardContent className="grid gap-5 pt-5 md:grid-cols-2">
                   <Field id="nome" label="Nome da loja" erro={errors.nome?.message}>
                     <Input id="nome" {...form.register("nome")} />
                   </Field>
@@ -166,11 +197,14 @@ function ConfiguracoesPage() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-card">
-                <CardHeader>
-                  <CardTitle className="font-display text-xl">Endereço</CardTitle>
+              <Card className="border-border shadow-card">
+                <CardHeader className="gap-1.5 border-b border-border/70 pb-4">
+                  <CardTitle className="font-display text-xl leading-none">Endereço</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Endereço físico da loja usado em documentos e contatos.
+                  </p>
                 </CardHeader>
-                <CardContent className="grid gap-5 md:grid-cols-3">
+                <CardContent className="grid gap-5 pt-5 md:grid-cols-3">
                   <Field id="cep" label="CEP" erro={errors.endereco?.cep?.message}>
                     <Input id="cep" {...form.register("endereco.cep")} />
                   </Field>
@@ -204,7 +238,10 @@ function ConfiguracoesPage() {
                 </CardContent>
               </Card>
 
-              <div className="flex justify-end">
+              <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card/95 px-4 py-3 shadow-card backdrop-blur">
+                <p className="text-xs text-muted-foreground">
+                  As alterações passam a valer imediatamente após salvar.
+                </p>
                 <Button type="submit" disabled={atualizar.isPending}>
                   {atualizar.isPending ? (
                     <Loader2 aria-hidden className="size-4 animate-spin" />
@@ -215,7 +252,7 @@ function ConfiguracoesPage() {
             </form>
           </TabsContent>
 
-          <TabsContent value="categorias" className="mt-5 max-w-3xl">
+          <TabsContent value="categorias" className="mt-0 max-w-3xl">
             <ListaConfiguravel
               lista="categorias"
               titulo="Categorias"
@@ -225,7 +262,7 @@ function ConfiguracoesPage() {
             />
           </TabsContent>
 
-          <TabsContent value="tamanhos" className="mt-5 max-w-3xl">
+          <TabsContent value="tamanhos" className="mt-0 max-w-3xl">
             <ListaConfiguravel
               lista="tamanhos"
               titulo="Tamanhos"
@@ -235,7 +272,7 @@ function ConfiguracoesPage() {
             />
           </TabsContent>
 
-          <TabsContent value="cores" className="mt-5 max-w-3xl">
+          <TabsContent value="cores" className="mt-0 max-w-3xl">
             <ListaConfiguravel
               lista="cores"
               titulo="Cores"
@@ -245,7 +282,7 @@ function ConfiguracoesPage() {
             />
           </TabsContent>
 
-          <TabsContent value="pagamento" className="mt-5 max-w-3xl">
+          <TabsContent value="pagamento" className="mt-0 max-w-3xl">
             <ListaConfiguravel
               lista="formasPagamento"
               titulo="Formas de pagamento"
