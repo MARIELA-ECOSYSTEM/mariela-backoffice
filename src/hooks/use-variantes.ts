@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { variantesApi } from "@/services/api/variantes.api";
 import { produtosKeys } from "./use-produtos";
+import { dashboardKeys } from "./use-dashboard";
 import type { AdicionarTamanhoRequest, CriarVarianteRequest } from "@/types/variante";
 
 function useInvalidar(produtoId: string) {
@@ -9,6 +10,7 @@ function useInvalidar(produtoId: string) {
     void queryClient.invalidateQueries({ queryKey: produtosKeys.todos });
     void queryClient.invalidateQueries({ queryKey: produtosKeys.detalhe(produtoId) });
     void queryClient.invalidateQueries({ queryKey: ["estoque"] });
+    void queryClient.invalidateQueries({ queryKey: dashboardKeys.todos });
   };
 }
 

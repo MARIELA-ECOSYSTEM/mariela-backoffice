@@ -201,7 +201,7 @@ function VendasPage() {
     >
       <NotaDemonstracao>
         As vendas são criadas no <strong>MARIELA PDV</strong>. Aqui o backoffice apenas consulta,
-        baixa parcelas e registra cancelamentos/devoluções — os dados exibidos são de demonstração.
+        baixa parcelas e registra cancelamentos/devoluções.
       </NotaDemonstracao>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">

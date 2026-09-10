@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
-import { CardsSkeleton, DataToolbar, NotaDemonstracao } from "@/components/common/data-toolbar";
+import { CardsSkeleton, DataToolbar } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { PainelFiltros } from "@/components/filtros/painel-filtros";
 import { useFiltrosFacetados } from "@/hooks/use-filtros-facetados";
@@ -185,11 +185,6 @@ function CampanhasPage() {
         </Button>
       }
     >
-      <NotaDemonstracao>
-        As campanhas são servidas pela camada mock preparada para os contratos{" "}
-        <code>/campanhas</code> da futura API.
-      </NotaDemonstracao>
-
       <DataToolbar
         busca={busca}
         onBuscaChange={setBusca}
