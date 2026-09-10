@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Image as ImageIcon, LayoutPanelTop, Loader2, Sparkles } from "lucide-react";
+import { Image as ImageIcon, LayoutPanelTop, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,12 +11,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Field } from "@/components/common/field";
+import {
+  AcoesFormulario,
+  AlternadorCampo,
+  CorpoFormulario,
+  SecaoFormulario,
+} from "@/components/common/form-layout";
 import { cn } from "@/lib/utils";
 import { CODIGO_AUTOMATICO } from "@/lib/codigos";
 import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
@@ -69,35 +72,6 @@ export const PERIODO_VALORES_PADRAO: PeriodoFormValues = {
   fotoDestaque: "",
   fotoBanner: "",
 };
-
-function Alternador({
-  id,
-  titulo,
-  descricao,
-  icone,
-  checked,
-  onChange,
-}: {
-  id: string;
-  titulo: string;
-  descricao: string;
-  icone: React.ReactNode;
-  checked: boolean;
-  onChange: (valor: boolean) => void;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border border-border px-4 py-3">
-      <div className="min-w-0">
-        <Label htmlFor={id} className="flex items-center gap-2">
-          {icone}
-          {titulo}
-        </Label>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{descricao}</p>
-      </div>
-      <Switch id={id} checked={checked} onCheckedChange={onChange} />
-    </div>
-  );
-}
 
 function PreviewImagem({
   url,
@@ -178,45 +152,45 @@ export function PeriodoDialog({
           <DialogTitle>{titulo}</DialogTitle>
           <DialogDescription>{descricaoDialog}</DialogDescription>
         </DialogHeader>
-        <form
-          id="periodo-form"
-          noValidate
-          onSubmit={form.handleSubmit(enviar)}
-          className="space-y-5"
-        >
-          <Field id="codigo" label="Código">
-            <Input id="codigo" value={codigo ?? CODIGO_AUTOMATICO} readOnly disabled />
-          </Field>
-          <Field id="nome" label="Nome" erro={errors.nome?.message}>
-            <Input id="nome" {...form.register("nome")} />
-          </Field>
-          <Field id="descricao" label="Descrição" erro={errors.descricao?.message}>
-            <Textarea id="descricao" rows={3} {...form.register("descricao")} />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="inicio" label="Início" erro={errors.inicio?.message}>
-              <Input id="inicio" type="date" {...form.register("inicio")} />
+        <CorpoFormulario id="periodo-form" onSubmit={form.handleSubmit(enviar)}>
+          <SecaoFormulario titulo="Identificação">
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,10rem)_1fr]">
+              <Field id="codigo" label="Código">
+                <Input id="codigo" value={codigo ?? CODIGO_AUTOMATICO} readOnly disabled />
+              </Field>
+              <Field id="nome" label="Nome" obrigatorio erro={errors.nome?.message}>
+                <Input id="nome" {...form.register("nome")} />
+              </Field>
+            </div>
+            <Field id="descricao" label="Descrição" erro={errors.descricao?.message}>
+              <Textarea id="descricao" rows={3} {...form.register("descricao")} />
             </Field>
-            <Field id="fim" label="Fim" erro={errors.fim?.message}>
-              <Input id="fim" type="date" {...form.register("fim")} />
-            </Field>
-          </div>
+          </SecaoFormulario>
 
-          <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
-            <Label htmlFor="ativo">Ativo</Label>
-            <Switch
+          <SecaoFormulario titulo="Período e situação">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field id="inicio" label="Início" erro={errors.inicio?.message}>
+                <Input id="inicio" type="date" {...form.register("inicio")} />
+              </Field>
+              <Field id="fim" label="Fim" erro={errors.fim?.message}>
+                <Input id="fim" type="date" {...form.register("fim")} />
+              </Field>
+            </div>
+            <AlternadorCampo
               id="ativo"
+              titulo="Ativo"
+              descricao="Itens inativos não aparecem nas vitrines da loja."
               checked={form.watch("ativo")}
-              onCheckedChange={(valor) => form.setValue("ativo", valor)}
+              onChange={(valor) => form.setValue("ativo", valor)}
             />
-          </div>
+          </SecaoFormulario>
 
-          <div className="space-y-3 rounded-xl border border-primary/20 bg-primary-soft/30 p-4">
-            <p className="font-brand text-[0.68rem] uppercase tracking-[0.16em] text-muted-foreground">
-              Conteúdo de vitrine
-            </p>
-
-            <Alternador
+          <SecaoFormulario
+            titulo="Conteúdo de vitrine"
+            descricao="Escolha onde este item aparece e as imagens correspondentes."
+            destaque
+          >
+            <AlternadorCampo
               id="destaque"
               titulo="Colocar em destaque"
               descricao="Aparece nos cards e nas áreas de destaque da loja."
@@ -246,7 +220,7 @@ export function PeriodoDialog({
               </div>
             ) : null}
 
-            <Alternador
+            <AlternadorCampo
               id="banner"
               titulo="Colocar no banner"
               descricao="Aparece em banners/hero sections horizontais."
@@ -271,16 +245,14 @@ export function PeriodoDialog({
                 />
               </div>
             ) : null}
-          </div>
-        </form>
+          </SecaoFormulario>
+        </CorpoFormulario>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button type="submit" form="periodo-form" disabled={salvando}>
-            {salvando ? <Loader2 aria-hidden className="size-4 animate-spin" /> : null}
-            Salvar
-          </Button>
+          <AcoesFormulario
+            formId="periodo-form"
+            salvando={salvando}
+            onCancelar={() => onOpenChange(false)}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,9 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/common/field";
+import { AcoesFormulario, CorpoFormulario } from "@/components/common/form-layout";
 import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 
 /** Campo cujo nome no backend (`ApiFieldError.field`) corresponde exatamente ao campo do formulário. */
@@ -72,13 +71,14 @@ export function SenhaDialog({
             Defina uma nova senha de acesso ao PDV para {nome}. O hash é gerado pela API.
           </DialogDescription>
         </DialogHeader>
-        <form
-          id="senha-form"
-          noValidate
-          onSubmit={form.handleSubmit(enviar)}
-          className="space-y-5"
-        >
-          <Field id="nova-senha" label="Nova senha" erro={errors.senha?.message}>
+        <CorpoFormulario id="senha-form" onSubmit={form.handleSubmit(enviar)}>
+          <Field
+            id="nova-senha"
+            label="Nova senha"
+            obrigatorio
+            hint="Ao menos 6 caracteres."
+            erro={errors.senha?.message}
+          >
             <Input
               id="nova-senha"
               type="password"
@@ -98,15 +98,14 @@ export function SenhaDialog({
               {...form.register("confirmacaoSenha")}
             />
           </Field>
-        </form>
+        </CorpoFormulario>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button type="submit" form="senha-form" disabled={salvando}>
-            {salvando ? <Loader2 aria-hidden className="size-4 animate-spin" /> : null}
-            Salvar senha
-          </Button>
+          <AcoesFormulario
+            formId="senha-form"
+            salvando={salvando}
+            onCancelar={() => onOpenChange(false)}
+            rotuloSalvar="Salvar senha"
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

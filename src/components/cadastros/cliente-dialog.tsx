@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,10 +10,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/common/field";
+import { AcoesFormulario, CorpoFormulario, SecaoFormulario } from "@/components/common/form-layout";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 import { formatarTelefone, telefoneValido } from "@/utils/cliente";
@@ -94,50 +93,56 @@ export function ClienteDialog({
             gerado automaticamente pelo sistema.
           </DialogDescription>
         </DialogHeader>
-        <form
-          id="cliente-form"
-          noValidate
-          onSubmit={form.handleSubmit(enviar)}
-          className="space-y-5"
-        >
-          <Field id="nome" label="Nome" erro={errors.nome?.message}>
-            <Input id="nome" {...form.register("nome")} />
-          </Field>
-          <Field id="foto" label="Foto (URL)" erro={errors.foto?.message}>
-            <Input id="foto" placeholder="https://…" {...form.register("foto")} />
-          </Field>
-          <Field id="telefone" label="Telefone (WhatsApp)" erro={errors.telefone?.message}>
-            <Input
-              id="telefone"
-              inputMode="tel"
-              placeholder="(83) 99999-9999"
-              {...form.register("telefone")}
-              onChange={(evento) =>
-                form.setValue("telefone", formatarTelefone(evento.target.value), {
-                  shouldValidate: form.formState.isSubmitted,
-                })
-              }
-            />
-          </Field>
-          <Field
-            id="dataNascimento"
-            label="Data de nascimento"
-            erro={errors.dataNascimento?.message}
-          >
-            <Input id="dataNascimento" type="date" {...form.register("dataNascimento")} />
-          </Field>
-          <Field id="observacao" label="Observação" erro={errors.observacao?.message}>
-            <Textarea id="observacao" rows={3} {...form.register("observacao")} />
-          </Field>
-        </form>
+        <CorpoFormulario id="cliente-form" onSubmit={form.handleSubmit(enviar)}>
+          <SecaoFormulario titulo="Dados pessoais">
+            <Field id="nome" label="Nome" obrigatorio erro={errors.nome?.message}>
+              <Input id="nome" autoComplete="name" {...form.register("nome")} />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                id="telefone"
+                label="Telefone (WhatsApp)"
+                obrigatorio
+                hint="DDD + número."
+                erro={errors.telefone?.message}
+              >
+                <Input
+                  id="telefone"
+                  inputMode="tel"
+                  placeholder="(83) 99999-9999"
+                  {...form.register("telefone")}
+                  onChange={(evento) =>
+                    form.setValue("telefone", formatarTelefone(evento.target.value), {
+                      shouldValidate: form.formState.isSubmitted,
+                    })
+                  }
+                />
+              </Field>
+              <Field
+                id="dataNascimento"
+                label="Data de nascimento"
+                erro={errors.dataNascimento?.message}
+              >
+                <Input id="dataNascimento" type="date" {...form.register("dataNascimento")} />
+              </Field>
+            </div>
+          </SecaoFormulario>
+
+          <SecaoFormulario titulo="Complementos">
+            <Field id="foto" label="Foto (URL)" erro={errors.foto?.message}>
+              <Input id="foto" placeholder="https://…" {...form.register("foto")} />
+            </Field>
+            <Field id="observacao" label="Observação" erro={errors.observacao?.message}>
+              <Textarea id="observacao" rows={3} {...form.register("observacao")} />
+            </Field>
+          </SecaoFormulario>
+        </CorpoFormulario>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button type="submit" form="cliente-form" disabled={salvando}>
-            {salvando ? <Loader2 aria-hidden className="size-4 animate-spin" /> : null}
-            Salvar
-          </Button>
+          <AcoesFormulario
+            formId="cliente-form"
+            salvando={salvando}
+            onCancelar={() => onOpenChange(false)}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
