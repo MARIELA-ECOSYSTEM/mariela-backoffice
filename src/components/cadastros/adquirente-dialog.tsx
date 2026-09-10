@@ -203,7 +203,7 @@ export function AdquirenteDialog({
                   return (
                     <div
                       key={item.id}
-                      className="grid grid-cols-[1fr_auto_auto_auto] items-start gap-2 rounded-lg border border-border bg-card p-3 sm:grid-cols-[1fr_5rem_6rem_2.25rem] sm:p-2 sm:pl-3"
+                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.25rem] items-start gap-2 rounded-lg border border-border bg-card p-3 sm:grid-cols-[minmax(0,1fr)_5rem_6rem_2.25rem] sm:p-2 sm:pl-3"
                     >
                       <Select
                         value={modalidadeAtual}
@@ -234,7 +234,7 @@ export function AdquirenteDialog({
                         </SelectContent>
                       </Select>
 
-                      <div className="w-20 sm:w-full">
+                      <div className="w-full min-w-0">
                         <Input
                           type="number"
                           min={1}
@@ -246,7 +246,7 @@ export function AdquirenteDialog({
                         />
                       </div>
 
-                      <div className="w-24 sm:w-full">
+                      <div className="w-full min-w-0">
                         <Input
                           type="number"
                           step="0.01"
