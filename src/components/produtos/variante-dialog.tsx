@@ -27,8 +27,11 @@ import { varianteSchema, type VarianteFormValues } from "@/schemas/produto.schem
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useAtualizarVariante, useCriarVariante } from "@/hooks/use-variantes";
 import { mensagemDeErro } from "@/services/api/client";
-import { ApiError } from "@/types/api";
+import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 import type { Variante } from "@/types/variante";
+
+/** Campos cujo nome no backend (`ApiFieldError.field`) corresponde exatamente ao campo do formulário. */
+const CAMPOS_MAPEAVEIS = ["cor"] as const;
 
 export function VarianteDialog({
   produtoId,
@@ -76,13 +79,7 @@ export function VarianteDialog({
       toast.success(editando ? "Variante atualizada com sucesso." : "Variante criada com sucesso.");
       onOpenChange(false);
     } catch (error) {
-      if (error instanceof ApiError && error.errors.length) {
-        error.errors.forEach((campo) => {
-          if (campo.field === "cor") {
-            form.setError("cor", { message: campo.message });
-          }
-        });
-      }
+      aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
       toast.error(mensagemDeErro(error, "Não foi possível salvar a variante."));
     }
   }

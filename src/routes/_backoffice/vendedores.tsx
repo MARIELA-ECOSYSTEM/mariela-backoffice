@@ -236,6 +236,7 @@ function VendedoresPage() {
       setEmEdicao(null);
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível salvar o vendedor."));
+      throw err;
     }
   }
 
@@ -256,6 +257,7 @@ function VendedoresPage() {
       setParaSenha(null);
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível redefinir a senha."));
+      throw err;
     }
   }
 
@@ -445,7 +447,7 @@ function VendedoresPage() {
         codigo={emEdicao?.codigo}
         valoresIniciais={valoresIniciais}
         salvando={criar.isPending || atualizar.isPending}
-        onSubmit={(valores) => void salvar(valores)}
+        onSubmit={salvar}
       />
 
       <VendedorVendasDialog
@@ -469,7 +471,7 @@ function VendedoresPage() {
         }}
         nome={paraSenha?.nome ?? ""}
         salvando={redefinirSenha.isPending}
-        onSubmit={(valores) => void salvarSenha(valores)}
+        onSubmit={salvarSenha}
       />
 
       <ConfirmDialog

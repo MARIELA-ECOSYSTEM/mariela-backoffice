@@ -19,6 +19,24 @@ import { Label } from "@/components/ui/label";
 import { Field } from "@/components/common/field";
 import { cn } from "@/lib/utils";
 import { CODIGO_AUTOMATICO } from "@/lib/codigos";
+import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
+
+/**
+ * Campos cujo nome no backend (`ApiFieldError.field`) corresponde exatamente
+ * ao campo do formulário — mesmo contrato para Coleções e Campanhas
+ * (`CriarColecaoDto`/`CriarCampanhaDto` são estruturalmente idênticos).
+ */
+const CAMPOS_MAPEAVEIS = [
+  "nome",
+  "descricao",
+  "inicio",
+  "fim",
+  "ativo",
+  "destaque",
+  "banner",
+  "fotoDestaque",
+  "fotoBanner",
+] as const;
 
 const periodoSchema = z
   .object({
@@ -131,7 +149,7 @@ export function PeriodoDialog({
   codigo?: string | null;
   valoresIniciais: PeriodoFormValues;
   salvando: boolean;
-  onSubmit: (valores: PeriodoFormValues) => void;
+  onSubmit: (valores: PeriodoFormValues) => Promise<void>;
 }) {
   const form = useForm<PeriodoFormValues>({
     resolver: zodResolver(periodoSchema),
@@ -145,6 +163,14 @@ export function PeriodoDialog({
     if (open) form.reset(valoresIniciais);
   }, [open, valoresIniciais, form]);
 
+  async function enviar(valores: PeriodoFormValues) {
+    try {
+      await onSubmit(valores);
+    } catch (error) {
+      aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
@@ -155,7 +181,7 @@ export function PeriodoDialog({
         <form
           id="periodo-form"
           noValidate
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={form.handleSubmit(enviar)}
           className="space-y-5"
         >
           <Field id="codigo" label="Código">

@@ -17,9 +17,12 @@ import { Field } from "@/components/common/field";
 import { promocaoSchema, type PromocaoFormValues } from "@/schemas/produto.schema";
 import { useDefinirPromocao } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
-import { ApiError } from "@/types/api";
+import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 import { formatarMoeda } from "@/utils/format";
 import type { Produto } from "@/types/produto";
+
+/** Campos cujo nome no backend (`ApiFieldError.field`) corresponde exatamente ao campo do formulário. */
+const CAMPOS_MAPEAVEIS = ["precoPromocional"] as const;
 
 export function PromocaoDialog({
   produto,
@@ -47,12 +50,7 @@ export function PromocaoDialog({
       toast.success("Promoção ativada com sucesso.");
       onOpenChange(false);
     } catch (error) {
-      if (error instanceof ApiError) {
-        error.errors.forEach((campo) => {
-          if (campo.field === "precoPromocional")
-            form.setError("precoPromocional", { message: campo.message });
-        });
-      }
+      aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
       toast.error(mensagemDeErro(error, "Não foi possível ativar a promoção."));
     }
   }

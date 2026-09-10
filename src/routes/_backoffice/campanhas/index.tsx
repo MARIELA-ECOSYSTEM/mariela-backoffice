@@ -146,6 +146,7 @@ function CampanhasPage() {
       setEmEdicao(null);
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível salvar a campanha."));
+      throw err;
     }
   }
 
@@ -257,7 +258,7 @@ function CampanhasPage() {
         codigo={emEdicao?.codigo ?? null}
         valoresIniciais={valoresIniciais}
         salvando={criar.isPending || atualizar.isPending}
-        onSubmit={(valores) => void salvar(valores)}
+        onSubmit={salvar}
       />
 
       <ConfirmDialog

@@ -15,6 +15,7 @@ import { ErrorState, TableSkeleton } from "@/components/common/states";
 import { ListaConfiguravel } from "@/components/configuracoes/lista-configuravel";
 import { useAtualizarLoja, useConfiguracoes } from "@/hooks/use-configuracoes";
 import { mensagemDeErro } from "@/services/api/client";
+import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 import { formatarData } from "@/utils/format";
 
 export const Route = createFileRoute("/_backoffice/configuracoes")({
@@ -60,6 +61,22 @@ const lojaSchema = z.object({
 
 type LojaFormValues = z.infer<typeof lojaSchema>;
 
+/** Campos cujo nome no backend (`ApiFieldError.field`) corresponde exatamente ao campo do formulário (inclusive os aninhados de endereço). */
+const CAMPOS_MAPEAVEIS = [
+  "nome",
+  "logo",
+  "telefone",
+  "whatsapp",
+  "email",
+  "endereco.cep",
+  "endereco.logradouro",
+  "endereco.numero",
+  "endereco.complemento",
+  "endereco.bairro",
+  "endereco.cidade",
+  "endereco.estado",
+] as const;
+
 function ConfiguracoesPage() {
   const { data: configuracoes, isPending, isError, error, refetch } = useConfiguracoes();
   const atualizar = useAtualizarLoja();
@@ -93,6 +110,7 @@ function ConfiguracoesPage() {
       await atualizar.mutateAsync(values);
       toast.success("Dados da loja atualizados com sucesso.");
     } catch (err) {
+      aplicarErrosDeCampo(err, form, CAMPOS_MAPEAVEIS);
       toast.error(mensagemDeErro(err, "Não foi possível atualizar os dados da loja."));
     }
   }

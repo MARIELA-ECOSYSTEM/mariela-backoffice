@@ -191,6 +191,7 @@ function ClientesPage() {
       setEmEdicao(null);
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível salvar o cliente."));
+      throw err;
     }
   }
 
@@ -362,7 +363,7 @@ function ClientesPage() {
         codigo={emEdicao?.codigo}
         valoresIniciais={valoresIniciais}
         salvando={criar.isPending || atualizar.isPending}
-        onSubmit={(valores) => void salvar(valores)}
+        onSubmit={salvar}
       />
 
       <AniversariantesDialog

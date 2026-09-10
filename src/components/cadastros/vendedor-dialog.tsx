@@ -18,7 +18,15 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Field } from "@/components/common/field";
 import { CodigoBadge } from "@/components/common/codigo-badge";
+import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 import { formatarTelefone } from "@/utils/cliente";
+
+/**
+ * Campos cujo nome no backend (`ApiFieldError.field`) corresponde exatamente
+ * ao campo do formulário. `confirmacaoSenha` fica de fora de propósito: não
+ * existe no payload enviado à API, é validação só do cliente (zod).
+ */
+const CAMPOS_MAPEAVEIS = ["nome", "foto", "telefone", "dataNascimento", "observacao", "senha"] as const;
 
 const vendedorSchema = z
   .object({
@@ -77,7 +85,7 @@ export function VendedorDialog({
   codigo?: string | undefined;
   valoresIniciais: VendedorFormValues;
   salvando: boolean;
-  onSubmit: (valores: VendedorFormValues) => void;
+  onSubmit: (valores: VendedorFormValues) => Promise<void>;
 }) {
   const form = useForm<VendedorFormValues>({
     resolver: zodResolver(vendedorSchema),
@@ -89,12 +97,16 @@ export function VendedorDialog({
     if (open) form.reset(valoresIniciais);
   }, [open, valoresIniciais, form]);
 
-  function submeter(valores: VendedorFormValues) {
+  async function submeter(valores: VendedorFormValues) {
     if (!edicao && !valores.senha) {
       form.setError("senha", { message: "Senha é obrigatória para novos vendedores." });
       return;
     }
-    onSubmit(valores);
+    try {
+      await onSubmit(valores);
+    } catch (error) {
+      aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
+    }
   }
 
   return (

@@ -145,6 +145,7 @@ function ColecoesPage() {
       setEmEdicao(null);
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível salvar a coleção."));
+      throw err;
     }
   }
 
@@ -256,7 +257,7 @@ function ColecoesPage() {
         codigo={emEdicao?.codigo ?? null}
         valoresIniciais={valoresIniciais}
         salvando={criar.isPending || atualizar.isPending}
-        onSubmit={(valores) => void salvar(valores)}
+        onSubmit={salvar}
       />
 
       <ConfirmDialog

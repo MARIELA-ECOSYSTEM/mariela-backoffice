@@ -220,6 +220,7 @@ function FornecedoresPage() {
       setEmEdicao(null);
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível salvar o fornecedor."));
+      throw err;
     }
   }
 
@@ -399,7 +400,7 @@ function FornecedoresPage() {
         codigo={emEdicao?.codigo}
         valoresIniciais={valoresIniciais}
         salvando={criar.isPending || atualizar.isPending}
-        onSubmit={(valores) => void salvar(valores)}
+        onSubmit={salvar}
       />
 
       <FornecedorHistoricoDialog

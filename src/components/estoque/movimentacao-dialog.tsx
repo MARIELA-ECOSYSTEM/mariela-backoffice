@@ -24,11 +24,14 @@ import { Field } from "@/components/common/field";
 import { movimentacaoSchema, type MovimentacaoFormValues } from "@/schemas/produto.schema";
 import { useEntradaEstoque, useSaidaEstoque } from "@/hooks/use-estoque";
 import { mensagemDeErro } from "@/services/api/client";
-import { ApiError } from "@/types/api";
+import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 import type { Produto } from "@/types/produto";
 import type { Variante } from "@/types/variante";
 
 export type TipoMovimentacao = "entrada" | "saida";
+
+/** Campos cujo nome no backend (`ApiFieldError.field`) corresponde exatamente ao campo do formulário. */
+const CAMPOS_MAPEAVEIS = ["quantidade", "motivo", "tamanhoId"] as const;
 
 export function MovimentacaoDialog({
   tipo,
@@ -85,17 +88,7 @@ export function MovimentacaoDialog({
       toast.success("Estoque atualizado com sucesso.");
       onOpenChange(false);
     } catch (error) {
-      if (error instanceof ApiError) {
-        error.errors.forEach((campo) => {
-          if (
-            campo.field === "quantidade" ||
-            campo.field === "motivo" ||
-            campo.field === "tamanhoId"
-          ) {
-            form.setError(campo.field as keyof MovimentacaoFormValues, { message: campo.message });
-          }
-        });
-      }
+      aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
       toast.error(mensagemDeErro(error, "Não foi possível atualizar o estoque."));
     }
   }

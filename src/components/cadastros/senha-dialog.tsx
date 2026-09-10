@@ -14,6 +14,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/common/field";
+import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
+
+/** Campo cujo nome no backend (`ApiFieldError.field`) corresponde exatamente ao campo do formulário. */
+const CAMPOS_MAPEAVEIS = ["senha"] as const;
 
 const senhaSchema = z
   .object({
@@ -39,7 +43,7 @@ export function SenhaDialog({
   onOpenChange: (open: boolean) => void;
   nome: string;
   salvando: boolean;
-  onSubmit: (valores: SenhaFormValues) => void;
+  onSubmit: (valores: SenhaFormValues) => Promise<void>;
 }) {
   const form = useForm<SenhaFormValues>({
     resolver: zodResolver(senhaSchema),
@@ -50,6 +54,14 @@ export function SenhaDialog({
   useEffect(() => {
     if (open) form.reset({ senha: "", confirmacaoSenha: "" });
   }, [open, form]);
+
+  async function enviar(valores: SenhaFormValues) {
+    try {
+      await onSubmit(valores);
+    } catch (error) {
+      aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,7 +75,7 @@ export function SenhaDialog({
         <form
           id="senha-form"
           noValidate
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={form.handleSubmit(enviar)}
           className="space-y-5"
         >
           <Field id="nova-senha" label="Nova senha" erro={errors.senha?.message}>

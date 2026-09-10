@@ -16,7 +16,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/common/field";
 import { CodigoBadge } from "@/components/common/codigo-badge";
+import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 import { formatarTelefone, telefoneValido } from "@/utils/cliente";
+
+/** Campos cujo nome no backend (`ApiFieldError.field`) corresponde exatamente ao campo do formulário. */
+const CAMPOS_MAPEAVEIS = ["nome", "foto", "telefone", "dataNascimento", "observacao"] as const;
 
 const clienteSchema = z.object({
   nome: z.string().trim().min(1, "Nome é obrigatório.").max(120),
@@ -57,7 +61,7 @@ export function ClienteDialog({
   codigo?: string | undefined;
   valoresIniciais: ClienteFormValues;
   salvando: boolean;
-  onSubmit: (valores: ClienteFormValues) => void;
+  onSubmit: (valores: ClienteFormValues) => Promise<void>;
 }) {
   const form = useForm<ClienteFormValues>({
     resolver: zodResolver(clienteSchema),
@@ -68,6 +72,14 @@ export function ClienteDialog({
   useEffect(() => {
     if (open) form.reset(valoresIniciais);
   }, [open, valoresIniciais, form]);
+
+  async function enviar(valores: ClienteFormValues) {
+    try {
+      await onSubmit(valores);
+    } catch (error) {
+      aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -85,7 +97,7 @@ export function ClienteDialog({
         <form
           id="cliente-form"
           noValidate
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={form.handleSubmit(enviar)}
           className="space-y-5"
         >
           <Field id="nome" label="Nome" erro={errors.nome?.message}>

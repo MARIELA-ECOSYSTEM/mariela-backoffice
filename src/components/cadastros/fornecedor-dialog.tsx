@@ -16,7 +16,26 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/common/field";
 import { CodigoBadge } from "@/components/common/codigo-badge";
+import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
 import { formatarTelefone } from "@/utils/cliente";
+
+/**
+ * Campos cujo nome no backend (`ApiFieldError.field`) corresponde exatamente
+ * ao campo do formulário. Os campos de endereço (`cep`, `logradouro`…) ficam
+ * de fora de propósito: o backend valida `EnderecoFornecedorDto` aninhado e
+ * devolve `field: "endereco.cep"`, `"endereco.logradouro"` etc. — nomes que
+ * não existem neste formulário achatado, então mapear seria especulativo.
+ */
+const CAMPOS_MAPEAVEIS = [
+  "nome",
+  "foto",
+  "contato",
+  "telefone",
+  "email",
+  "cnpj",
+  "instagram",
+  "observacao",
+] as const;
 
 /**
  * Cadastro de fornecedor.
@@ -85,7 +104,7 @@ export function FornecedorDialog({
   codigo?: string | undefined;
   valoresIniciais: FornecedorFormValues;
   salvando: boolean;
-  onSubmit: (valores: FornecedorFormValues) => void;
+  onSubmit: (valores: FornecedorFormValues) => Promise<void>;
 }) {
   const form = useForm<FornecedorFormValues>({
     resolver: zodResolver(fornecedorSchema),
@@ -96,6 +115,14 @@ export function FornecedorDialog({
   useEffect(() => {
     if (open) form.reset(valoresIniciais);
   }, [open, valoresIniciais, form]);
+
+  async function enviar(valores: FornecedorFormValues) {
+    try {
+      await onSubmit(valores);
+    } catch (error) {
+      aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -112,7 +139,7 @@ export function FornecedorDialog({
         <form
           id="fornecedor-form"
           noValidate
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={form.handleSubmit(enviar)}
           className="max-h-[65vh] space-y-5 overflow-y-auto px-1"
         >
           <Field id="nome" label="Nome" erro={errors.nome?.message}>
