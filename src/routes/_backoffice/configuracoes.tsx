@@ -117,6 +117,14 @@ function ConfiguracoesPage() {
 
   const errors = form.formState.errors;
 
+  const secoes = [
+    { valor: "loja", label: "Dados da loja", icone: Store },
+    { valor: "categorias", label: "Categorias", icone: Tags },
+    { valor: "tamanhos", label: "Tamanhos", icone: Ruler },
+    { valor: "cores", label: "Cores", icone: Palette },
+    { valor: "pagamento", label: "Formas de pagamento", icone: CreditCard },
+  ] as const;
+
   return (
     <Page
       titulo="Configurações"
