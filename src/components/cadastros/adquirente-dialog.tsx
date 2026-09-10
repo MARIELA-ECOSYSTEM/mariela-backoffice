@@ -163,9 +163,15 @@ export function AdquirenteDialog({
             />
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Tabela de tarifas</Label>
+          <div className="space-y-3 rounded-xl border border-border bg-surface/50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <Label>Tabela de tarifas</Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Débito aceita apenas 1 parcela; crédito aceita de 1 a 24. Não repita a mesma
+                  combinação.
+                </p>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -180,18 +186,24 @@ export function AdquirenteDialog({
             </div>
 
             {tarifas.fields.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+              <p className="rounded-lg border border-dashed border-border-strong bg-card px-4 py-4 text-sm text-muted-foreground">
                 Nenhuma tarifa configurada. A adquirente pode ser salva assim e configurada depois.
               </p>
             ) : (
               <div className="space-y-2">
+                <div className="hidden grid-cols-[1fr_5rem_6rem_2.25rem] gap-2 px-3 font-brand text-[0.6rem] uppercase tracking-[0.14em] text-muted-foreground sm:grid">
+                  <span>Modalidade</span>
+                  <span>Parcelas</span>
+                  <span>Taxa (%)</span>
+                  <span className="sr-only">Ações</span>
+                </div>
                 {tarifas.fields.map((item, indice) => {
                   const modalidadeAtual = form.watch(`tabelaTarifas.${indice}.modalidade`);
                   const ehDebito = modalidadeAtual === "debito";
                   return (
                     <div
                       key={item.id}
-                      className="grid grid-cols-[1fr_auto_auto_auto] items-start gap-2 rounded-lg border border-border p-3"
+                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.25rem] items-start gap-2 rounded-lg border border-border bg-card p-3 sm:grid-cols-[minmax(0,1fr)_5rem_6rem_2.25rem] sm:p-2 sm:pl-3"
                     >
                       <Select
                         value={modalidadeAtual}
@@ -222,7 +234,7 @@ export function AdquirenteDialog({
                         </SelectContent>
                       </Select>
 
-                      <div className="w-20">
+                      <div className="w-full min-w-0">
                         <Input
                           type="number"
                           min={1}
@@ -234,7 +246,7 @@ export function AdquirenteDialog({
                         />
                       </div>
 
-                      <div className="w-24">
+                      <div className="w-full min-w-0">
                         <Input
                           type="number"
                           step="0.01"
@@ -249,10 +261,11 @@ export function AdquirenteDialog({
                         type="button"
                         variant="ghost"
                         size="icon"
-                        aria-label="Remover tarifa"
+                        aria-label={`Remover tarifa ${indice + 1}`}
                         onClick={() => tarifas.remove(indice)}
+                        className="size-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
                       >
-                        <Trash2 aria-hidden className="size-4 text-destructive" />
+                        <Trash2 aria-hidden className="size-4" />
                       </Button>
 
                       {errors.tabelaTarifas?.[indice]?.parcelas?.message ? (

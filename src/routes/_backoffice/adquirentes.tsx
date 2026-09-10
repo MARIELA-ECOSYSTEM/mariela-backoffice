@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AtivoBadge, DataToolbar, Paginacao } from "@/components/common/data-toolbar";
+import { AcoesLinha } from "@/components/common/acoes-linha";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/common/states";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
@@ -168,7 +169,11 @@ function AdquirentesPage() {
           setPagina(1);
         }}
         placeholder="Buscar por nome…"
-      />
+      >
+        {!isPending && !isError ? (
+          <span className="text-sm text-muted-foreground">{total} adquirente(s) encontrada(s)</span>
+        ) : null}
+      </DataToolbar>
 
       {isPending ? (
         <TableSkeleton linhas={4} colunas={4} />
@@ -176,8 +181,12 @@ function AdquirentesPage() {
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : adquirentes.length === 0 ? (
         <EmptyState
-          titulo="Nenhuma adquirente encontrada"
-          descricao="Ajuste a busca ou cadastre a primeira adquirente de cartão."
+          titulo={busca ? "Nenhuma adquirente encontrada" : "Não há adquirentes cadastradas"}
+          descricao={
+            busca
+              ? "Ajuste a busca para localizar a adquirente desejada."
+              : "Cadastre a primeira adquirente de cartão para usar suas tarifas no recebimento de vendas."
+          }
           acao={
             <Button onClick={abrirNova}>
               <Plus aria-hidden className="size-4" />
@@ -219,36 +228,30 @@ function AdquirentesPage() {
                     <AtivoBadge ativo={adquirente.ativo} />
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1.5">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEmEdicao(adquirente);
-                          setDialogAberto(true);
-                        }}
-                      >
-                        <Pencil aria-hidden className="size-3.5" />
-                        Editar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={alterarStatus.isPending}
-                        onClick={() => void alternarStatus(adquirente)}
-                      >
-                        <Power aria-hidden className="size-3.5" />
-                        {adquirente.ativo ? "Inativar" : "Ativar"}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setParaExcluir(adquirente)}
-                      >
-                        <Trash2 aria-hidden className="size-3.5 text-destructive" />
-                        Excluir
-                      </Button>
-                    </div>
+                    <AcoesLinha
+                      acoes={[
+                        {
+                          label: "Editar adquirente",
+                          icon: Pencil,
+                          onClick: () => {
+                            setEmEdicao(adquirente);
+                            setDialogAberto(true);
+                          },
+                        },
+                        {
+                          label: adquirente.ativo ? "Inativar adquirente" : "Ativar adquirente",
+                          icon: Power,
+                          disabled: alterarStatus.isPending,
+                          onClick: () => void alternarStatus(adquirente),
+                        },
+                        {
+                          label: "Excluir adquirente",
+                          icon: Trash2,
+                          destrutivo: true,
+                          onClick: () => setParaExcluir(adquirente),
+                        },
+                      ]}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
