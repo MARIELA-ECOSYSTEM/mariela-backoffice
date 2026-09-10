@@ -215,57 +215,46 @@ function CaixaDetalhePage() {
             </p>
           ) : null}
         </CardHeader>
-        <CardContent className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
-          <div>
-            <Rotulo>Abertura</Rotulo>
-            <p>{formatarDataHora(caixa.abertura.dataHora)}</p>
-          </div>
-          <div>
-            <Rotulo>Responsável</Rotulo>
-            <p>{caixa.abertura.responsavelNome}</p>
-          </div>
-          <div>
-            <Rotulo>Valor inicial</Rotulo>
-            <p className="tabular-nums">{formatarMoeda(caixa.abertura.valorInicial)}</p>
-          </div>
-          <div>
-            <Rotulo>Saldo esperado</Rotulo>
-            <p className="font-medium tabular-nums text-primary">
-              {formatarMoeda(caixa.resumo.saldoEsperado)}
-            </p>
-          </div>
+        <CardContent className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+          <DadoCabecalho rotulo="Abertura">
+            {formatarDataHora(caixa.abertura.dataHora)}
+          </DadoCabecalho>
+          <DadoCabecalho rotulo="Responsável">{caixa.abertura.responsavelNome}</DadoCabecalho>
+          <DadoCabecalho rotulo="Valor inicial">
+            {formatarMoeda(caixa.abertura.valorInicial)}
+          </DadoCabecalho>
+          <DadoCabecalho rotulo="Saldo esperado" destaque>
+            {formatarMoeda(caixa.resumo.saldoEsperado)}
+          </DadoCabecalho>
           {caixa.fechamento && diferenca ? (
             <>
-              <div>
-                <Rotulo>Fechamento</Rotulo>
-                <p>{formatarDataHora(caixa.fechamento.dataHora)}</p>
-              </div>
-              <div>
-                <Rotulo>Valor informado</Rotulo>
-                <p className="tabular-nums">{formatarMoeda(caixa.fechamento.valorInformado)}</p>
-              </div>
-              <div>
-                <Rotulo>Valor esperado</Rotulo>
-                <p className="tabular-nums">{formatarMoeda(caixa.fechamento.valorEsperado)}</p>
-              </div>
-              <div>
+              <DadoCabecalho rotulo="Fechamento">
+                {formatarDataHora(caixa.fechamento.dataHora)}
+              </DadoCabecalho>
+              <DadoCabecalho rotulo="Valor informado">
+                {formatarMoeda(caixa.fechamento.valorInformado)}
+              </DadoCabecalho>
+              <DadoCabecalho rotulo="Valor esperado">
+                {formatarMoeda(caixa.fechamento.valorEsperado)}
+              </DadoCabecalho>
+              <div className="space-y-0.5">
                 <Rotulo>{LABEL_DIFERENCA[diferenca]}</Rotulo>
                 <p
                   className={
                     diferenca === "conferido"
-                      ? "tabular-nums text-emerald-600"
+                      ? "text-lg font-semibold tabular-nums text-success"
                       : diferenca === "sobra"
-                        ? "tabular-nums text-amber-600"
-                        : "tabular-nums text-rose-600"
+                        ? "text-lg font-semibold tabular-nums text-warning"
+                        : "text-lg font-semibold tabular-nums text-destructive"
                   }
                 >
                   {formatarMoeda(caixa.fechamento.diferenca)}
                 </p>
               </div>
               {caixa.fechamento.observacao ? (
-                <div className="sm:col-span-2 xl:col-span-4">
+                <div className="space-y-0.5 sm:col-span-2 xl:col-span-4">
                   <Rotulo>Observação do fechamento</Rotulo>
-                  <p className="text-foreground/85">{caixa.fechamento.observacao}</p>
+                  <p className="text-sm text-foreground/85">{caixa.fechamento.observacao}</p>
                 </div>
               ) : null}
             </>
@@ -277,24 +266,36 @@ function CaixaDetalhePage() {
         <CardHeader>
           <CardTitle className="font-display text-2xl">Resumo financeiro</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <ResumoItem rotulo="Valor de abertura" valor={caixa.resumo.valorAbertura} />
-          <ResumoItem rotulo="Total de vendas" valor={caixa.resumo.totalVendas} tom="entrada" />
-          <ResumoItem
-            rotulo="Recebimentos de parcelas"
-            valor={caixa.resumo.recebimentos}
-            tom="entrada"
-          />
-          <ResumoItem
-            rotulo="Entradas manuais"
-            valor={caixa.resumo.entradasManuais}
-            tom="entrada"
-          />
-          <ResumoItem rotulo="Total de entradas" valor={caixa.resumo.totalEntradas} tom="entrada" />
-          <ResumoItem rotulo="Saídas manuais" valor={caixa.resumo.saidasManuais} tom="saida" />
-          <ResumoItem rotulo="Devoluções" valor={caixa.resumo.devolucoes} tom="saida" />
-          <ResumoItem rotulo="Total de saídas" valor={caixa.resumo.totalSaidas} tom="saida" />
-          <ResumoItem rotulo="Saldo esperado" valor={caixa.resumo.saldoEsperado} tom="destaque" />
+        <CardContent className="space-y-5">
+          <GrupoResumo titulo="Entradas">
+            <ResumoItem rotulo="Total de vendas" valor={caixa.resumo.totalVendas} tom="entrada" />
+            <ResumoItem
+              rotulo="Recebimentos de parcelas"
+              valor={caixa.resumo.recebimentos}
+              tom="entrada"
+            />
+            <ResumoItem
+              rotulo="Entradas manuais"
+              valor={caixa.resumo.entradasManuais}
+              tom="entrada"
+            />
+            <ResumoItem
+              rotulo="Total de entradas"
+              valor={caixa.resumo.totalEntradas}
+              tom="entrada"
+            />
+          </GrupoResumo>
+
+          <GrupoResumo titulo="Saídas">
+            <ResumoItem rotulo="Saídas manuais" valor={caixa.resumo.saidasManuais} tom="saida" />
+            <ResumoItem rotulo="Devoluções" valor={caixa.resumo.devolucoes} tom="saida" />
+            <ResumoItem rotulo="Total de saídas" valor={caixa.resumo.totalSaidas} tom="saida" />
+          </GrupoResumo>
+
+          <GrupoResumo titulo="Saldo">
+            <ResumoItem rotulo="Valor de abertura" valor={caixa.resumo.valorAbertura} />
+            <ResumoItem rotulo="Saldo esperado" valor={caixa.resumo.saldoEsperado} tom="destaque" />
+          </GrupoResumo>
         </CardContent>
       </Card>
 
