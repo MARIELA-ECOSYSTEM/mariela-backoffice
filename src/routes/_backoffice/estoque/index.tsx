@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Search, Settings2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
 import { Page } from "@/components/layout/page";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { BuscaInput } from "@/components/common/data-toolbar";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -152,19 +152,12 @@ function EstoquePage() {
           <span className="text-sm text-muted-foreground">{itens.length} produto(s) no filtro</span>
         }
         cabecalho={
-          <div className="relative min-w-64 flex-1">
-            <Search
-              aria-hidden
-              className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              aria-label="Buscar produto no estoque"
-              placeholder="Buscar por nome…"
-              className="pl-9"
-              value={busca}
-              onChange={(event) => setBusca(event.target.value)}
-            />
-          </div>
+          <BuscaInput
+            valor={busca}
+            onValorChange={setBusca}
+            placeholder="Buscar por nome…"
+            ariaLabel="Buscar produto no estoque"
+          />
         }
       />
 

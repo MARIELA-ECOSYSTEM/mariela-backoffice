@@ -32,7 +32,7 @@ export function PainelFiltros({
   resultado?: ReactNode;
 }) {
   return (
-    <Card className="mb-6 border-border bg-surface/60">
+    <Card className="border-border bg-surface/60">
       <CardContent className="space-y-4 py-5">
         {cabecalho}
 

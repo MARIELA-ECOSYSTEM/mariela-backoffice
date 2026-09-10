@@ -124,7 +124,7 @@ export function AdquirenteDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle className="font-display text-3xl">
             {edicao ? "Editar adquirente" : "Nova adquirente"}

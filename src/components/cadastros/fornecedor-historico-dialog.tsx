@@ -31,7 +31,7 @@ export function FornecedorHistoricoDialog({
 
   return (
     <Dialog open={fornecedor !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-3 font-display text-3xl">
             Histórico de produtos

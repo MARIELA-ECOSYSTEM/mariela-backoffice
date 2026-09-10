@@ -97,7 +97,7 @@ export function MovimentacaoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle className="font-display text-xl">
             {ehSaida ? "Saída de estoque" : "Entrada de estoque"}
