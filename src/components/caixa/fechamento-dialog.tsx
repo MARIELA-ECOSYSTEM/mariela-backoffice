@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,9 +19,9 @@ import type { Caixa, FechamentoCaixaPayload } from "@/types/caixa";
 
 function Linha({ rotulo, valor, forte }: { rotulo: string; valor: string; forte?: boolean }) {
   return (
-    <div className="flex justify-between gap-4 text-sm">
+    <div className="flex items-baseline justify-between gap-4 text-sm">
       <dt className="text-muted-foreground">{rotulo}</dt>
-      <dd className={forte ? "font-medium tabular-nums" : "tabular-nums"}>{valor}</dd>
+      <dd className={forte ? "text-base font-semibold tabular-nums" : "tabular-nums"}>{valor}</dd>
     </div>
   );
 }
@@ -77,7 +78,7 @@ export function FechamentoCaixaDialog({
 
         <div className="space-y-4">
           <section className="rounded-lg border border-border/70 px-4 py-3">
-            <p className="text-eyebrow mb-2 text-[0.58rem]">Resumo do sistema</p>
+            <p className="mb-2 text-sm font-medium text-foreground/80">Resumo do sistema</p>
             <dl className="space-y-1">
               <Linha rotulo="Valor de abertura" valor={formatarMoeda(caixa.resumo.valorAbertura)} />
               <Linha rotulo="Total de vendas" valor={formatarMoeda(caixa.resumo.totalVendas)} />
@@ -95,7 +96,7 @@ export function FechamentoCaixaDialog({
           </section>
 
           <section className="space-y-3">
-            <p className="text-eyebrow text-[0.58rem]">Conferência física</p>
+            <p className="text-sm font-medium text-foreground/80">Conferência física</p>
             <div className="space-y-2">
               <Label htmlFor="fechamento-valor">Valor contado no caixa *</Label>
               <Input
@@ -109,19 +110,25 @@ export function FechamentoCaixaDialog({
 
             {!informadoInvalido ? (
               <p
+                role="status"
                 className={
                   situacao === "conferido"
-                    ? "text-sm text-emerald-600"
+                    ? "flex items-center gap-2 text-sm font-medium text-success"
                     : situacao === "sobra"
-                      ? "text-sm text-amber-600"
-                      : "text-sm text-rose-600"
+                      ? "flex items-center gap-2 text-sm font-medium text-warning"
+                      : "flex items-center gap-2 text-sm font-medium text-destructive"
                 }
               >
+                {situacao === "conferido" ? (
+                  <CheckCircle2 aria-hidden className="size-4" />
+                ) : (
+                  <AlertTriangle aria-hidden className="size-4" />
+                )}
                 {situacao === "conferido"
-                  ? "🟢 Caixa conferido"
+                  ? "Caixa conferido"
                   : situacao === "sobra"
-                    ? `🟠 Sobra de ${formatarMoeda(diferenca)}`
-                    : `🔴 Falta de ${formatarMoeda(Math.abs(diferenca))}`}
+                    ? `Sobra de ${formatarMoeda(diferenca)}`
+                    : `Falta de ${formatarMoeda(Math.abs(diferenca))}`}
               </p>
             ) : null}
 

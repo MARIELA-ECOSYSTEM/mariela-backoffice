@@ -52,7 +52,33 @@ export const Route = createFileRoute("/_backoffice/caixa/$id")({
 });
 
 function Rotulo({ children }: { children: React.ReactNode }) {
-  return <p className="text-eyebrow text-[0.58rem]">{children}</p>;
+  return <p className="text-xs font-medium text-muted-foreground">{children}</p>;
+}
+
+/** Par rótulo/valor do cabeçalho: valor sempre com hierarquia acima do rótulo. */
+function DadoCabecalho({
+  rotulo,
+  children,
+  destaque,
+}: {
+  rotulo: string;
+  children: React.ReactNode;
+  destaque?: boolean;
+}) {
+  return (
+    <div className="space-y-0.5">
+      <Rotulo>{rotulo}</Rotulo>
+      <p
+        className={
+          destaque
+            ? "text-lg font-semibold tabular-nums text-primary"
+            : "text-base text-foreground tabular-nums"
+        }
+      >
+        {children}
+      </p>
+    </div>
+  );
 }
 
 function ResumoItem({
@@ -64,23 +90,40 @@ function ResumoItem({
   valor: number;
   tom?: "entrada" | "saida" | "destaque";
 }) {
+  const total = tom === "destaque";
   return (
-    <div className="rounded-lg border border-border/70 px-4 py-3">
+    <div
+      className={
+        total
+          ? "rounded-lg border border-primary/30 bg-primary-soft/40 px-4 py-3"
+          : "rounded-lg border border-border/70 px-4 py-3"
+      }
+    >
       <Rotulo>{rotulo}</Rotulo>
       <p
         className={
           tom === "entrada"
-            ? "mt-1 text-lg tabular-nums text-emerald-600"
+            ? "mt-1 text-xl font-semibold tabular-nums text-success"
             : tom === "saida"
-              ? "mt-1 text-lg tabular-nums text-rose-600"
-              : tom === "destaque"
-                ? "mt-1 font-display text-2xl text-primary"
-                : "mt-1 text-lg tabular-nums"
+              ? "mt-1 text-xl font-semibold tabular-nums text-destructive"
+              : total
+                ? "mt-1 text-2xl font-semibold tabular-nums text-primary"
+                : "mt-1 text-xl font-semibold tabular-nums"
         }
       >
         {formatarMoeda(valor)}
       </p>
     </div>
+  );
+}
+
+/** Subtítulo de agrupamento do resumo financeiro. */
+function GrupoResumo({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-medium text-foreground/80">{titulo}</h3>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{children}</div>
+    </section>
   );
 }
 
@@ -172,57 +215,46 @@ function CaixaDetalhePage() {
             </p>
           ) : null}
         </CardHeader>
-        <CardContent className="grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
-          <div>
-            <Rotulo>Abertura</Rotulo>
-            <p>{formatarDataHora(caixa.abertura.dataHora)}</p>
-          </div>
-          <div>
-            <Rotulo>Responsável</Rotulo>
-            <p>{caixa.abertura.responsavelNome}</p>
-          </div>
-          <div>
-            <Rotulo>Valor inicial</Rotulo>
-            <p className="tabular-nums">{formatarMoeda(caixa.abertura.valorInicial)}</p>
-          </div>
-          <div>
-            <Rotulo>Saldo esperado</Rotulo>
-            <p className="font-medium tabular-nums text-primary">
-              {formatarMoeda(caixa.resumo.saldoEsperado)}
-            </p>
-          </div>
+        <CardContent className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+          <DadoCabecalho rotulo="Abertura">
+            {formatarDataHora(caixa.abertura.dataHora)}
+          </DadoCabecalho>
+          <DadoCabecalho rotulo="Responsável">{caixa.abertura.responsavelNome}</DadoCabecalho>
+          <DadoCabecalho rotulo="Valor inicial">
+            {formatarMoeda(caixa.abertura.valorInicial)}
+          </DadoCabecalho>
+          <DadoCabecalho rotulo="Saldo esperado" destaque>
+            {formatarMoeda(caixa.resumo.saldoEsperado)}
+          </DadoCabecalho>
           {caixa.fechamento && diferenca ? (
             <>
-              <div>
-                <Rotulo>Fechamento</Rotulo>
-                <p>{formatarDataHora(caixa.fechamento.dataHora)}</p>
-              </div>
-              <div>
-                <Rotulo>Valor informado</Rotulo>
-                <p className="tabular-nums">{formatarMoeda(caixa.fechamento.valorInformado)}</p>
-              </div>
-              <div>
-                <Rotulo>Valor esperado</Rotulo>
-                <p className="tabular-nums">{formatarMoeda(caixa.fechamento.valorEsperado)}</p>
-              </div>
-              <div>
+              <DadoCabecalho rotulo="Fechamento">
+                {formatarDataHora(caixa.fechamento.dataHora)}
+              </DadoCabecalho>
+              <DadoCabecalho rotulo="Valor informado">
+                {formatarMoeda(caixa.fechamento.valorInformado)}
+              </DadoCabecalho>
+              <DadoCabecalho rotulo="Valor esperado">
+                {formatarMoeda(caixa.fechamento.valorEsperado)}
+              </DadoCabecalho>
+              <div className="space-y-0.5">
                 <Rotulo>{LABEL_DIFERENCA[diferenca]}</Rotulo>
                 <p
                   className={
                     diferenca === "conferido"
-                      ? "tabular-nums text-emerald-600"
+                      ? "text-lg font-semibold tabular-nums text-success"
                       : diferenca === "sobra"
-                        ? "tabular-nums text-amber-600"
-                        : "tabular-nums text-rose-600"
+                        ? "text-lg font-semibold tabular-nums text-warning"
+                        : "text-lg font-semibold tabular-nums text-destructive"
                   }
                 >
                   {formatarMoeda(caixa.fechamento.diferenca)}
                 </p>
               </div>
               {caixa.fechamento.observacao ? (
-                <div className="sm:col-span-2 xl:col-span-4">
+                <div className="space-y-0.5 sm:col-span-2 xl:col-span-4">
                   <Rotulo>Observação do fechamento</Rotulo>
-                  <p className="text-foreground/85">{caixa.fechamento.observacao}</p>
+                  <p className="text-sm text-foreground/85">{caixa.fechamento.observacao}</p>
                 </div>
               ) : null}
             </>
@@ -234,24 +266,36 @@ function CaixaDetalhePage() {
         <CardHeader>
           <CardTitle className="font-display text-2xl">Resumo financeiro</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <ResumoItem rotulo="Valor de abertura" valor={caixa.resumo.valorAbertura} />
-          <ResumoItem rotulo="Total de vendas" valor={caixa.resumo.totalVendas} tom="entrada" />
-          <ResumoItem
-            rotulo="Recebimentos de parcelas"
-            valor={caixa.resumo.recebimentos}
-            tom="entrada"
-          />
-          <ResumoItem
-            rotulo="Entradas manuais"
-            valor={caixa.resumo.entradasManuais}
-            tom="entrada"
-          />
-          <ResumoItem rotulo="Total de entradas" valor={caixa.resumo.totalEntradas} tom="entrada" />
-          <ResumoItem rotulo="Saídas manuais" valor={caixa.resumo.saidasManuais} tom="saida" />
-          <ResumoItem rotulo="Devoluções" valor={caixa.resumo.devolucoes} tom="saida" />
-          <ResumoItem rotulo="Total de saídas" valor={caixa.resumo.totalSaidas} tom="saida" />
-          <ResumoItem rotulo="Saldo esperado" valor={caixa.resumo.saldoEsperado} tom="destaque" />
+        <CardContent className="space-y-5">
+          <GrupoResumo titulo="Entradas">
+            <ResumoItem rotulo="Total de vendas" valor={caixa.resumo.totalVendas} tom="entrada" />
+            <ResumoItem
+              rotulo="Recebimentos de parcelas"
+              valor={caixa.resumo.recebimentos}
+              tom="entrada"
+            />
+            <ResumoItem
+              rotulo="Entradas manuais"
+              valor={caixa.resumo.entradasManuais}
+              tom="entrada"
+            />
+            <ResumoItem
+              rotulo="Total de entradas"
+              valor={caixa.resumo.totalEntradas}
+              tom="entrada"
+            />
+          </GrupoResumo>
+
+          <GrupoResumo titulo="Saídas">
+            <ResumoItem rotulo="Saídas manuais" valor={caixa.resumo.saidasManuais} tom="saida" />
+            <ResumoItem rotulo="Devoluções" valor={caixa.resumo.devolucoes} tom="saida" />
+            <ResumoItem rotulo="Total de saídas" valor={caixa.resumo.totalSaidas} tom="saida" />
+          </GrupoResumo>
+
+          <GrupoResumo titulo="Saldo">
+            <ResumoItem rotulo="Valor de abertura" valor={caixa.resumo.valorAbertura} />
+            <ResumoItem rotulo="Saldo esperado" valor={caixa.resumo.saldoEsperado} tom="destaque" />
+          </GrupoResumo>
         </CardContent>
       </Card>
 
@@ -279,38 +323,50 @@ function CaixaDetalhePage() {
               <table className="w-full min-w-[52rem] text-sm">
                 <thead>
                   <tr className="border-b border-border/70 text-left">
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Venda
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Data
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Cliente
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Vendedor
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">
+                    <th
+                      scope="col"
+                      className="py-2 pl-4 text-right text-xs font-medium text-muted-foreground"
+                    >
                       Valor
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">
+                    <th
+                      scope="col"
+                      className="py-2 pl-4 text-right text-xs font-medium text-muted-foreground"
+                    >
                       Recebido
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-right text-[0.56rem]">
+                    <th
+                      scope="col"
+                      className="py-2 pl-4 text-right text-xs font-medium text-muted-foreground"
+                    >
                       Pendente
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 pl-4 text-xs font-medium text-muted-foreground">
                       Pagamento
                     </th>
-                    <th scope="col" className="text-eyebrow py-2 text-[0.56rem]">
+                    <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Status
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {caixa.vendas.map((venda) => (
-                    <tr key={venda.id} className="border-b border-border/40 last:border-0">
+                    <tr
+                      key={venda.id}
+                      className="border-b border-border/40 last:border-0 hover:bg-surface/60"
+                    >
                       <td className="py-2.5">
                         <Link
                           to="/vendas/$id"
@@ -325,16 +381,16 @@ function CaixaDetalhePage() {
                       </td>
                       <td className="py-2.5">{venda.clienteNome}</td>
                       <td className="py-2.5 text-muted-foreground">{venda.vendedorNome}</td>
-                      <td className="py-2.5 text-right tabular-nums">
+                      <td className="py-2.5 pl-4 text-right text-base font-semibold tabular-nums whitespace-nowrap">
                         {formatarMoeda(venda.valorFinal)}
                       </td>
-                      <td className="py-2.5 text-right tabular-nums text-emerald-600">
+                      <td className="py-2.5 pl-4 text-right font-medium tabular-nums whitespace-nowrap text-success">
                         {formatarMoeda(venda.valorPago)}
                       </td>
-                      <td className="py-2.5 text-right tabular-nums text-amber-600">
+                      <td className="py-2.5 pl-4 text-right font-medium tabular-nums whitespace-nowrap text-warning">
                         {formatarMoeda(venda.valorPendente)}
                       </td>
-                      <td className="py-2.5 text-muted-foreground">{venda.formaPagamento}</td>
+                      <td className="py-2.5 pl-4 text-muted-foreground">{venda.formaPagamento}</td>
                       <td className="py-2.5">
                         <Badge variant={VARIANTE_STATUS_VENDA[venda.status]}>
                           {LABEL_STATUS_VENDA[venda.status]}
@@ -382,7 +438,7 @@ function CaixaDetalhePage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="tabular-nums text-emerald-600">
+                    <p className="text-base font-semibold tabular-nums text-success">
                       + {formatarMoeda(recebimento.valor)}
                     </p>
                     <p className="text-xs text-muted-foreground">

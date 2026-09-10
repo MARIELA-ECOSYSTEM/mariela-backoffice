@@ -44,7 +44,7 @@ export function CaixaCard({ caixa }: { caixa: Caixa }) {
           >
             {formatarMoeda(caixa.resumo.saldoEsperado)}
           </Link>
-          <p className="mt-1 text-xs text-muted-foreground">Saldo esperado</p>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">Saldo esperado</p>
         </div>
 
         <div className="space-y-1.5 text-sm">
@@ -66,15 +66,15 @@ export function CaixaCard({ caixa }: { caixa: Caixa }) {
 
         <div className="mt-auto grid grid-cols-2 gap-2 border-t border-border/70 pt-3">
           <div>
-            <p className="text-eyebrow text-[0.56rem]">Entradas</p>
-            <p className="flex items-center gap-1 text-sm tabular-nums text-emerald-600">
+            <p className="text-xs font-medium text-muted-foreground">Entradas</p>
+            <p className="flex items-center gap-1 text-base font-semibold tabular-nums text-success">
               <ArrowUpCircle aria-hidden className="size-3.5" />
               {formatarMoeda(caixa.resumo.totalEntradas)}
             </p>
           </div>
           <div>
-            <p className="text-eyebrow text-[0.56rem]">Saídas</p>
-            <p className="flex items-center gap-1 text-sm tabular-nums text-rose-600">
+            <p className="text-xs font-medium text-muted-foreground">Saídas</p>
+            <p className="flex items-center gap-1 text-base font-semibold tabular-nums text-destructive">
               <ArrowDownCircle aria-hidden className="size-3.5" />
               {formatarMoeda(caixa.resumo.totalSaidas)}
             </p>
@@ -85,10 +85,10 @@ export function CaixaCard({ caixa }: { caixa: Caixa }) {
           <p
             className={
               diferenca === "conferido"
-                ? "text-xs text-emerald-600"
+                ? "text-xs font-medium text-success"
                 : diferenca === "sobra"
-                  ? "text-xs text-amber-600"
-                  : "text-xs text-rose-600"
+                  ? "text-xs font-medium text-warning"
+                  : "text-xs font-medium text-destructive"
             }
           >
             {LABEL_DIFERENCA[diferenca]}
