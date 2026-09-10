@@ -335,13 +335,22 @@ function CaixaDetalhePage() {
                     <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
                       Vendedor
                     </th>
-                    <th scope="col" className="py-2 text-right text-xs font-medium text-muted-foreground">
+                    <th
+                      scope="col"
+                      className="py-2 text-right text-xs font-medium text-muted-foreground"
+                    >
                       Valor
                     </th>
-                    <th scope="col" className="py-2 text-right text-xs font-medium text-muted-foreground">
+                    <th
+                      scope="col"
+                      className="py-2 text-right text-xs font-medium text-muted-foreground"
+                    >
                       Recebido
                     </th>
-                    <th scope="col" className="py-2 text-right text-xs font-medium text-muted-foreground">
+                    <th
+                      scope="col"
+                      className="py-2 text-right text-xs font-medium text-muted-foreground"
+                    >
                       Pendente
                     </th>
                     <th scope="col" className="py-2 text-xs font-medium text-muted-foreground">
@@ -354,7 +363,10 @@ function CaixaDetalhePage() {
                 </thead>
                 <tbody>
                   {caixa.vendas.map((venda) => (
-                    <tr key={venda.id} className="border-b border-border/40 last:border-0 hover:bg-surface/60">
+                    <tr
+                      key={venda.id}
+                      className="border-b border-border/40 last:border-0 hover:bg-surface/60"
+                    >
                       <td className="py-2.5">
                         <Link
                           to="/vendas/$id"
