@@ -73,6 +73,7 @@ export function ListaConfiguravel({
           <div className="flex-1">
             <Input
               aria-label={`Adicionar em ${titulo}`}
+              className="h-10"
               placeholder={placeholder}
               value={valor}
               onChange={(event) => setValor(event.target.value)}
@@ -111,7 +112,7 @@ export function ListaConfiguravel({
 
         {itens.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border-strong bg-surface/50 px-4 py-10 text-center">
-            <p className="text-sm font-medium">Nenhum item cadastrado</p>
+            <p className="text-sm font-medium">Não há itens em {titulo.toLowerCase()}</p>
             <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-muted-foreground">
               Os itens adicionados aqui ficam disponíveis nos cadastros do catálogo.
             </p>
