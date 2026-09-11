@@ -73,22 +73,25 @@ export function VendaCard({ venda }: { venda: VendaResumo }) {
           ) : null}
         </div>
 
-        <div className="mt-auto grid grid-cols-3 gap-2 border-t border-border/70 pt-3">
-          <div>
-            <p className="text-eyebrow text-[0.56rem]">Bruto</p>
-            <p className="text-sm tabular-nums">{formatarMoeda(venda.valorBruto)}</p>
+        <div className="mt-auto grid grid-cols-3 gap-3 border-t border-border/70 pt-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground">Bruto</p>
+            <p className="mt-0.5 text-sm tabular-nums">{formatarMoeda(venda.valorBruto)}</p>
           </div>
-          <div>
-            <p className="text-eyebrow text-[0.56rem]">Desconto</p>
-            <p className="text-sm tabular-nums">{formatarMoeda(venda.descontoTotal)}</p>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground">Desconto</p>
+            <p className="mt-0.5 text-sm tabular-nums">
+              {venda.descontoTotal > 0 ? "− " : ""}
+              {formatarMoeda(venda.descontoTotal)}
+            </p>
           </div>
-          <div>
-            <p className="text-eyebrow text-[0.56rem]">Pendente</p>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground">Pendente</p>
             <p
               className={
                 venda.valorPendente > 0
-                  ? "text-sm font-medium tabular-nums text-warning"
-                  : "text-sm tabular-nums text-muted-foreground"
+                  ? "mt-0.5 text-sm font-semibold tabular-nums text-warning"
+                  : "mt-0.5 text-sm tabular-nums text-muted-foreground"
               }
             >
               {formatarMoeda(venda.valorPendente)}
