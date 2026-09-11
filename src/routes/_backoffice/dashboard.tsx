@@ -29,7 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ErrorState, TableSkeleton } from "@/components/common/states";
+import { ErrorState } from "@/components/common/states";
+import { Skeleton } from "@/components/ui/skeleton";
 import { NotaDemonstracao } from "@/components/common/data-toolbar";
 import { SecaoDashboard } from "@/components/dashboard/secao";
 import { Metrica } from "@/components/dashboard/metrica";
