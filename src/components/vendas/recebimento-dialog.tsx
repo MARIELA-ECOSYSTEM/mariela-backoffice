@@ -91,20 +91,22 @@ export function RecebimentoDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <dl className="space-y-1 rounded-lg bg-secondary/60 px-4 py-3 text-sm">
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Saldo atual</dt>
-              <dd className="tabular-nums">{formatarMoeda(venda.valorPendente)}</dd>
+          <dl className="space-y-2 rounded-lg bg-secondary/60 px-4 py-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <dt className="text-sm text-muted-foreground">Saldo atual</dt>
+              <dd className="text-base tabular-nums">{formatarMoeda(venda.valorPendente)}</dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Valor a receber</dt>
-              <dd className="tabular-nums text-emerald-600">
-                {Number.isFinite(numero) ? formatarMoeda(numero) : "—"}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <dt className="text-sm text-muted-foreground">Valor a receber</dt>
+              <dd className="text-base font-medium tabular-nums text-success">
+                {Number.isFinite(numero) ? `+ ${formatarMoeda(numero)}` : "—"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">Novo saldo</dt>
-              <dd className="font-medium tabular-nums text-primary">{formatarMoeda(novoSaldo)}</dd>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <dt className="text-sm font-medium text-foreground">Novo saldo</dt>
+              <dd className="text-xl font-semibold tabular-nums text-primary">
+                {formatarMoeda(novoSaldo)}
+              </dd>
             </div>
           </dl>
 
