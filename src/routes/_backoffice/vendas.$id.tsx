@@ -183,6 +183,9 @@ function VendaDetalhePage() {
             </Button>
           ) : null}
           {venda && venda.status !== "cancelada" ? (
+            <span aria-hidden className="mx-1 hidden h-6 w-px bg-border sm:block" />
+          ) : null}
+          {venda && venda.status !== "cancelada" ? (
             <Button variant="destructive" onClick={() => setCancelamentoAberto(true)}>
               <Ban aria-hidden className="size-4" />
               Cancelar / devolver
