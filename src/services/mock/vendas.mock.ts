@@ -58,11 +58,15 @@ function sincronizarResumo(venda: VendaDetalhe): void {
 }
 
 /** Devolução física ao estoque: o item volta para o tamanho de origem. */
-function devolverAoEstoque(produtoId: string, varianteId: string | null, tamanho: string | null, quantidade: number): void {
+function devolverAoEstoque(
+  produtoId: string,
+  varianteId: string | null,
+  tamanho: string | null,
+  quantidade: number,
+): void {
   const produto = db.produtos.find((item) => item.id === produtoId);
   if (!produto || quantidade <= 0) return;
-  const variante =
-    produto.variantes.find((item) => item.id === varianteId) ?? produto.variantes[0];
+  const variante = produto.variantes.find((item) => item.id === varianteId) ?? produto.variantes[0];
   if (!variante) return;
   const alvo = variante.tamanhos.find((item) => item.tamanho === tamanho) ?? variante.tamanhos[0];
   if (!alvo) return;
@@ -173,7 +177,9 @@ export function registerVendasMocks(): void {
       throw ApiError.validation("Venda cancelada não aceita novos recebimentos.");
 
     if (!caixaAberto())
-      throw ApiError.validation("Nenhum caixa aberto. Abra o caixa antes de registrar o recebimento.");
+      throw ApiError.validation(
+        "Nenhum caixa aberto. Abra o caixa antes de registrar o recebimento.",
+      );
 
     const payload = (body ?? {}) as Partial<RegistrarRecebimentoPayload>;
     const forma = (payload.forma ?? "").trim();

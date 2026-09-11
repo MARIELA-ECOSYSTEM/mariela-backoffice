@@ -100,8 +100,6 @@ export function useHistoricoFornecedor(id: string | null) {
   });
 }
 
-
-
 export function useColecoes() {
   return useQuery({
     queryKey: colecoesKeys.todos,

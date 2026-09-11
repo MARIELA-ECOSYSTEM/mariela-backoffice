@@ -29,7 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ErrorState, TableSkeleton } from "@/components/common/states";
+import { ErrorState } from "@/components/common/states";
+import { Skeleton } from "@/components/ui/skeleton";
 import { NotaDemonstracao } from "@/components/common/data-toolbar";
 import { SecaoDashboard } from "@/components/dashboard/secao";
 import { Metrica } from "@/components/dashboard/metrica";
@@ -60,6 +61,41 @@ export const Route = createFileRoute("/_backoffice/dashboard")({
   }),
   component: DashboardPage,
 });
+
+/** Silhueta das métricas: evita tela vazia enquanto o resumo carrega. */
+function GradeMetricasSkeleton({ itens = 4 }: { itens?: number }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {Array.from({ length: itens }).map((_, indice) => (
+        <div key={indice} className="rounded-xl border border-border bg-card p-5 shadow-card">
+          <div className="flex items-start justify-between gap-2">
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="size-4 rounded-full" />
+          </div>
+          <Skeleton className="mt-4 h-8 w-24" />
+          <Skeleton className="mt-2 h-3 w-32" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-10" aria-busy="true">
+      <GradeMetricasSkeleton />
+      <div className="space-y-4">
+        <Skeleton className="h-5 w-40" />
+        <GradeMetricasSkeleton itens={8} />
+        <Skeleton className="h-56 w-full rounded-xl" />
+      </div>
+      <div className="space-y-4">
+        <Skeleton className="h-5 w-48" />
+        <GradeMetricasSkeleton itens={8} />
+      </div>
+    </div>
+  );
+}
 
 function DashboardPage() {
   const [mes, setMes] = useState("");
@@ -93,7 +129,7 @@ function DashboardPage() {
       }
     >
       {isPending ? (
-        <TableSkeleton linhas={6} colunas={4} />
+        <DashboardSkeleton />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : (

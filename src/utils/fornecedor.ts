@@ -78,12 +78,7 @@ export function ultimaEntradaDentroDe(fornecedor: Fornecedor, dias: number): boo
 }
 
 export type OrdenacaoFornecedor =
-  | "nome-asc"
-  | "nome-desc"
-  | "produtos-desc"
-  | "custo-desc"
-  | "entrada-recente"
-  | "parceiro-antigo";
+  "nome-asc" | "nome-desc" | "produtos-desc" | "custo-desc" | "entrada-recente" | "parceiro-antigo";
 
 export const OPCOES_ORDENACAO_FORNECEDOR: { valor: OrdenacaoFornecedor; label: string }[] = [
   { valor: "nome-asc", label: "Nome: A → Z" },
@@ -98,10 +93,7 @@ function tempo(iso: string | null): number {
   return iso ? new Date(iso).getTime() : 0;
 }
 
-export function ordenarFornecedores(
-  lista: Fornecedor[],
-  ordem: OrdenacaoFornecedor,
-): Fornecedor[] {
+export function ordenarFornecedores(lista: Fornecedor[], ordem: OrdenacaoFornecedor): Fornecedor[] {
   const copia = [...lista];
   const porNome = (a: Fornecedor, b: Fornecedor) => a.nome.localeCompare(b.nome, "pt-BR");
   switch (ordem) {

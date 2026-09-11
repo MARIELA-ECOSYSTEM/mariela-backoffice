@@ -12,11 +12,7 @@ import { vendasDoCliente } from "./clientes-vendas.seed";
 import { proximoCodigo } from "./sequencias";
 import { ApiError, type ApiFieldError } from "@/types/api";
 import type { Cliente, ClientePayload } from "@/types/cliente";
-import type {
-  EnderecoFornecedor,
-  Fornecedor,
-  FornecedorPayload,
-} from "@/types/fornecedor";
+import type { EnderecoFornecedor, Fornecedor, FornecedorPayload } from "@/types/fornecedor";
 import type { Colecao, ColecaoPayload } from "@/types/colecao";
 import type { Campanha, CampanhaPayload } from "@/types/campanha";
 

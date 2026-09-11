@@ -75,12 +75,7 @@ export function nascimentoNoMes(dataNascimento: string | null, hoje = new Date()
 }
 
 export type OrdenacaoVendedor =
-  | "nome-asc"
-  | "nome-desc"
-  | "vendas-desc"
-  | "valor-desc"
-  | "venda-recente"
-  | "nascimento";
+  "nome-asc" | "nome-desc" | "vendas-desc" | "valor-desc" | "venda-recente" | "nascimento";
 
 export const OPCOES_ORDENACAO_VENDEDOR: { valor: OrdenacaoVendedor; label: string }[] = [
   { valor: "nome-asc", label: "Nome: A → Z" },

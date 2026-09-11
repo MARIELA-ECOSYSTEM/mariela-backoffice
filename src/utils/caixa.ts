@@ -55,8 +55,7 @@ export function ordenarCaixas(caixas: Caixa[], ordem: OrdenacaoCaixa): Caixa[] {
       return lista.sort((a, b) => b.resumo.saldoEsperado - a.resumo.saldoEsperado);
     case "diferenca-desc":
       return lista.sort(
-        (a, b) =>
-          Math.abs(b.fechamento?.diferenca ?? 0) - Math.abs(a.fechamento?.diferenca ?? 0),
+        (a, b) => Math.abs(b.fechamento?.diferenca ?? 0) - Math.abs(a.fechamento?.diferenca ?? 0),
       );
     case "vendas-desc":
       return lista.sort((a, b) => b.resumo.quantidadeVendas - a.resumo.quantidadeVendas);

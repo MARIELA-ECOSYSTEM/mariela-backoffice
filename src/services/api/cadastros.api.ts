@@ -1,10 +1,6 @@
 import { apiClient } from "./client";
 import type { Cliente, ClientePayload } from "@/types/cliente";
-import type {
-  Fornecedor,
-  FornecedorHistoricoItem,
-  FornecedorPayload,
-} from "@/types/fornecedor";
+import type { Fornecedor, FornecedorHistoricoItem, FornecedorPayload } from "@/types/fornecedor";
 import type { Colecao, ColecaoPayload } from "@/types/colecao";
 import type { Campanha, CampanhaPayload } from "@/types/campanha";
 import type { VendaResumo } from "@/types/venda";

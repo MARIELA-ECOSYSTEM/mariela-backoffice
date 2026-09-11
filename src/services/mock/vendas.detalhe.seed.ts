@@ -135,7 +135,8 @@ export function detalharVenda(venda: VendaResumo, catalogo: Produto[]): VendaDet
   const descontoVenda = raiz % 4 === 0 ? arredondar(subtotal * 0.05) : 0;
   const valorFinal = arredondar(subtotal - descontoVenda);
 
-  const parcelado = venda.formaPagamento === "Crediário" || venda.formaPagamento === "Cartão de Crédito";
+  const parcelado =
+    venda.formaPagamento === "Crediário" || venda.formaPagamento === "Cartão de Crédito";
   const totalParcelas = parcelado ? 2 + (raiz % 3) : 1;
 
   const pagamentos: PagamentoVenda[] = [];
@@ -196,7 +197,8 @@ export function detalharVenda(venda: VendaResumo, catalogo: Produto[]): VendaDet
 
   const valorPago = arredondar(pagamentos.reduce((total, item) => total + item.valor, 0));
   const valorPendente = arredondar(Math.max(0, valorFinal - valorPago));
-  const status = venda.status === "cancelada" ? "cancelada" : valorPendente > 0 ? "em_pagamento" : "concluida";
+  const status =
+    venda.status === "cancelada" ? "cancelada" : valorPendente > 0 ? "em_pagamento" : "concluida";
 
   const cancelamento =
     venda.status === "cancelada"

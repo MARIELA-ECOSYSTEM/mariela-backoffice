@@ -112,7 +112,11 @@ async function httpRequest<T>(request: ApiRequest): Promise<ApiResponse<T>> {
 
 /** Rotas de autenticação nunca disparam renovação (evita loop) nem o tratamento global de 401. */
 function ehRotaDeAutenticacao(path: string): boolean {
-  return path.startsWith("/auth/login") || path.startsWith("/auth/refresh") || path.startsWith("/auth/logout");
+  return (
+    path.startsWith("/auth/login") ||
+    path.startsWith("/auth/refresh") ||
+    path.startsWith("/auth/logout")
+  );
 }
 
 /** Margem de segurança: renova um pouco ANTES do vencimento exato, nunca depois. */
@@ -150,7 +154,13 @@ async function executarRenovacao(): Promise<boolean> {
   const refreshToken = refreshTokenStorage.get();
   if (!refreshToken) return false;
 
-  const requisicao: ApiRequest = { method: "POST", path: "/auth/refresh", params: {}, body: { refreshToken }, token: null };
+  const requisicao: ApiRequest = {
+    method: "POST",
+    path: "/auth/refresh",
+    params: {},
+    body: { refreshToken },
+    token: null,
+  };
   try {
     const resposta = USE_MOCK_API
       ? await handleMockRequest<ResultadoRenovacao>(requisicao)
@@ -204,7 +214,8 @@ async function request<T>(
         try {
           return await executarComTransporte<T>({ ...apiRequest, token: getToken() });
         } catch (erroRetentativa) {
-          if (erroRetentativa instanceof ApiError && erroRetentativa.statusCode === 401) handleUnauthorized();
+          if (erroRetentativa instanceof ApiError && erroRetentativa.statusCode === 401)
+            handleUnauthorized();
           throw erroRetentativa;
         }
       }
