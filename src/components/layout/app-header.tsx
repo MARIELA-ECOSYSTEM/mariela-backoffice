@@ -23,10 +23,35 @@ export interface Breadcrumb {
 
 export function AppHeader({ titulo, breadcrumbs }: { titulo: string; breadcrumbs?: Breadcrumb[] }) {
   const { usuario, logout } = useAuth();
+  const [menuAberto, setMenuAberto] = useState(false);
+  const rota = useRouterState({ select: (router) => router.location.pathname });
+
+  // Fecha o menu off-canvas ao trocar de rota.
+  useEffect(() => {
+    setMenuAberto(false);
+  }, [rota]);
 
   return (
-    <header className="sticky top-0 z-30 flex h-18 shrink-0 items-center justify-between border-b border-border bg-card/85 px-8 backdrop-blur-md">
-      <div className="min-w-0">
+    <header className="sticky top-0 z-30 flex h-18 shrink-0 items-center justify-between gap-3 border-b border-border bg-card/85 px-4 backdrop-blur-md sm:px-6 lg:px-8">
+      <Sheet open={menuAberto} onOpenChange={setMenuAberto}>
+        <SheetTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 text-muted-foreground lg:hidden"
+            aria-label="Abrir menu principal"
+            aria-expanded={menuAberto}
+          >
+            <Menu aria-hidden className="size-5" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="w-72 max-w-[85vw] border-sidebar-border p-0">
+          <SheetTitle className="sr-only">Menu principal</SheetTitle>
+          <SidebarConteudo onNavegar={() => setMenuAberto(false)} />
+        </SheetContent>
+      </Sheet>
+
+      <div className="min-w-0 flex-1">
         {breadcrumbs && breadcrumbs.length > 0 ? (
           <nav
             aria-label="Trilha de navegação"
