@@ -121,8 +121,8 @@ function ColecoesPage() {
     ? {
         nome: emEdicao.nome,
         descricao: emEdicao.descricao,
-        inicio: emEdicao.inicio,
-        fim: emEdicao.fim,
+        inicio: emEdicao.inicio.slice(0, 10),
+        fim: emEdicao.fim.slice(0, 10),
         ativo: emEdicao.ativo,
         destaque: emEdicao.destaque,
         banner: emEdicao.banner,

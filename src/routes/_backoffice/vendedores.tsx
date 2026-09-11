@@ -196,7 +196,7 @@ function VendedoresPage() {
         nome: emEdicao.nome,
         foto: emEdicao.foto ?? "",
         telefone: formatarTelefone(emEdicao.telefone),
-        dataNascimento: emEdicao.dataNascimento ?? "",
+        dataNascimento: emEdicao.dataNascimento?.slice(0, 10) ?? "",
         observacao: emEdicao.observacao,
         senha: "",
         confirmacaoSenha: "",
