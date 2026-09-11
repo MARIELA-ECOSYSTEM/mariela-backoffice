@@ -1,6 +1,9 @@
-import { Link } from "@tanstack/react-router";
-import { ChevronRight, LogOut, User } from "lucide-react";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { ChevronRight, LogOut, Menu, User } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { SidebarConteudo } from "./sidebar-conteudo";
 import {
   DropdownMenu,
   DropdownMenuContent,
