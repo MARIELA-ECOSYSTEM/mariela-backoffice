@@ -393,32 +393,34 @@ function VendaDetalhePage() {
                 <CardHeader>
                   <CardTitle className="font-display text-2xl">Resumo financeiro</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  {[
-                    { label: "Valor bruto", valor: venda.valorBruto },
-                    { label: "Desconto promocional", valor: -venda.descontoPromocional },
-                    { label: "Desconto do operador", valor: -venda.descontoVenda },
-                    { label: "Valor final", valor: venda.valorFinal, destaque: true },
-                    { label: "Valor pago", valor: venda.valorPago },
-                    { label: "Valor pendente", valor: venda.valorPendente },
-                    { label: "Valor devolvido", valor: venda.valorDevolvido },
-                  ].map((linha) => (
-                    <div
-                      key={linha.label}
-                      className="flex items-center justify-between gap-3 border-b border-border/60 pb-2 last:border-0"
-                    >
-                      <span className="text-muted-foreground">{linha.label}</span>
-                      <span
-                        className={
-                          linha.destaque
-                            ? "font-medium tabular-nums text-primary"
-                            : "tabular-nums text-foreground/85"
-                        }
-                      >
-                        {formatarMoeda(linha.valor)}
-                      </span>
-                    </div>
-                  ))}
+                <CardContent className="space-y-3 text-sm">
+                  <div className="space-y-2">
+                    <ResumoLinha rotulo="Valor bruto" valor={venda.valorBruto} />
+                    <ResumoLinha
+                      rotulo="Desconto promocional"
+                      valor={venda.descontoPromocional}
+                      tom="desconto"
+                      sinal="−"
+                    />
+                    <ResumoLinha
+                      rotulo="Desconto do operador"
+                      valor={venda.descontoVenda}
+                      tom="desconto"
+                      sinal="−"
+                    />
+                  </div>
+
+                  <ResumoLinha rotulo="Valor final" valor={venda.valorFinal} tom="total" />
+
+                  <div className="space-y-2">
+                    <ResumoLinha rotulo="Valor pago" valor={venda.valorPago} tom="pago" />
+                    <ResumoLinha
+                      rotulo="Valor pendente"
+                      valor={venda.valorPendente}
+                      {...(venda.valorPendente > 0 ? { tom: "pendente" as const } : {})}
+                    />
+                    <ResumoLinha rotulo="Valor devolvido" valor={venda.valorDevolvido} />
+                  </div>
                   <p className="pt-1 text-xs text-muted-foreground">
                     Desconto total equivale a {percentualDesconto(venda)}% do valor bruto.
                   </p>
