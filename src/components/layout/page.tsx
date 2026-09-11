@@ -17,9 +17,9 @@ export function Page({
   const temCabecalho = Boolean(descricao || acoes);
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col bg-background">
+    <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-background">
       <AppHeader titulo={titulo} {...(breadcrumbs ? { breadcrumbs } : {})} />
-      <main className="mx-auto w-full max-w-[1600px] flex-1 px-6 py-7 lg:px-8">
+      <main className="mx-auto w-full min-w-0 max-w-[1600px] flex-1 px-4 py-6 sm:px-6 sm:py-7 lg:px-8">
         {temCabecalho ? (
           <div className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 border-b border-border/70 pb-5">
             <div className="min-w-0">
