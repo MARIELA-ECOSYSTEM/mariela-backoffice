@@ -50,18 +50,23 @@ export function Metrica({
       ) : null}
       <CardContent className={cn("space-y-2", destaque ? "py-5" : "py-4")}>
         <div className="flex items-center justify-between gap-2">
-          <p className="text-eyebrow text-[0.6rem]">{rotulo}</p>
+          <p className="line-clamp-2 text-sm font-medium leading-tight text-muted-foreground">
+            {rotulo}
+          </p>
           {Icone ? (
             <Icone
               aria-hidden
-              className={cn("size-3.5", destaque ? "text-primary/70" : "text-muted-foreground/60")}
+              className={cn(
+                "size-4 shrink-0",
+                destaque ? "text-primary/70" : "text-muted-foreground/60",
+              )}
             />
           ) : null}
         </div>
         <p
           className={cn(
-            "tabular-nums",
-            destaque ? "text-metric text-primary" : "text-xl font-medium tracking-tight",
+            "tabular-nums tracking-tight",
+            destaque ? "text-metric text-primary" : "text-2xl font-semibold",
           )}
         >
           {formatar(valor, tipo, unidade)}
