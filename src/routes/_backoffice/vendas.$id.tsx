@@ -64,7 +64,56 @@ export const Route = createFileRoute("/_backoffice/vendas/$id")({
 });
 
 function Rotulo({ children }: { children: React.ReactNode }) {
-  return <p className="text-eyebrow text-[0.58rem]">{children}</p>;
+  return <p className="text-xs font-medium text-muted-foreground">{children}</p>;
+}
+
+/**
+ * Linha do resumo financeiro (apresentação apenas — nenhum valor é recalculado).
+ * `tom` apenas escolhe a semântica visual do valor já fornecido.
+ */
+function ResumoLinha({
+  rotulo,
+  valor,
+  tom,
+  sinal,
+}: {
+  rotulo: string;
+  valor: number;
+  tom?: "total" | "desconto" | "pendente" | "pago";
+  sinal?: "−";
+}) {
+  const classeValor =
+    tom === "total"
+      ? "text-2xl font-semibold tabular-nums text-primary"
+      : tom === "desconto"
+        ? "text-base font-medium tabular-nums text-destructive"
+        : tom === "pendente"
+          ? "text-base font-semibold tabular-nums text-warning"
+          : tom === "pago"
+            ? "text-base font-medium tabular-nums text-success"
+            : "text-base tabular-nums text-foreground/85";
+
+  return (
+    <div
+      className={
+        tom === "total"
+          ? "flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary-soft/40 px-3 py-2.5"
+          : "flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-2 last:border-0"
+      }
+    >
+      <span
+        className={
+          tom === "total" ? "text-sm font-medium text-foreground" : "text-sm text-muted-foreground"
+        }
+      >
+        {rotulo}
+      </span>
+      <span className={classeValor}>
+        {sinal ? `${sinal} ` : ""}
+        {formatarMoeda(valor)}
+      </span>
+    </div>
+  );
 }
 
 function VendaDetalhePage() {
@@ -134,6 +183,9 @@ function VendaDetalhePage() {
             </Button>
           ) : null}
           {venda && venda.status !== "cancelada" ? (
+            <span aria-hidden className="mx-1 hidden h-6 w-px bg-border sm:block" />
+          ) : null}
+          {venda && venda.status !== "cancelada" ? (
             <Button variant="destructive" onClick={() => setCancelamentoAberto(true)}>
               <Ban aria-hidden className="size-4" />
               Cancelar / devolver
@@ -153,15 +205,15 @@ function VendaDetalhePage() {
         <div className="space-y-6">
           <Card>
             <CardContent className="flex flex-wrap items-start justify-between gap-6 py-6">
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="min-w-0 space-y-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <CodigoBadge codigo={venda.codigo} />
                   <Badge variant={VARIANTE_STATUS_VENDA[venda.status]}>
                     {LABEL_STATUS_VENDA[venda.status]}
                   </Badge>
                   <Badge variant="outline">Nº {venda.numero}</Badge>
                 </div>
-                <p className="font-display text-4xl tabular-nums text-primary">
+                <p className="font-display text-3xl tabular-nums text-primary sm:text-4xl">
                   {formatarMoeda(venda.valorFinal)}
                 </p>
                 <p className="text-sm text-muted-foreground">
@@ -344,32 +396,34 @@ function VendaDetalhePage() {
                 <CardHeader>
                   <CardTitle className="font-display text-2xl">Resumo financeiro</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  {[
-                    { label: "Valor bruto", valor: venda.valorBruto },
-                    { label: "Desconto promocional", valor: -venda.descontoPromocional },
-                    { label: "Desconto do operador", valor: -venda.descontoVenda },
-                    { label: "Valor final", valor: venda.valorFinal, destaque: true },
-                    { label: "Valor pago", valor: venda.valorPago },
-                    { label: "Valor pendente", valor: venda.valorPendente },
-                    { label: "Valor devolvido", valor: venda.valorDevolvido },
-                  ].map((linha) => (
-                    <div
-                      key={linha.label}
-                      className="flex items-center justify-between gap-3 border-b border-border/60 pb-2 last:border-0"
-                    >
-                      <span className="text-muted-foreground">{linha.label}</span>
-                      <span
-                        className={
-                          linha.destaque
-                            ? "font-medium tabular-nums text-primary"
-                            : "tabular-nums text-foreground/85"
-                        }
-                      >
-                        {formatarMoeda(linha.valor)}
-                      </span>
-                    </div>
-                  ))}
+                <CardContent className="space-y-3 text-sm">
+                  <div className="space-y-2">
+                    <ResumoLinha rotulo="Valor bruto" valor={venda.valorBruto} />
+                    <ResumoLinha
+                      rotulo="Desconto promocional"
+                      valor={venda.descontoPromocional}
+                      tom="desconto"
+                      sinal="−"
+                    />
+                    <ResumoLinha
+                      rotulo="Desconto do operador"
+                      valor={venda.descontoVenda}
+                      tom="desconto"
+                      sinal="−"
+                    />
+                  </div>
+
+                  <ResumoLinha rotulo="Valor final" valor={venda.valorFinal} tom="total" />
+
+                  <div className="space-y-2">
+                    <ResumoLinha rotulo="Valor pago" valor={venda.valorPago} tom="pago" />
+                    <ResumoLinha
+                      rotulo="Valor pendente"
+                      valor={venda.valorPendente}
+                      {...(venda.valorPendente > 0 ? { tom: "pendente" as const } : {})}
+                    />
+                    <ResumoLinha rotulo="Valor devolvido" valor={venda.valorDevolvido} />
+                  </div>
                   <p className="pt-1 text-xs text-muted-foreground">
                     Desconto total equivale a {percentualDesconto(venda)}% do valor bruto.
                   </p>
@@ -417,9 +471,8 @@ function VendaDetalhePage() {
                   <CardContent className="space-y-2 text-sm">
                     <p className="text-muted-foreground">{venda.cancelamento.motivo}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatarDataHora(venda.cancelamento.dataHora)} ·{" "}
-                      {venda.cancelamento.autor} · devolvido{" "}
-                      {formatarMoeda(venda.cancelamento.valorDevolvido)}
+                      {formatarDataHora(venda.cancelamento.dataHora)} · {venda.cancelamento.autor} ·
+                      devolvido {formatarMoeda(venda.cancelamento.valorDevolvido)}
                     </p>
                     <ul className="space-y-1">
                       {venda.cancelamento.itens.map((item) => (

@@ -100,8 +100,16 @@ export function CancelamentoDialog({
           <div className="grid gap-2 sm:grid-cols-2">
             {(
               [
-                { valor: "integral", titulo: "Cancelamento integral", texto: "Devolve todos os itens e cancela a venda." },
-                { valor: "parcial", titulo: "Devolução parcial", texto: "Devolve apenas os itens escolhidos." },
+                {
+                  valor: "integral",
+                  titulo: "Cancelamento integral",
+                  texto: "Devolve todos os itens e cancela a venda.",
+                },
+                {
+                  valor: "parcial",
+                  titulo: "Devolução parcial",
+                  texto: "Devolve apenas os itens escolhidos.",
+                },
               ] as const
             ).map((opcao) => (
               <button
@@ -116,7 +124,9 @@ export function CancelamentoDialog({
                 }
               >
                 <p className="text-sm font-medium">{opcao.titulo}</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{opcao.texto}</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                  {opcao.texto}
+                </p>
               </button>
             ))}
           </div>
@@ -189,10 +199,12 @@ export function CancelamentoDialog({
             />
           </div>
 
-          <p className="rounded-xl border border-primary/20 bg-primary-soft/40 px-4 py-3 text-sm">
-            Valor a devolver:{" "}
-            <strong className="tabular-nums text-primary">{formatarMoeda(valorEstimado)}</strong>
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary-soft/40 px-4 py-3">
+            <span className="text-sm font-medium text-foreground">Valor a devolver</span>
+            <strong className="text-xl font-semibold tabular-nums text-primary">
+              {formatarMoeda(valorEstimado)}
+            </strong>
+          </div>
         </div>
 
         <DialogFooter>
