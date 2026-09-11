@@ -63,11 +63,14 @@ export function Metrica({
             />
           ) : null}
         </div>
+        {/* Sem cn() aqui: tailwind-merge classifica o utilitário `text-metric`
+            como cor e o descartaria diante de `text-primary`. Concatenação
+            direta garante tamanho/fonte (text-metric) + cor (text-primary). */}
         <p
-          className={cn(
-            "tabular-nums tracking-tight",
-            destaque ? "text-metric text-primary" : "text-2xl font-semibold",
-          )}
+          className={
+            "tabular-nums tracking-tight " +
+            (destaque ? "text-metric text-primary" : "text-2xl font-semibold")
+          }
         >
           {formatar(valor, tipo, unidade)}
         </p>
