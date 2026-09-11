@@ -54,7 +54,10 @@ export function Metrica({
           {Icone ? (
             <Icone
               aria-hidden
-              className={cn("size-4 shrink-0", destaque ? "text-primary/70" : "text-muted-foreground/60")}
+              className={cn(
+                "size-4 shrink-0",
+                destaque ? "text-primary/70" : "text-muted-foreground/60",
+              )}
             />
           ) : null}
         </div>
