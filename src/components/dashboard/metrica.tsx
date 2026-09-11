@@ -50,7 +50,9 @@ export function Metrica({
       ) : null}
       <CardContent className={cn("space-y-2", destaque ? "py-5" : "py-4")}>
         <div className="flex items-center justify-between gap-2">
-          <p className="line-clamp-2 text-sm font-medium leading-tight text-muted-foreground">{rotulo}</p>
+          <p className="line-clamp-2 text-sm font-medium leading-tight text-muted-foreground">
+            {rotulo}
+          </p>
           {Icone ? (
             <Icone
               aria-hidden
