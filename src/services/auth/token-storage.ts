@@ -68,7 +68,9 @@ export const tokenStorage: TokenStorage = {
  * `/auth/refresh`/`/auth/logout`.
  */
 let refreshStorage: TokenStorage =
-  typeof window === "undefined" ? createMemoryTokenStorage() : createWebTokenStorage(REFRESH_TOKEN_STORAGE_KEY);
+  typeof window === "undefined"
+    ? createMemoryTokenStorage()
+    : createWebTokenStorage(REFRESH_TOKEN_STORAGE_KEY);
 
 export function setRefreshTokenStorage(next: TokenStorage): void {
   refreshStorage = next;
@@ -86,7 +88,9 @@ export const refreshTokenStorage: TokenStorage = {
  * web/memória, nunca trocado via `setTokenStorage`-like hook).
  */
 const expiresAtStorage: TokenStorage =
-  typeof window === "undefined" ? createMemoryTokenStorage() : createWebTokenStorage(TOKEN_EXPIRES_AT_STORAGE_KEY);
+  typeof window === "undefined"
+    ? createMemoryTokenStorage()
+    : createWebTokenStorage(TOKEN_EXPIRES_AT_STORAGE_KEY);
 
 export interface DadosSessao {
   accessToken: string;

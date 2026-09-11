@@ -69,8 +69,7 @@ export function seedVendas(
       dataVenda.setHours(9 + Math.floor(aleatorio() * 11), Math.floor(aleatorio() * 60), 0, 0);
 
       sequencia += 1;
-      const formaPagamento =
-        FORMAS_PAGAMENTO[Math.floor(aleatorio() * FORMAS_PAGAMENTO.length)]!;
+      const formaPagamento = FORMAS_PAGAMENTO[Math.floor(aleatorio() * FORMAS_PAGAMENTO.length)]!;
       vendas.push({
         id: `vnd_${sequencia}`,
         numero: String(sequencia).padStart(6, "0"),

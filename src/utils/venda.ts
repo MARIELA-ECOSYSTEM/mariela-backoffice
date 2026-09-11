@@ -8,11 +8,7 @@ export const VARIANTE_STATUS_VENDA: Record<StatusVenda, "success" | "warning" | 
 };
 
 export type OrdenacaoVenda =
-  | "data-desc"
-  | "data-asc"
-  | "valor-desc"
-  | "valor-asc"
-  | "pendente-desc";
+  "data-desc" | "data-asc" | "valor-desc" | "valor-asc" | "pendente-desc";
 
 export const OPCOES_ORDENACAO_VENDA: { valor: OrdenacaoVenda; label: string }[] = [
   { valor: "data-desc", label: "Mais recentes" },
@@ -100,9 +96,8 @@ export function vendaImutavel(venda: VendaResumo): boolean {
   return venda.status === "cancelada";
 }
 
-export function descricaoItemVenda(item: {
-  cor: string | null;
-  tamanho: string | null;
-}): string {
-  return [item.cor, item.tamanho ? `Tam. ${item.tamanho}` : null].filter(Boolean).join(" · ") || "—";
+export function descricaoItemVenda(item: { cor: string | null; tamanho: string | null }): string {
+  return (
+    [item.cor, item.tamanho ? `Tam. ${item.tamanho}` : null].filter(Boolean).join(" · ") || "—"
+  );
 }

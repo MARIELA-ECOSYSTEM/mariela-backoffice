@@ -146,11 +146,7 @@ export interface ParcelaVenda {
 }
 
 export type TipoEventoVenda =
-  | "criacao"
-  | "pagamento"
-  | "baixa_parcela"
-  | "devolucao"
-  | "cancelamento";
+  "criacao" | "pagamento" | "baixa_parcela" | "devolucao" | "cancelamento";
 
 export interface EventoVenda {
   /**

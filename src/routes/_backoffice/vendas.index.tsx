@@ -72,7 +72,11 @@ function VendasPage() {
   const caixas = useMemo(
     () =>
       Array.from(
-        new Set((vendas ?? []).map((venda) => venda.caixaCodigo).filter((item): item is string => Boolean(item))),
+        new Set(
+          (vendas ?? [])
+            .map((venda) => venda.caixaCodigo)
+            .filter((item): item is string => Boolean(item)),
+        ),
       ).sort(),
     [vendas],
   );
@@ -106,10 +110,7 @@ function VendasPage() {
       {
         id: "cliente",
         label: "Cliente",
-        opcoes: [
-          { valor: "consumidor-final", label: "Consumidor final" },
-          ...opcoesDe(clientes),
-        ],
+        opcoes: [{ valor: "consumidor-final", label: "Consumidor final" }, ...opcoesDe(clientes)],
         buscavel: true,
         placeholderBusca: "Buscar cliente…",
         corresponde: (venda, valor) =>
