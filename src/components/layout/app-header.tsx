@@ -71,7 +71,7 @@ export function AppHeader({ titulo, breadcrumbs }: { titulo: string; breadcrumbs
             ))}
           </nav>
         ) : null}
-        <h1 className="mt-0.5 truncate font-display text-[1.65rem] font-medium leading-tight">
+        <h1 className="mt-0.5 truncate font-display text-xl font-medium leading-tight sm:text-[1.65rem]">
           {titulo}
         </h1>
       </div>
