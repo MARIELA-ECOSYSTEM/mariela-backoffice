@@ -64,7 +64,56 @@ export const Route = createFileRoute("/_backoffice/vendas/$id")({
 });
 
 function Rotulo({ children }: { children: React.ReactNode }) {
-  return <p className="text-eyebrow text-[0.58rem]">{children}</p>;
+  return <p className="text-xs font-medium text-muted-foreground">{children}</p>;
+}
+
+/**
+ * Linha do resumo financeiro (apresentação apenas — nenhum valor é recalculado).
+ * `tom` apenas escolhe a semântica visual do valor já fornecido.
+ */
+function ResumoLinha({
+  rotulo,
+  valor,
+  tom,
+  sinal,
+}: {
+  rotulo: string;
+  valor: number;
+  tom?: "total" | "desconto" | "pendente" | "pago";
+  sinal?: "−";
+}) {
+  const classeValor =
+    tom === "total"
+      ? "text-2xl font-semibold tabular-nums text-primary"
+      : tom === "desconto"
+        ? "text-base font-medium tabular-nums text-destructive"
+        : tom === "pendente"
+          ? "text-base font-semibold tabular-nums text-warning"
+          : tom === "pago"
+            ? "text-base font-medium tabular-nums text-success"
+            : "text-base tabular-nums text-foreground/85";
+
+  return (
+    <div
+      className={
+        tom === "total"
+          ? "flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary-soft/40 px-3 py-2.5"
+          : "flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-2 last:border-0"
+      }
+    >
+      <span
+        className={
+          tom === "total" ? "text-sm font-medium text-foreground" : "text-sm text-muted-foreground"
+        }
+      >
+        {rotulo}
+      </span>
+      <span className={classeValor}>
+        {sinal ? `${sinal} ` : ""}
+        {formatarMoeda(valor)}
+      </span>
+    </div>
+  );
 }
 
 function VendaDetalhePage() {
