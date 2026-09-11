@@ -189,10 +189,12 @@ export function CancelamentoDialog({
             />
           </div>
 
-          <p className="rounded-xl border border-primary/20 bg-primary-soft/40 px-4 py-3 text-sm">
-            Valor a devolver:{" "}
-            <strong className="tabular-nums text-primary">{formatarMoeda(valorEstimado)}</strong>
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary-soft/40 px-4 py-3">
+            <span className="text-sm font-medium text-foreground">Valor a devolver</span>
+            <strong className="text-xl font-semibold tabular-nums text-primary">
+              {formatarMoeda(valorEstimado)}
+            </strong>
+          </div>
         </div>
 
         <DialogFooter>
