@@ -205,15 +205,15 @@ function VendaDetalhePage() {
         <div className="space-y-6">
           <Card>
             <CardContent className="flex flex-wrap items-start justify-between gap-6 py-6">
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="min-w-0 space-y-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <CodigoBadge codigo={venda.codigo} />
                   <Badge variant={VARIANTE_STATUS_VENDA[venda.status]}>
                     {LABEL_STATUS_VENDA[venda.status]}
                   </Badge>
                   <Badge variant="outline">Nº {venda.numero}</Badge>
                 </div>
-                <p className="font-display text-4xl tabular-nums text-primary">
+                <p className="font-display text-3xl tabular-nums text-primary sm:text-4xl">
                   {formatarMoeda(venda.valorFinal)}
                 </p>
                 <p className="text-sm text-muted-foreground">
