@@ -54,7 +54,7 @@ function GaleriaCard({ produto }: { produto: Produto }) {
     return (
       <div className="flex size-full flex-col items-center justify-center gap-1 bg-primary-soft/70 text-primary/60">
         <ImageIcon aria-hidden className="size-6" />
-        <span className="font-brand text-[0.55rem] uppercase tracking-[0.18em]">Sem foto</span>
+        <span className="font-brand text-[0.7rem] uppercase tracking-[0.16em]">Sem foto</span>
       </div>
     );
   }
@@ -114,7 +114,7 @@ function GaleriaCard({ produto }: { produto: Produto }) {
 function EstoqueCompacto({ produto }: { produto: Produto }) {
   const comEstoque = produto.variantes.filter((variante) => variante.quantidadeVariante > 0);
   if (!comEstoque.length) {
-    return <p className="text-[0.7rem] text-muted-foreground">Nenhuma variante com estoque.</p>;
+    return <p className="text-[0.78rem] text-muted-foreground">Nenhuma variante com estoque.</p>;
   }
   const visiveis = comEstoque.slice(0, 3);
   const restantes = comEstoque.length - visiveis.length;
@@ -134,7 +134,7 @@ function EstoqueCompacto({ produto }: { produto: Produto }) {
         </div>
       ))}
       {restantes > 0 ? (
-        <p className="text-[0.68rem] text-muted-foreground">+{restantes} cor(es)</p>
+        <p className="text-[0.74rem] text-muted-foreground">+{restantes} cor(es)</p>
       ) : null}
     </div>
   );
@@ -193,18 +193,18 @@ export function ProdutoCard({
           {produto.ehNovidade ? (
             <Badge
               variant="outline"
-              className="border-primary/30 bg-card/90 px-1.5 py-0 text-[0.6rem] text-primary"
+              className="border-primary/30 bg-card/90 px-1.5 py-0 text-[0.7rem] text-primary"
             >
               Novidade
             </Badge>
           ) : null}
           {produto.ehPromocao ? (
-            <Badge className="bg-primary px-1.5 py-0 text-[0.6rem] text-primary-foreground">
+            <Badge className="bg-primary px-1.5 py-0 text-[0.7rem] text-primary-foreground">
               Promoção
             </Badge>
           ) : null}
           {semEstoque ? (
-            <Badge variant="destructive" className="px-1.5 py-0 text-[0.6rem]">
+            <Badge variant="destructive" className="px-1.5 py-0 text-[0.7rem]">
               Sem estoque
             </Badge>
           ) : null}
@@ -223,7 +223,7 @@ export function ProdutoCard({
                 {produto.nome}
               </Link>
             </h3>
-            <p className="truncate text-[0.68rem] text-muted-foreground">{produto.categoria}</p>
+            <p className="truncate text-[0.74rem] text-muted-foreground">{produto.categoria}</p>
           </div>
 
           <DropdownMenu>
@@ -294,7 +294,7 @@ export function ProdutoCard({
               </span>
             ) : null}
           </div>
-          <div className="flex flex-wrap items-baseline gap-x-2 text-[0.68rem] text-muted-foreground">
+          <div className="flex flex-wrap items-baseline gap-x-2 text-[0.74rem] text-muted-foreground">
             <span>
               Custo <span className="tabular-nums">{formatarMoeda(produto.precoCusto)}</span>
             </span>
@@ -314,8 +314,8 @@ export function ProdutoCard({
             <span
               className={
                 semEstoque
-                  ? "font-brand text-[0.62rem] uppercase tracking-[0.14em] text-destructive"
-                  : "font-brand text-[0.62rem] uppercase tracking-[0.14em] text-primary"
+                  ? "font-brand text-[0.72rem] uppercase tracking-[0.14em] text-destructive"
+                  : "font-brand text-[0.72rem] uppercase tracking-[0.14em] text-primary"
               }
             >
               {semEstoque ? "Sem estoque" : "Em estoque"}
@@ -324,7 +324,7 @@ export function ProdutoCard({
             <Link
               to="/produtos/$id"
               params={{ id: produto.id }}
-              className="text-[0.68rem] text-primary underline-offset-4 hover:underline"
+              className="text-[0.74rem] text-primary underline-offset-4 hover:underline"
             >
               Abrir
             </Link>
