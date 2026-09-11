@@ -91,7 +91,7 @@ export function MovimentacoesTabela({
                 </td>
                 <td className="py-2.5 text-muted-foreground">{movimentacao.formaPagamento}</td>
                 <td
-                  className={`py-2.5 text-right text-base font-semibold whitespace-nowrap tabular-nums ${
+                  className={`relative py-2.5 text-right text-base font-semibold whitespace-nowrap tabular-nums ${
                     entrada ? "text-success" : "text-destructive"
                   }`}
                 >
