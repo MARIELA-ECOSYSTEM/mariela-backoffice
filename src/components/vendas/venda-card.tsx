@@ -8,15 +8,7 @@ import { LABEL_STATUS_VENDA, type VendaResumo } from "@/types/venda";
 import { VARIANTE_STATUS_VENDA, percentualDesconto } from "@/utils/venda";
 import { formatarDataHora, formatarMoeda, pluralizar } from "@/utils/format";
 
-function Linha({
-  icon: Icone,
-  label,
-  valor,
-}: {
-  icon: typeof User;
-  label: string;
-  valor: string;
-}) {
+function Linha({ icon: Icone, label, valor }: { icon: typeof User; label: string; valor: string }) {
   return (
     <div className="flex items-start gap-2 text-sm">
       <Icone aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/70" />

@@ -471,9 +471,8 @@ function VendaDetalhePage() {
                   <CardContent className="space-y-2 text-sm">
                     <p className="text-muted-foreground">{venda.cancelamento.motivo}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatarDataHora(venda.cancelamento.dataHora)} ·{" "}
-                      {venda.cancelamento.autor} · devolvido{" "}
-                      {formatarMoeda(venda.cancelamento.valorDevolvido)}
+                      {formatarDataHora(venda.cancelamento.dataHora)} · {venda.cancelamento.autor} ·
+                      devolvido {formatarMoeda(venda.cancelamento.valorDevolvido)}
                     </p>
                     <ul className="space-y-1">
                       {venda.cancelamento.itens.map((item) => (
