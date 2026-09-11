@@ -14,7 +14,7 @@ export function SidebarConteudo({ onNavegar }: { onNavegar?: () => void }) {
           MARIELA
         </span>
         <span aria-hidden className="rule-gold mt-3 block h-px w-full opacity-60" />
-        <span className="mt-3 block font-brand text-[0.58rem] font-medium uppercase tracking-[0.3em] text-sidebar-foreground/55">
+        <span className="mt-3 block font-brand text-[0.68rem] font-medium uppercase tracking-[0.28em] text-sidebar-foreground/70">
           Backoffice
         </span>
       </div>
@@ -23,7 +23,7 @@ export function SidebarConteudo({ onNavegar }: { onNavegar?: () => void }) {
         {NAV_GRUPOS.map((grupo) => (
           <div key={grupo.titulo ?? "principal"} className="mb-6">
             {grupo.titulo ? (
-              <p className="px-3 pb-2.5 font-brand text-[0.58rem] font-medium uppercase tracking-[0.24em] text-sidebar-foreground/40">
+              <p className="px-3 pb-2.5 font-brand text-[0.7rem] font-medium uppercase tracking-[0.2em] text-sidebar-foreground/60">
                 {grupo.titulo}
               </p>
             ) : null}
@@ -46,7 +46,7 @@ export function SidebarConteudo({ onNavegar }: { onNavegar?: () => void }) {
                     />
                     <span className="flex-1 truncate tracking-wide">{item.label}</span>
                     {item.emDesenvolvimento ? (
-                      <span className="font-brand text-[0.52rem] uppercase tracking-[0.18em] text-sidebar-foreground/35">
+                      <span className="font-brand text-[0.64rem] uppercase tracking-[0.14em] text-sidebar-foreground/55">
                         breve
                       </span>
                     ) : null}
@@ -59,7 +59,7 @@ export function SidebarConteudo({ onNavegar }: { onNavegar?: () => void }) {
       </nav>
 
       <div className="border-t border-sidebar-border px-7 py-4">
-        <p className="font-brand text-[0.55rem] uppercase tracking-[0.22em] text-sidebar-foreground/35">
+        <p className="font-brand text-[0.68rem] uppercase tracking-[0.18em] text-sidebar-foreground/55">
           Mariela Loja · Moda feminina
         </p>
       </div>

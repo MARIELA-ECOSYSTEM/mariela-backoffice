@@ -19,7 +19,7 @@ export function CodigoBadge({
     <span
       className={cn(
         "inline-flex max-w-full items-center gap-1 truncate rounded-md border border-primary/20 bg-primary-soft/60 font-mono uppercase tracking-[0.08em] text-primary",
-        tamanho === "xs" ? "px-1.5 py-0.5 text-[0.62rem]" : "px-2 py-0.5 text-[0.7rem]",
+        tamanho === "xs" ? "px-1.5 py-0.5 text-[0.7rem]" : "px-2 py-0.5 text-[0.75rem]",
         className,
       )}
       title={codigo}
