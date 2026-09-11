@@ -1820,11 +1820,34 @@ Continue developing this project in the [Lovable editor](https://lovable.dev/pro
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Este projeto usa **Bun** como gerenciador de pacotes e runtime (`bun.lock` é o lockfile oficial — não use `npm`/`yarn`/`pnpm`).
 
 ```sh
 git clone <this-repository-url>
 cd <repository-name>
-npm i
-npm run dev
+bun install
+bun run dev
 ```
+
+### Ambiente: Mock vs API real
+
+O arquivo `.env` (versionado) já vem configurado para **modo mock** (`VITE_USE_MOCK_API=true`), sem precisar de nenhum backend rodando. As credenciais `VITE_MOCK_LOGIN`/`VITE_MOCK_SENHA` desse arquivo autenticam apenas contra a API mockada local — nunca contra o backend real.
+
+Para rodar contra a **API real** (NestJS), crie um `.env.local` (ignorado pelo Git — nunca commitar) sobrepondo:
+
+```sh
+VITE_USE_MOCK_API=false
+VITE_API_URL=http://localhost:3000/api/v1   # ou a URL da API real
+```
+
+`.env.local` tem prioridade sobre `.env` e nunca deve substituir o `.env` versionado, que deve continuar em modo mock por padrão.
+
+### Build e execução
+
+```sh
+bun run build     # build de produção (Vite + Nitro)
+bunx tsc --noEmit # checagem de tipos
+bunx eslint .     # lint
+```
+
+O empacotamento Desktop (Tauri) está descrito na seção 1 deste README como etapa futura; a configuração em `src-tauri/` ainda não está conectada ao pipeline de build atual (veja `tauri.conf.json`).
