@@ -149,7 +149,9 @@ function EstoquePage() {
         onLimparTudo={limpar}
         colunas={3}
         resultado={
-          <span className="text-sm text-muted-foreground">{itens.length} produto(s) no filtro</span>
+          <span className="w-full text-sm text-muted-foreground sm:w-auto sm:text-right">
+            {itens.length} produto(s) no filtro
+          </span>
         }
         cabecalho={
           <BuscaInput

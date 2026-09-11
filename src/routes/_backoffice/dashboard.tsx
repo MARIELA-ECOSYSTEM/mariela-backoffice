@@ -93,7 +93,7 @@ function DashboardPage() {
       }
     >
       {isPending ? (
-        <TableSkeleton linhas={6} colunas={4} />
+        <DashboardSkeleton />
       ) : isError ? (
         <ErrorState error={error} onRetry={() => void refetch()} />
       ) : (
