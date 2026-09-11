@@ -76,7 +76,7 @@ export function AppHeader({ titulo, breadcrumbs }: { titulo: string; breadcrumbs
         </h1>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         <ThemeToggle className="text-muted-foreground" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
