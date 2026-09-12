@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Image as ImageIcon, Pencil, Percent, Trash2 } from "lucide-react";
@@ -152,6 +152,12 @@ function ProdutoDetalhePage() {
   const excluir = useExcluirProduto();
   const [promocaoAberta, setPromocaoAberta] = useState(false);
   const [exclusaoAberta, setExclusaoAberta] = useState(false);
+  // Guarda síncrona via ref: o botão "Desativar promoção" não tinha nenhum
+  // `disabled`, então dependia inteiramente do usuário não clicar de novo —
+  // um duplo clique real disparava duas mutations aceitas pelo backend
+  // (Etapa 20.16). Precisa ficar antes dos `return` condicionais abaixo
+  // (regra dos hooks: mesma ordem em todo render).
+  const desativandoPromocaoRef = useRef(false);
 
   if (isPending) {
     return (
@@ -174,11 +180,15 @@ function ProdutoDetalhePage() {
   }
 
   async function desativarPromocao() {
+    if (desativandoPromocaoRef.current) return;
+    desativandoPromocaoRef.current = true;
     try {
       await definirPromocao.mutateAsync({ ehPromocao: false });
       toast.success("Promoção desativada com sucesso.");
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível desativar a promoção."));
+    } finally {
+      desativandoPromocaoRef.current = false;
     }
   }
 
@@ -212,7 +222,11 @@ function ProdutoDetalhePage() {
       acoes={
         <>
           {produto.ehPromocao ? (
-            <Button variant="outline" onClick={() => void desativarPromocao()}>
+            <Button
+              variant="outline"
+              disabled={definirPromocao.isPending}
+              onClick={() => void desativarPromocao()}
+            >
               <Percent aria-hidden className="size-4" /> Desativar promoção
             </Button>
           ) : (

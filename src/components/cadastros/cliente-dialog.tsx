@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -67,16 +67,26 @@ export function ClienteDialog({
     defaultValues: valoresIniciais,
   });
   const errors = form.formState.errors;
+  // Guarda síncrona via ref: `salvando` (mutation.isPending do chamador) só
+  // reflete a submissão em andamento após o próximo render, o que não é
+  // rápido o suficiente para barrar um duplo clique real no botão de submit
+  // (o segundo evento de submit do <form> pode disparar antes do botão ser
+  // desabilitado) — comprovado na Etapa 20.16.
+  const enviandoRef = useRef(false);
 
   useEffect(() => {
     if (open) form.reset(valoresIniciais);
   }, [open, valoresIniciais, form]);
 
   async function enviar(valores: ClienteFormValues) {
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     try {
       await onSubmit(valores);
     } catch (error) {
       aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
+    } finally {
+      enviandoRef.current = false;
     }
   }
 
