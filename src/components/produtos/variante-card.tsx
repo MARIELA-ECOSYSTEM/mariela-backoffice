@@ -6,12 +6,14 @@ import {
   Plus,
   Trash2,
   Video,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import type { Produto } from "@/types/produto";
-import type { Variante } from "@/types/variante";
+import type { TamanhoVariante, Variante } from "@/types/variante";
 
 export function VarianteCard({
   produto,
@@ -21,6 +23,7 @@ export function VarianteCard({
   onEntrada,
   onSaida,
   onExcluir,
+  onExcluirTamanho,
 }: {
   produto: Produto;
   variante: Variante;
@@ -29,6 +32,7 @@ export function VarianteCard({
   onEntrada: (variante: Variante) => void;
   onSaida: (variante: Variante) => void;
   onExcluir: (variante: Variante) => void;
+  onExcluirTamanho: (variante: Variante, tamanho: TamanhoVariante) => void;
 }) {
   const semTamanhos = variante.tamanhos.length === 0;
 
@@ -86,13 +90,22 @@ export function VarianteCard({
                 <Badge
                   key={tamanho.id}
                   variant="outline"
-                  className={
+                  className={cn(
+                    "pr-1",
                     tamanho.quantidade === 0
                       ? "border-destructive/30 bg-destructive/5 text-destructive"
-                      : "border-border bg-secondary"
-                  }
+                      : "border-border bg-secondary",
+                  )}
                 >
                   {tamanho.tamanho} · {tamanho.quantidade}
+                  <button
+                    type="button"
+                    aria-label={`Excluir tamanho ${tamanho.tamanho}`}
+                    className="flex size-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/12 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    onClick={() => onExcluirTamanho(variante, tamanho)}
+                  >
+                    <X aria-hidden className="size-3" />
+                  </button>
                 </Badge>
               ))}
             </div>

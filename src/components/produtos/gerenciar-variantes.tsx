@@ -11,10 +11,10 @@ import {
   MovimentacaoDialog,
   type TipoMovimentacao,
 } from "@/components/estoque/movimentacao-dialog";
-import { useExcluirVariante } from "@/hooks/use-variantes";
+import { useExcluirTamanho, useExcluirVariante } from "@/hooks/use-variantes";
 import { mensagemDeErro } from "@/services/api/client";
 import type { Produto } from "@/types/produto";
-import type { Variante } from "@/types/variante";
+import type { TamanhoVariante, Variante } from "@/types/variante";
 
 export function GerenciarVariantes({ produto }: { produto: Produto }) {
   const [varianteDialog, setVarianteDialog] = useState<{
@@ -30,7 +30,12 @@ export function GerenciarVariantes({ produto }: { produto: Produto }) {
     variante: Variante;
   } | null>(null);
   const [varianteExclusao, setVarianteExclusao] = useState<Variante | null>(null);
+  const [tamanhoExclusao, setTamanhoExclusao] = useState<{
+    variante: Variante;
+    tamanho: TamanhoVariante;
+  } | null>(null);
   const excluir = useExcluirVariante(produto.id);
+  const excluirTamanho = useExcluirTamanho(produto.id);
 
   async function confirmarExclusao() {
     if (!varianteExclusao) return;
@@ -39,6 +44,20 @@ export function GerenciarVariantes({ produto }: { produto: Produto }) {
       toast.success("Variante excluída com sucesso.");
     } catch (error) {
       toast.error(mensagemDeErro(error, "Não foi possível excluir a variante."));
+      throw error;
+    }
+  }
+
+  async function confirmarExclusaoTamanho() {
+    if (!tamanhoExclusao) return;
+    try {
+      await excluirTamanho.mutateAsync({
+        varianteId: tamanhoExclusao.variante.id,
+        tamanhoId: tamanhoExclusao.tamanho.id,
+      });
+      toast.success("Tamanho excluído com sucesso.");
+    } catch (error) {
+      toast.error(mensagemDeErro(error, "Não foi possível excluir o tamanho."));
       throw error;
     }
   }
@@ -79,6 +98,7 @@ export function GerenciarVariantes({ produto }: { produto: Produto }) {
               onEntrada={(item) => setMovimentacao({ tipo: "entrada", variante: item })}
               onSaida={(item) => setMovimentacao({ tipo: "saida", variante: item })}
               onExcluir={setVarianteExclusao}
+              onExcluirTamanho={(variante, tamanho) => setTamanhoExclusao({ variante, tamanho })}
             />
           ))}
         </div>
@@ -124,6 +144,17 @@ export function GerenciarVariantes({ produto }: { produto: Produto }) {
         descricao={`Tem certeza que deseja excluir a variante ${varianteExclusao?.cor ?? ""}? Os tamanhos e o estoque dela serão removidos.`}
         confirmarLabel="Excluir"
         onConfirm={() => confirmarExclusao()}
+      />
+
+      <ConfirmDialog
+        open={tamanhoExclusao !== null}
+        onOpenChange={(aberto) => {
+          if (!aberto) setTamanhoExclusao(null);
+        }}
+        titulo={`Excluir tamanho ${tamanhoExclusao?.tamanho.tamanho ?? ""}`}
+        descricao={`Tem certeza que deseja excluir o tamanho ${tamanhoExclusao?.tamanho.tamanho ?? ""} da variante ${tamanhoExclusao?.variante.cor ?? ""}? O estoque desse tamanho será removido.`}
+        confirmarLabel="Excluir"
+        onConfirm={() => confirmarExclusaoTamanho()}
       />
     </div>
   );
