@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { CalendarDays, History, KeyRound, Pencil, Phone, Plus, Power, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -113,6 +113,10 @@ function VendedoresPage() {
   const [detalhe, setDetalhe] = useState<Vendedor | null>(null);
   const [vendasDe, setVendasDe] = useState<Vendedor | null>(null);
   const [alvoMensagem, setAlvoMensagem] = useState<AlvoMensagemWhatsapp | null>(null);
+  // Guarda síncrona via ref: item de menu "Ativar/Inativar" via
+  // DropdownMenuItem.onSelect, sem guarda própria — duplo clique/seleção
+  // real disparava duas mutations aceitas pelo backend (Etapa 20.17).
+  const alternandoStatusRef = useRef(false);
 
   const grupos = useMemo<GrupoFacetaDef<Vendedor>[]>(
     () => [
@@ -232,11 +236,15 @@ function VendedoresPage() {
   }
 
   async function alternarStatus(vendedor: Vendedor) {
+    if (alternandoStatusRef.current) return;
+    alternandoStatusRef.current = true;
     try {
       await alterarStatus.mutateAsync({ id: vendedor.id, ativo: !vendedor.ativo });
       toast.success(vendedor.ativo ? "Acesso ao PDV suspenso." : "Acesso ao PDV liberado.");
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível alterar o status."));
+    } finally {
+      alternandoStatusRef.current = false;
     }
   }
 

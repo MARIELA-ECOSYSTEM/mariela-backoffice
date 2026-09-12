@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -132,16 +132,26 @@ export function PeriodoDialog({
   const errors = form.formState.errors;
   const destaque = form.watch("destaque");
   const banner = form.watch("banner");
+  // Guarda síncrona via ref: `salvando` só reflete a submissão em andamento
+  // após o próximo render, tarde demais para barrar um duplo clique real no
+  // submit — comprovado na Etapa 20.17 (2 POSTs reais aceitos, 2 registros
+  // criados). Este componente é compartilhado por Coleções e Campanhas: a
+  // correção cobre ambos.
+  const enviandoRef = useRef(false);
 
   useEffect(() => {
     if (open) form.reset(valoresIniciais);
   }, [open, valoresIniciais, form]);
 
   async function enviar(valores: PeriodoFormValues) {
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     try {
       await onSubmit(valores);
     } catch (error) {
       aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
+    } finally {
+      enviandoRef.current = false;
     }
   }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
@@ -80,6 +80,12 @@ export function ProdutoForm({
   });
 
   const errors = form.formState.errors;
+  // Guarda síncrona via ref: `enviando` (mutation.isPending do chamador) só
+  // reflete a submissão em andamento após o próximo render, tarde demais
+  // para barrar um duplo clique real no submit — comprovado na Etapa 20.17
+  // (2 POSTs reais aceitos, 2 produtos criados). Compartilhado por
+  // criar/editar produto.
+  const enviandoRef = useRef(false);
   const custo = Number(form.watch("precoCusto")) || 0;
   const venda = Number(form.watch("precoVenda")) || 0;
 
@@ -123,6 +129,8 @@ export function ProdutoForm({
   }
 
   async function handleSubmit(values: ProdutoFormValues) {
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     try {
       await onSubmit({
         ...values,
@@ -132,6 +140,8 @@ export function ProdutoForm({
       });
     } catch (error) {
       aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
+    } finally {
+      enviandoRef.current = false;
     }
   }
 

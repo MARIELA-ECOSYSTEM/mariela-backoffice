@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { CreditCard, Pencil, Plus, Power, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -89,6 +89,10 @@ function AdquirentesPage() {
   const [dialogAberto, setDialogAberto] = useState(false);
   const [emEdicao, setEmEdicao] = useState<Adquirente | null>(null);
   const [paraExcluir, setParaExcluir] = useState<Adquirente | null>(null);
+  // Guarda síncrona via ref: o botão "Ativar/Inativar adquirente" é um
+  // botão avulso na linha da tabela (sem menu), sem guarda própria — duplo
+  // clique real disparava duas mutations aceitas pelo backend (Etapa 20.17).
+  const alternandoStatusRef = useRef(false);
 
   const adquirentes = data?.adquirentes ?? [];
   const total = data?.meta.total ?? 0;
@@ -132,11 +136,15 @@ function AdquirentesPage() {
   }
 
   async function alternarStatus(adquirente: Adquirente) {
+    if (alternandoStatusRef.current) return;
+    alternandoStatusRef.current = true;
     try {
       await alterarStatus.mutateAsync({ id: adquirente.id, ativo: !adquirente.ativo });
       toast.success(adquirente.ativo ? "Adquirente inativada." : "Adquirente ativada.");
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível alterar o status."));
+    } finally {
+      alternandoStatusRef.current = false;
     }
   }
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -62,6 +62,10 @@ function CampanhasPage() {
   const [dialogAberto, setDialogAberto] = useState(false);
   const [emEdicao, setEmEdicao] = useState<Campanha | null>(null);
   const [paraExcluir, setParaExcluir] = useState<Campanha | null>(null);
+  // Guarda síncrona via ref: item de menu "Ativar/Inativar" via
+  // DropdownMenuItem.onSelect, sem guarda própria — duplo clique/seleção
+  // real disparava duas mutations aceitas pelo backend (Etapa 20.17).
+  const alternandoStatusRef = useRef(false);
 
   const listaProdutos = useMemo(() => produtos?.produtos ?? [], [produtos]);
 
@@ -151,11 +155,15 @@ function CampanhasPage() {
   }
 
   async function alternarStatus(campanha: Campanha) {
+    if (alternandoStatusRef.current) return;
+    alternandoStatusRef.current = true;
     try {
       await alterarStatus.mutateAsync({ id: campanha.id, ativo: !campanha.ativo });
       toast.success(campanha.ativo ? "Campanha inativada." : "Campanha ativada.");
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível alterar o status."));
+    } finally {
+      alternandoStatusRef.current = false;
     }
   }
 

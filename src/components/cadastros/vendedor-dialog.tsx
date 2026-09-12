@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -101,6 +101,10 @@ export function VendedorDialog({
     defaultValues: valoresIniciais,
   });
   const errors = form.formState.errors;
+  // Guarda síncrona via ref: `salvando` só reflete a submissão em andamento
+  // após o próximo render, tarde demais para barrar um duplo clique real no
+  // submit — comprovado na Etapa 20.17 (2 POSTs reais).
+  const enviandoRef = useRef(false);
 
   useEffect(() => {
     if (open) form.reset(valoresIniciais);
@@ -111,10 +115,14 @@ export function VendedorDialog({
       form.setError("senha", { message: "Senha é obrigatória para novos vendedores." });
       return;
     }
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     try {
       await onSubmit(valores);
     } catch (error) {
       aplicarErrosDeCampo(error, form, CAMPOS_MAPEAVEIS);
+    } finally {
+      enviandoRef.current = false;
     }
   }
 
