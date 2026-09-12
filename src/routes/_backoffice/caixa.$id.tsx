@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowDownCircle,
@@ -140,6 +140,14 @@ function CaixaDetalhePage() {
 
   const [movimentacao, setMovimentacao] = useState<"entrada" | "saida" | null>(null);
   const [fechamentoAberto, setFechamentoAberto] = useState(false);
+  // Guarda síncrona via ref: `entrada.isPending`/`saida.isPending` só refletem
+  // a mutação em andamento após o próximo render, o que não é rápido o
+  // suficiente para barrar um duplo clique real no botão "Confirmar" do
+  // diálogo (o segundo clique pode disparar antes do botão ser desabilitado).
+  // Um ref muda de valor imediatamente. Precisa ficar antes dos `return`
+  // condicionais abaixo (regra dos hooks: mesma ordem em todo render).
+  const registrandoRef = useRef(false);
+  const fechandoRef = useRef(false);
 
   if (isPending) {
     return (
@@ -161,12 +169,17 @@ function CaixaDetalhePage() {
   const diferenca = caixa.fechamento ? situacaoDiferenca(caixa.fechamento.diferenca) : null;
 
   function registrar(tipo: "entrada" | "saida", payload: EntradaCaixaPayload | SaidaCaixaPayload) {
+    if (registrandoRef.current) return;
+    registrandoRef.current = true;
     const callbacks = {
       onSuccess: () => {
         toast.success(tipo === "entrada" ? "Entrada registrada." : "Saída registrada.");
         setMovimentacao(null);
       },
       onError: (erro: unknown) => toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação.")),
+      onSettled: () => {
+        registrandoRef.current = false;
+      },
     };
     // `motivo` só existe em SaidaCaixaPayload — usado aqui como discriminante
     // para o TypeScript estreitar corretamente o tipo de `payload`.
@@ -480,7 +493,9 @@ function CaixaDetalhePage() {
         open={fechamentoAberto}
         onOpenChange={setFechamentoAberto}
         salvando={fechar.isPending}
-        onConfirmar={(payload) =>
+        onConfirmar={(payload) => {
+          if (fechandoRef.current) return;
+          fechandoRef.current = true;
           fechar.mutate(payload, {
             onSuccess: () => {
               toast.success(`${caixa.codigo} fechado.`);
@@ -488,8 +503,11 @@ function CaixaDetalhePage() {
             },
             onError: (erro) =>
               toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação.")),
-          })
-        }
+            onSettled: () => {
+              fechandoRef.current = false;
+            },
+          });
+        }}
       />
     </Page>
   );

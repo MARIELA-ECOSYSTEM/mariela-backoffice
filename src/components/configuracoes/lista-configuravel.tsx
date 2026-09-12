@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Plus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -28,14 +28,21 @@ export function ListaConfiguravel({
   const [remover, setRemover] = useState<string | null>(null);
   const adicionar = useAdicionarItemLista();
   const removerItem = useRemoverItemLista();
+  // Guarda síncrona via ref: `adicionar.isPending` só reflete a mutação em
+  // andamento após o próximo render, o que não é rápido o suficiente para
+  // barrar um duplo clique real (o segundo clique pode disparar antes do
+  // botão ser desabilitado). Um ref muda de valor imediatamente.
+  const adicionandoRef = useRef(false);
 
   async function onAdicionar() {
+    if (adicionandoRef.current) return;
     const limpo = valor.trim();
     if (!limpo) {
       setErro("Informe um valor.");
       return;
     }
     setErro(null);
+    adicionandoRef.current = true;
     try {
       await adicionar.mutateAsync({ lista, valor: limpo });
       setValor("");
@@ -43,6 +50,8 @@ export function ListaConfiguravel({
     } catch (error) {
       setErro(mensagemDeErro(error, "Não foi possível adicionar o item."));
       toast.error(mensagemDeErro(error, "Não foi possível adicionar o item."));
+    } finally {
+      adicionandoRef.current = false;
     }
   }
 

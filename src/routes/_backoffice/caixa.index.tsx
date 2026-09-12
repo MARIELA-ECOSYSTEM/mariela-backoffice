@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowDownCircle,
@@ -150,13 +150,23 @@ function CaixaPage() {
   const paginaAtual = Math.min(pagina, totalPaginas);
   const visiveis = filtrados.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
 
+  // Guarda síncrona via ref: `abrir.isPending` só reflete a mutação em
+  // andamento após o próximo render, o que não é rápido o suficiente para
+  // barrar um duplo clique real (o segundo clique pode disparar antes do
+  // botão ser desabilitado). Um ref muda de valor imediatamente.
+  const abrindoRef = useRef(false);
   function abrirCaixa(payload: Parameters<typeof abrir.mutate>[0]) {
+    if (abrindoRef.current) return;
+    abrindoRef.current = true;
     abrir.mutate(payload, {
       onSuccess: (caixa) => {
         toast.success(`${caixa.codigo} aberto com ${formatarMoeda(caixa.abertura.valorInicial)}.`);
         setAberturaAberta(false);
       },
       onError: (erro) => toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação.")),
+      onSettled: () => {
+        abrindoRef.current = false;
+      },
     });
   }
 
