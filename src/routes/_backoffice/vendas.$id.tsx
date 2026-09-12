@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -124,6 +124,23 @@ function VendaDetalhePage() {
   const receber = useReceberPagamento(id);
   const [cancelamentoAberto, setCancelamentoAberto] = useState(false);
   const [recebimentoAberto, setRecebimentoAberto] = useState(false);
+  // Guardas síncronas via ref — Etapa 20.20. `baixarParcela` NÃO recebeu
+  // guarda: o backend (vendas.service.ts `baixarParcela`) marca `parcela
+  // .pagoEm` dentro do mesmo `salvarComRetentativa` (retry com concorrência
+  // otimista do Mongoose, `optimisticConcurrency: true` no schema) e relê
+  // esse campo a cada tentativa — uma parcela só pode ser baixada uma única
+  // vez, com ou sem `idempotencyKey` e mesmo sob duas requisições
+  // concorrentes com chaves diferentes. Já `registrarRecebimento` e
+  // `confirmarCancelamento` (devolução parcial) NÃO têm um invariante
+  // equivalente para valores/quantidades PARCIAIS: se o usuário recebe/
+  // devolve menos que o saldo/quantidade total, o saldo remanescente após a
+  // 1ª chamada ainda é suficiente para a 2ª chamada (com sua própria
+  // idempotencyKey diferente) passar pelas mesmas validações e duplicar o
+  // efeito financeiro/de estoque — confirmado por leitura de
+  // `vendas.service.ts` (`receberPagamento`, `cancelar` caminho parcial),
+  // não por reprodução dinâmica (proibida sem fabricar dados financeiros).
+  const registrandoRecebimentoRef = useRef(false);
+  const cancelandoRef = useRef(false);
 
   async function baixarParcela(parcelaId: string, formaPagamento: string) {
     try {
@@ -138,16 +155,22 @@ function VendaDetalhePage() {
   }
 
   async function registrarRecebimento(payload: RegistrarRecebimentoPayload) {
+    if (registrandoRecebimentoRef.current) return;
+    registrandoRecebimentoRef.current = true;
     try {
       await receber.mutateAsync(payload);
       toast.success("Recebimento registrado.");
       setRecebimentoAberto(false);
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível registrar o recebimento."));
+    } finally {
+      registrandoRecebimentoRef.current = false;
     }
   }
 
   async function confirmarCancelamento(payload: CancelamentoPayload) {
+    if (cancelandoRef.current) return;
+    cancelandoRef.current = true;
     try {
       await cancelar.mutateAsync(payload);
       toast.success(
@@ -156,6 +179,8 @@ function VendaDetalhePage() {
       setCancelamentoAberto(false);
     } catch (err) {
       toast.error(mensagemDeErro(err, "Não foi possível concluir a operação."));
+    } finally {
+      cancelandoRef.current = false;
     }
   }
 
