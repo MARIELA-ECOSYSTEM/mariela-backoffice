@@ -23,7 +23,11 @@ import { FechamentoCaixaDialog } from "@/components/caixa/fechamento-dialog";
 import { useCaixa, useEntradaCaixa, useFecharCaixa, useSaidaCaixa } from "@/hooks/use-caixas";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarData, formatarDataHora, formatarMoeda } from "@/utils/format";
-import { LABEL_STATUS_CAIXA, type SaidaCaixaPayload } from "@/types/caixa";
+import {
+  LABEL_STATUS_CAIXA,
+  type EntradaCaixaPayload,
+  type SaidaCaixaPayload,
+} from "@/types/caixa";
 import { LABEL_DIFERENCA, VARIANTE_STATUS_CAIXA, situacaoDiferenca } from "@/utils/caixa";
 import { LABEL_STATUS_VENDA } from "@/types/venda";
 import { VARIANTE_STATUS_VENDA } from "@/utils/venda";
@@ -156,15 +160,21 @@ function CaixaDetalhePage() {
   const aberto = caixa.status === "aberto";
   const diferenca = caixa.fechamento ? situacaoDiferenca(caixa.fechamento.diferenca) : null;
 
-  function registrar(tipo: "entrada" | "saida", payload: SaidaCaixaPayload) {
-    const mutation = tipo === "entrada" ? entrada : saida;
-    mutation.mutate(payload, {
+  function registrar(tipo: "entrada" | "saida", payload: EntradaCaixaPayload | SaidaCaixaPayload) {
+    const callbacks = {
       onSuccess: () => {
         toast.success(tipo === "entrada" ? "Entrada registrada." : "Saída registrada.");
         setMovimentacao(null);
       },
-      onError: (erro) => toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação.")),
-    });
+      onError: (erro: unknown) => toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação.")),
+    };
+    // `motivo` só existe em SaidaCaixaPayload — usado aqui como discriminante
+    // para o TypeScript estreitar corretamente o tipo de `payload`.
+    if ("motivo" in payload) {
+      saida.mutate(payload, callbacks);
+    } else {
+      entrada.mutate(payload, callbacks);
+    }
   }
 
   return (

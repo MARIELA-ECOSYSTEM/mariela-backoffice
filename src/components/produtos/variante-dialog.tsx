@@ -70,8 +70,8 @@ export function VarianteDialog({
     const payload = {
       // O código é gerado pelo backend a partir do código do produto + cor.
       cor: values.cor,
-      foto: values.foto ?? null,
-      video: values.video ?? null,
+      foto: values.foto || null,
+      video: values.video || null,
     };
     try {
       if (variante) await atualizar.mutateAsync({ varianteId: variante.id, payload });

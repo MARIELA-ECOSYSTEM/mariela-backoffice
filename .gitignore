@@ -20,6 +20,10 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Evidências/saídas geradas pelos scripts E2E (e2e/*.mjs) — não versionar
+e2e/.evidencias/
+e2e/.resultado-parcial.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

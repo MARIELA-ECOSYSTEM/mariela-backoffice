@@ -21,7 +21,12 @@ import {
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { formatarMoeda } from "@/utils/format";
 import { gerarIdempotencyKey } from "@/utils/idempotencia";
-import { MOTIVOS_ENTRADA, MOTIVOS_SAIDA, type SaidaCaixaPayload } from "@/types/caixa";
+import {
+  MOTIVOS_ENTRADA,
+  MOTIVOS_SAIDA,
+  type EntradaCaixaPayload,
+  type SaidaCaixaPayload,
+} from "@/types/caixa";
 
 /**
  * Entrada/saída manual. A saída exige motivo, descrição e forma de pagamento
@@ -44,7 +49,7 @@ export function MovimentacaoCaixaDialog({
   onOpenChange: (aberto: boolean) => void;
   saldoDisponivel: number;
   salvando: boolean;
-  onConfirmar: (payload: SaidaCaixaPayload) => void;
+  onConfirmar: (payload: EntradaCaixaPayload | SaidaCaixaPayload) => void;
 }) {
   const { data: configuracoes } = useConfiguracoes();
   const formas = configuracoes?.formasPagamento ?? ["Dinheiro"];
@@ -72,14 +77,16 @@ export function MovimentacaoCaixaDialog({
   const invalido = descricao.trim().length < 3 || valorInvalido || !formaPagamento;
 
   function confirmar() {
-    onConfirmar({
+    // `motivo` só existe no contrato real de saída (SaidaCaixaDto) — o backend
+    // rejeita a propriedade em uma entrada (EntradaCaixaDto não a declara).
+    const base: EntradaCaixaPayload = {
       descricao: descricao.trim(),
       valor: numero,
       formaPagamento,
-      motivo: motivo,
       observacao: observacao.trim(),
       idempotencyKey: gerarIdempotencyKey(),
-    });
+    };
+    onConfirmar(tipo === "saida" ? { ...base, motivo } : base);
   }
 
   return (
