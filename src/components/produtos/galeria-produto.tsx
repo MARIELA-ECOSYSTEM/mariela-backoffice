@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Image as ImageIcon, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -19,13 +19,22 @@ export function GaleriaProduto({ produto }: { produto: Produto }) {
   const [indice, setIndice] = useState(0);
   const definirPrincipal = useDefinirFotoPrincipal(produto.id);
   const atual = fotos[Math.min(indice, Math.max(fotos.length - 1, 0))];
+  // Guarda síncrona via ref: `disabled` só reflete a mutação em andamento
+  // após o próximo render, tarde demais para barrar um duplo clique real —
+  // comprovado na Etapa 20.18 (2 requisições reais aceitas). Precisa ficar
+  // antes do `return` condicional abaixo (regra dos hooks).
+  const marcandoRef = useRef(false);
 
   async function marcarPrincipal(varianteId: string) {
+    if (marcandoRef.current) return;
+    marcandoRef.current = true;
     try {
       await definirPrincipal.mutateAsync({ varianteId });
       toast.success("Imagem principal atualizada.");
     } catch (error) {
       toast.error(mensagemDeErro(error, "Não foi possível definir a imagem principal."));
+    } finally {
+      marcandoRef.current = false;
     }
   }
 

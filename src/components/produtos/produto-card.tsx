@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
@@ -155,8 +155,17 @@ export function ProdutoCard({
   const preco = precoFinal(produto);
   const lucro = lucroFinal(produto);
   const margem = margemVigente(produto);
+  // Guardas síncronas via ref: os itens de menu disparam a mutation direto
+  // via DropdownMenuItem.onSelect, sem guarda própria — duplo clique/seleção
+  // real disparava duas mutations aceitas pelo backend (Etapa 20.18). Esta é
+  // uma instância distinta da corrigida na Etapa 20.16 (aquela ficava na
+  // página de detalhe do produto; este card é usado na listagem).
+  const alternandoNovidadeRef = useRef(false);
+  const desativandoPromocaoRef = useRef(false);
 
   async function alternarNovidade() {
+    if (alternandoNovidadeRef.current) return;
+    alternandoNovidadeRef.current = true;
     try {
       await definirNovidade.mutateAsync({ ehNovidade: !produto.ehNovidade });
       toast.success(
@@ -164,15 +173,21 @@ export function ProdutoCard({
       );
     } catch (error) {
       toast.error(mensagemDeErro(error, "Não foi possível atualizar a novidade."));
+    } finally {
+      alternandoNovidadeRef.current = false;
     }
   }
 
   async function desativar() {
+    if (desativandoPromocaoRef.current) return;
+    desativandoPromocaoRef.current = true;
     try {
       await desativarPromocao.mutateAsync({ ehPromocao: false });
       toast.success("Promoção desativada com sucesso.");
     } catch (error) {
       toast.error(mensagemDeErro(error, "Não foi possível desativar a promoção."));
+    } finally {
+      desativandoPromocaoRef.current = false;
     }
   }
 
