@@ -395,6 +395,7 @@ function VendedoresPage() {
                       id: vendedor.id,
                       nome: vendedor.nome,
                       telefone: vendedor.telefone,
+                      entidade: "VENDEDOR",
                       tipoMensagem: "vendedor",
                       papel: "Vendedor(a)",
                     })

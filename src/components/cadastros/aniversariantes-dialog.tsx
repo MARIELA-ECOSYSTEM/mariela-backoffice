@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Cake, CalendarDays, Clock, Loader2, MessageCircle, Send, Users } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -38,10 +38,8 @@ const ICONES: Record<PeriodoAniversario, typeof Cake> = {
 
 /**
  * Dialog de aniversariantes: abas por período com contagem dinâmica, seleção
- * múltipla de clientes e mensagem personalizável enviada em lote.
- *
- * IMPORTANTE: nenhuma mensagem real é enviada — o envio é simulado pelo mock,
- * mantendo o contrato POST /integracoes/whatsapp/mensagens.
+ * múltipla de clientes e mensagem personalizável enviada em lote via
+ * POST /integracoes/whatsapp/mensagens (um envio por cliente selecionado).
  */
 export function AniversariantesDialog({
   open,
@@ -56,6 +54,9 @@ export function AniversariantesDialog({
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [mensagem, setMensagem] = useState(MENSAGEM_ANIVERSARIO_LOTE);
   const enviar = useEnviarMensagemWhatsapp();
+  // Guarda síncrona via ref: impede um duplo clique real em "Enviar" disparar
+  // o laço de envios em lote duas vezes (mesmo padrão da Etapa 20).
+  const enviandoRef = useRef(false);
 
   const porPeriodo = useMemo(() => {
     const mapa = {} as Record<PeriodoAniversario, Cliente[]>;
@@ -94,23 +95,22 @@ export function AniversariantesDialog({
 
   async function enviarSelecionados() {
     const alvos = elegiveis.filter((cliente) => selecionados.includes(cliente.id));
-    if (alvos.length === 0) return;
+    if (alvos.length === 0 || enviandoRef.current) return;
+    enviandoRef.current = true;
     try {
       for (const cliente of alvos) {
         await enviar.mutateAsync({
-          clienteId: cliente.id,
-          telefone: cliente.telefone,
+          tipo: "CLIENTE",
+          id: cliente.id,
           mensagem: montarMensagemLote(mensagem, cliente.nome),
         });
       }
       onOpenChange(false);
-      toast.success(
-        alvos.length === 1
-          ? "Mensagem preparada para envio."
-          : `${alvos.length} mensagens preparadas para envio.`,
-      );
+      toast.success(alvos.length === 1 ? "Mensagem enviada." : `${alvos.length} mensagens enviadas.`);
     } catch (err) {
-      toast.error(mensagemDeErro(err, "Não foi possível preparar as mensagens."));
+      toast.error(mensagemDeErro(err, "Não foi possível enviar as mensagens."));
+    } finally {
+      enviandoRef.current = false;
     }
   }
 

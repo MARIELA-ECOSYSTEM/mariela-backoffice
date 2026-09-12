@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEnviarMensagemWhatsapp } from "@/hooks/use-whatsapp";
 import { mensagemDeErro } from "@/services/api/client";
+import type { TipoDestinatarioWhatsapp } from "@/services/api/whatsapp.api";
 import {
   TEMPLATES_WHATSAPP,
   montarMensagem,
@@ -22,12 +23,15 @@ import { formatarTelefone } from "@/utils/cliente";
 
 /**
  * Destinatário genérico: serve para cliente, fornecedor e vendedor.
- * O contrato da API não muda — `id` é enviado no campo `clienteId`.
+ * `entidade` é o discriminador exigido pelo backend real (Etapa Pré-22) para
+ * resolver o telefone a partir do cadastro correto — nunca confundir com
+ * `tipoMensagem`, que só escolhe o TEXTO do template.
  */
 export interface AlvoMensagemWhatsapp {
   id: string;
   nome: string;
   telefone: string;
+  entidade: TipoDestinatarioWhatsapp;
   tipoMensagem: TipoMensagemWhatsapp;
   /** Rótulo do tipo de destinatário exibido no resumo (ex.: "Fornecedor"). */
   papel?: string;
@@ -49,6 +53,10 @@ export function DialogMensagemWhatsapp({
 }) {
   const enviar = useEnviarMensagemWhatsapp();
   const [mensagem, setMensagem] = useState("");
+  // Guarda síncrona via ref: `disabled={enviar.isPending}` só reflete a
+  // mutação em andamento a partir do próximo render, tarde demais para barrar
+  // um duplo clique real (mesmo padrão validado na Etapa 20).
+  const enviandoRef = useRef(false);
 
   const telefone = alvo ? formatarTelefone(alvo.telefone) : "";
   const template = alvo ? TEMPLATES_WHATSAPP[alvo.tipoMensagem] : null;
@@ -58,17 +66,20 @@ export function DialogMensagemWhatsapp({
   }, [alvo]);
 
   async function confirmar() {
-    if (!alvo) return;
+    if (!alvo || enviandoRef.current) return;
+    enviandoRef.current = true;
     try {
       await enviar.mutateAsync({
-        clienteId: alvo.id,
-        telefone: alvo.telefone,
+        tipo: alvo.entidade,
+        id: alvo.id,
         mensagem,
       });
       onOpenChange(false);
-      toast.success("Mensagem preparada para envio.");
+      toast.success("Mensagem enviada.");
     } catch (err) {
-      toast.error(mensagemDeErro(err, "Não foi possível preparar a mensagem."));
+      toast.error(mensagemDeErro(err, "Não foi possível enviar a mensagem."));
+    } finally {
+      enviandoRef.current = false;
     }
   }
 
@@ -80,10 +91,7 @@ export function DialogMensagemWhatsapp({
             <MessageCircle aria-hidden className="size-6 text-success" />
             {template?.titulo ?? "Enviar mensagem"}
           </DialogTitle>
-          <DialogDescription>
-            {template?.descricao} A integração com o WhatsApp ainda não está ativa — o envio é
-            simulado.
-          </DialogDescription>
+          <DialogDescription>{template?.descricao}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

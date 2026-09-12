@@ -327,6 +327,7 @@ function ClientesPage() {
                       id: cliente.id,
                       nome: cliente.nome,
                       telefone: cliente.telefone,
+                      entidade: "CLIENTE",
                       tipoMensagem: "geral",
                       papel: "Cliente",
                     })
@@ -417,6 +418,7 @@ function ClientesPage() {
             id: cliente.id,
             nome: cliente.nome,
             telefone: cliente.telefone,
+            entidade: "CLIENTE",
             tipoMensagem: "geral",
             papel: "Cliente",
           })

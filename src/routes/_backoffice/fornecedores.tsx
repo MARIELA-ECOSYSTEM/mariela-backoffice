@@ -361,6 +361,7 @@ function FornecedoresPage() {
                       id: fornecedor.id,
                       nome: fornecedor.nome,
                       telefone: fornecedor.telefone,
+                      entidade: "FORNECEDOR",
                       tipoMensagem: "fornecedor",
                       papel: "Fornecedor",
                     })

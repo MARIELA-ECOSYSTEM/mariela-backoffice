@@ -7,8 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CardsSkeleton, DataToolbar, NotaDemonstracao } from "@/components/common/data-toolbar";
 import { EmptyState, ErrorState } from "@/components/common/states";
+import { WhatsappManagementDialog } from "@/components/integracoes/whatsapp-management-dialog";
 import { useIntegracoes } from "@/hooks/use-integracoes";
 import type { StatusIntegracao } from "@/types/integracao";
+
+/** Única integração com uma tela de gerenciamento real nesta etapa — as demais permanecem catálogo/planejadas. */
+const ID_INTEGRACAO_WHATSAPP = "int_whatsapp";
 
 export const Route = createFileRoute("/_backoffice/integracoes")({
   ssr: false,
@@ -38,6 +42,7 @@ const STATUS: Record<
 function IntegracoesPage() {
   const { data: integracoes, isPending, isError, error, refetch } = useIntegracoes();
   const [busca, setBusca] = useState("");
+  const [whatsappAberto, setWhatsappAberto] = useState(false);
 
   const filtradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -57,8 +62,8 @@ function IntegracoesPage() {
       descricao="Catálogo de integrações previstas para o ecossistema MARIELA."
     >
       <NotaDemonstracao>
-        Nenhuma integração é executada nesta etapa. A tela apresenta o catálogo servido por{" "}
-        <code>/integracoes</code> e será habilitada quando a API definitiva existir.
+        WhatsApp já é uma integração real (Evolution API / Baileys) — use "Gerenciar" no card abaixo.
+        As demais integrações seguem apenas como catálogo, servido por <code>/integracoes</code>.
       </NotaDemonstracao>
 
       <DataToolbar busca={busca} onBuscaChange={setBusca} placeholder="Buscar integração…" />
@@ -96,9 +101,15 @@ function IntegracoesPage() {
                     {integracao.observacao}
                   </p>
                   <div className="mt-auto">
-                    <Button variant="outline" className="w-full" disabled>
-                      {integracao.status === "conectada" ? "Gerenciar" : "Conectar"}
-                    </Button>
+                    {integracao.id === ID_INTEGRACAO_WHATSAPP ? (
+                      <Button variant="outline" className="w-full" onClick={() => setWhatsappAberto(true)}>
+                        Gerenciar
+                      </Button>
+                    ) : (
+                      <Button variant="outline" className="w-full" disabled>
+                        {integracao.status === "conectada" ? "Gerenciar" : "Conectar"}
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -106,6 +117,8 @@ function IntegracoesPage() {
           })}
         </div>
       )}
+
+      <WhatsappManagementDialog open={whatsappAberto} onOpenChange={setWhatsappAberto} />
     </Page>
   );
 }
