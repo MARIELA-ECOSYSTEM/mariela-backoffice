@@ -24,6 +24,34 @@ export const USE_MOCK_API = MOCK_ENV === "true" || (MOCK_ENV !== "false" && API_
 export const REQUEST_TIMEOUT_MS = 15_000;
 export { TOKEN_STORAGE_KEY };
 
+/**
+ * Falha cedo e de forma explícita em vez de deixar uma configuração inválida
+ * aparecer depois disfarçada de erro de rede — mesmo racional do
+ * `validateEnv` do backend (`mariela-backend/src/config/env.validation.ts`).
+ * Roda uma única vez, na carga deste módulo (antes de qualquer requisição).
+ *
+ * Etapa 22 — dois cenários proibidos:
+ *   1. Build de produção (`import.meta.env.PROD`) usando Mock API: um
+ *      `VITE_USE_MOCK_API=true` esquecido nunca pode publicar dados fictícios
+ *      em produção.
+ *   2. API real selecionada (`VITE_USE_MOCK_API=false`) sem `VITE_API_URL`:
+ *      sem isto, `httpRequest` monta `fetch("" + path, ...)` e todo erro
+ *      vira "falha de conexão" genérica, escondendo a causa real.
+ */
+function validarConfiguracaoDeAmbiente(): void {
+  if (import.meta.env.PROD && USE_MOCK_API) {
+    throw new Error(
+      "Configuração de ambiente inválida: Mock API (VITE_USE_MOCK_API=true) não pode ser utilizada em produção. Defina VITE_USE_MOCK_API=false e VITE_API_URL antes de publicar.",
+    );
+  }
+  if (!USE_MOCK_API && API_URL === "") {
+    throw new Error(
+      "Configuração de ambiente inválida: VITE_USE_MOCK_API=false exige VITE_API_URL definida (nunca cai em Mock API silenciosamente).",
+    );
+  }
+}
+validarConfiguracaoDeAmbiente();
+
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface RequestOptions {
