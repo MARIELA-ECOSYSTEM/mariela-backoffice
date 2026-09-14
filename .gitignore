@@ -20,6 +20,14 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Etapa 22.2 — arquivos de ambiente locais nunca versionados (a credencial
+# exposta em VITE_MOCK_LOGIN/VITE_MOCK_SENHA no histórico do commit 2b74012
+# veio exatamente de .env estar rastreado). .env.example continua versionado
+# de propósito — é só placeholder, nunca deve conter segredo real.
+.env
+.env.*
+!.env.example
+
 # Evidências/saídas geradas pelos scripts E2E (e2e/*.mjs) — não versionar
 e2e/.evidencias/
 e2e/.resultado-parcial.json
