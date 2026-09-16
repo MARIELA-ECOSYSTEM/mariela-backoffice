@@ -1837,8 +1837,10 @@ Para rodar contra a **API real** (NestJS), crie um `.env.local` (ignorado pelo G
 
 ```sh
 VITE_USE_MOCK_API=false
-VITE_API_URL=http://localhost:3000/api/v1   # ou a URL da API real
+VITE_API_URL=http://localhost:3000/api/v1   # backend NestJS local
 ```
+
+Backend real publicado (produção): `https://mariela-backend.onrender.com/api/v1`.
 
 `.env.local` tem prioridade sobre `.env` e nunca deve substituir o `.env` versionado, que deve continuar em modo mock por padrão.
 
