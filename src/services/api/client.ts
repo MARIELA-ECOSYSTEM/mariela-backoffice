@@ -15,8 +15,8 @@ import { handleUnauthorized } from "@/services/auth/session";
  * — nunca embutir host fixo (localhost, IP da loja) no código.
  *   .env  →  VITE_API_URL=https://api.mariela.com/api/v1
  */
-const API_URL_ENV = (import.meta.env["VITE_API_URL"] as string | undefined)?.trim();
-const MOCK_ENV = (import.meta.env["VITE_USE_MOCK_API"] as string | undefined)?.trim();
+const API_URL_ENV = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+const MOCK_ENV = (import.meta.env.VITE_USE_MOCK_API as string | undefined)?.trim();
 
 export const API_URL = (API_URL_ENV ?? "").replace(/\/+$/, "");
 /** Mock só é usado quando pedido explicitamente ou quando não há API configurada. */

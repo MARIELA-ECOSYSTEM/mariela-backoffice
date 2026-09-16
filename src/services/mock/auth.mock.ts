@@ -9,8 +9,8 @@ import type { LoginRequest, LoginResponse, Usuario } from "@/types/auth";
  * O fallback mantém o acesso local de desenvolvimento.
  */
 const CREDENCIAIS = {
-  usuario: ((import.meta.env["VITE_MOCK_LOGIN"] as string | undefined) ?? "admin").trim(),
-  senha: ((import.meta.env["VITE_MOCK_SENHA"] as string | undefined) ?? "123456").trim(),
+  usuario: ((import.meta.env.VITE_MOCK_LOGIN as string | undefined) ?? "admin").trim(),
+  senha: ((import.meta.env.VITE_MOCK_SENHA as string | undefined) ?? "123456").trim(),
 };
 
 const USUARIO_ADMIN: Usuario = {
