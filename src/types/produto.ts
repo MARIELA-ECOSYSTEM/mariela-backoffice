@@ -46,7 +46,6 @@ export type OrdenarProdutoPor =
   "nome" | "codProduto" | "precoVenda" | "quantidadeTotal" | "criadoEm";
 export type Ordem = "asc" | "desc";
 export type FiltroDisponibilidade = "todos" | "disponivel" | "sem-estoque";
-export type FiltroBooleano = "todos" | "sim" | "nao";
 
 /**
  * Etapa 18.32 — os filtros singulares (`categoria`, `colecaoId`, `campanhaId`,
@@ -55,13 +54,20 @@ export type FiltroBooleano = "todos" | "sim" | "nao";
  * CSV/plural — `categorias`, `colecoes`, `campanhas`, `fornecedores`,
  * `estoque` —, já coberta por `facetas`/`selecaoParaQuery`). Confirmado que
  * nenhuma tela chegou a popular esses campos (dead code desde sempre).
+ *
+ * Etapa 5.1 (validação pré-corte) — pelo mesmo motivo, `promocao`/`novidade`
+ * de nível superior (antigo tipo `FiltroBooleano`, valores `sim`/`nao`) foram
+ * removidos daqui: nenhuma tela populava esses campos (dead code), e o
+ * backend real só reconhece esses dois filtros dentro do esquema de facetas
+ * (`facetas.promocao`/`facetas.novidade`, valores `promocao`/`sem_promocao`
+ * e `novidade`/`sem_novidade` — ver `FACETAS_PRODUTO` em
+ * `src/lib/filtros/produtos-facetas.ts`, já correto, já em uso pela tela real
+ * desde sempre).
  */
 export interface ProdutoFiltros {
   /** Seleção multivalorada das facetas (`{ categorias: ["Vestidos"] }`). */
   facetas?: SelecaoFacetas | undefined;
   busca?: string | undefined;
-  promocao?: FiltroBooleano | undefined;
-  novidade?: FiltroBooleano | undefined;
   ordenarPor?: OrdenarProdutoPor | undefined;
   ordem?: Ordem | undefined;
 }
