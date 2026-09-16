@@ -208,8 +208,11 @@ export interface VendasEstatisticas {
 
 export interface BaixaParcelaPayload {
   formaPagamento: string;
-  /** Gerada no cliente a cada tentativa, para o backend deduplicar retries. */
-  idempotencyKey?: string;
+  /**
+   * Gerada no cliente a cada tentativa, para o backend deduplicar retries.
+   * Obrigatória no backend real (`BaixarParcelaDto.idempotencyKey`, `@IsNotEmpty()`).
+   */
+  idempotencyKey: string;
 }
 
 /**
@@ -227,8 +230,11 @@ export interface RegistrarRecebimentoPayload {
   modalidade?: ModalidadePagamento;
   /** Obrigatório no backend quando modalidade = "debito" | "credito". */
   adquirenteId?: string;
-  /** Gerada no cliente a cada tentativa, para o backend deduplicar retries. */
-  idempotencyKey?: string;
+  /**
+   * Gerada no cliente a cada tentativa, para o backend deduplicar retries.
+   * Obrigatória no backend real (`RegistrarRecebimentoDto.idempotencyKey`, `@IsNotEmpty()`).
+   */
+  idempotencyKey: string;
 }
 
 export interface DevolucaoItemPayload {

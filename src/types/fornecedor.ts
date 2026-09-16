@@ -50,7 +50,8 @@ export interface FornecedorPayload {
   nome: string;
   foto?: string | null | undefined;
   contato: string;
-  telefone: string;
+  /** Opcional no backend real (`CriarFornecedorDto.telefone` é `@IsOptional()`) — Fornecedor é o único cadastro em que o telefone não é obrigatório. */
+  telefone?: string | undefined;
   email?: string | undefined;
   cnpj?: string | undefined;
   instagram?: string | undefined;

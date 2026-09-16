@@ -45,7 +45,17 @@ export interface ProdutoPayload {
 export type OrdenarProdutoPor =
   "nome" | "codProduto" | "precoVenda" | "quantidadeTotal" | "criadoEm";
 export type Ordem = "asc" | "desc";
-export type FiltroDisponibilidade = "todos" | "disponivel" | "sem-estoque";
+/**
+ * Fase 10.2 (Achado 10.2) — `"todos"` foi removido: o backend real
+ * (`ListarEstoqueQueryDto.disponibilidade`) só aceita `disponivel`/`sem-estoque`
+ * (`400` para qualquer outro valor), e nenhuma tela chegou a enviar esse
+ * parâmetro ao servidor (o filtro de Estoque é aplicado 100% no cliente sobre
+ * a lista completa — ver `estoque/index.tsx`). `"todos"` nunca foi atribuído
+ * em lugar nenhum (dead code); removê-lo não muda nenhum comportamento.
+ * Migrar este filtro para o servidor fica para uma fase dedicada de
+ * paginação/filtros (Achado 10.1).
+ */
+export type FiltroDisponibilidade = "disponivel" | "sem-estoque";
 
 /**
  * Etapa 18.32 — os filtros singulares (`categoria`, `colecaoId`, `campanhaId`,
