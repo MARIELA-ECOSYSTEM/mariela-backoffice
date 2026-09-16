@@ -120,7 +120,7 @@ export function seedCaixas(
   const diasSet = new Set(vendas.map((venda) => dia(venda.dataVenda)));
   detalhes.forEach((detalhe) => {
     detalhe.pagamentos.forEach((pagamento) => diasSet.add(dia(pagamento.dataPagamento)));
-    if (detalhe.cancelamento) diasSet.add(dia(detalhe.cancelamento.dataHora));
+    detalhe.cancelamentos.forEach((cancelamento) => diasSet.add(dia(cancelamento.dataHora)));
   });
   const dias = Array.from(diasSet).sort();
   const caixas: Caixa[] = dias.map((diaIso, indice) => {
@@ -208,8 +208,9 @@ export function seedCaixas(
     });
 
     // Devolução/cancelamento: saída limitada ao valor efetivamente recebido.
-    if (detalhe.cancelamento && detalhe.valorPago > 0) {
-      const cancelamento = detalhe.cancelamento;
+    // Seed só gera 0 ou 1 evento por venda — `[0]` é seguro aqui.
+    const cancelamento = detalhe.cancelamentos[0];
+    if (cancelamento && detalhe.valorPago > 0) {
       const caixa = caixaDaData(cancelamento.dataHora);
       const valor = arredondar(Math.min(cancelamento.valorDevolvido, detalhe.valorPago));
       if (valor > 0) {

@@ -203,6 +203,7 @@ export function detalharVenda(venda: VendaResumo, catalogo: Produto[]): VendaDet
   const cancelamento =
     venda.status === "cancelada"
       ? {
+          id: `${venda.id}_cnc_0`,
           tipo: "integral" as const,
           motivo: "Cliente desistiu da compra.",
           dataHora: somarDias(venda.dataVenda, 1),
@@ -258,7 +259,7 @@ export function detalharVenda(venda: VendaResumo, catalogo: Produto[]): VendaDet
     pagamentos,
     parcelas,
     historico: historico.sort((a, b) => a.dataHora.localeCompare(b.dataHora)),
-    cancelamento,
+    cancelamentos: cancelamento ? [cancelamento] : [],
   };
 }
 

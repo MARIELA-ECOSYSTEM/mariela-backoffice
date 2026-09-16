@@ -173,6 +173,7 @@ export interface ItemDevolvido {
 }
 
 export interface CancelamentoVenda {
+  id: string;
   tipo: "integral" | "parcial";
   motivo: string;
   dataHora: string;
@@ -189,8 +190,8 @@ export interface VendaDetalhe extends VendaResumo {
   pagamentos: PagamentoVenda[];
   parcelas: ParcelaVenda[];
   historico: EventoVenda[];
-  /** Última operação de cancelamento/devolução, quando houver. */
-  cancelamento: CancelamentoVenda | null;
+  /** Histórico de cancelamentos/devoluções (append-only; pode haver mais de um parcial). */
+  cancelamentos: CancelamentoVenda[];
 }
 
 export interface VendasEstatisticas {

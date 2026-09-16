@@ -17,7 +17,7 @@ import { GerenciarVariantes } from "@/components/produtos/gerenciar-variantes";
 import { useDefinirPromocao, useExcluirProduto, useProduto } from "@/hooks/use-produtos";
 import { useCampanhas, useColecoes, useFornecedores } from "@/hooks/use-cadastros";
 import { formatarData, formatarMoeda, formatarPercentual, pluralizar } from "@/utils/format";
-import { lucroFinal, margemVigente, precoFinal } from "@/utils/produto";
+import { lucroFinal, precoFinal } from "@/utils/produto";
 import { mensagemDeErro } from "@/services/api/client";
 import type { Produto } from "@/types/produto";
 
@@ -208,7 +208,8 @@ function ProdutoDetalhePage() {
   const fornecedor = fornecedores?.find((item) => item.id === produto.fornecedorId)?.nome ?? "—";
   const preco = precoFinal(produto);
   const lucro = lucroFinal(produto);
-  const margem = margemVigente(produto);
+  // Consome o valor já calculado pela API em vez de duplicar a regra de negócio.
+  const margem = produto.margemLucro;
 
   return (
     <Page

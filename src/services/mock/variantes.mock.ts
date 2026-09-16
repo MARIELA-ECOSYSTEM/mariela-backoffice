@@ -74,8 +74,9 @@ export function registerVariantesMocks(): void {
     const variante = encontrarVariante(produto, params["varianteId"]!);
     const payload = (body ?? {}) as CriarVarianteRequest;
     validarVariante(produto, payload, variante.id);
+    // codVariante é imutável após a criação (decisão de negócio já aprovada no
+    // backend): editar a cor NÃO recalcula o código, só o registro de exibição.
     variante.cor = payload.cor.trim();
-    variante.codVariante = formatarCodigoVariante(produto.codProduto, variante.cor);
     variante.foto = payload.foto?.trim() || null;
     variante.video = payload.video?.trim() || null;
     recalcularProduto(produto);

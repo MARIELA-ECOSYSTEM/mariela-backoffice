@@ -21,7 +21,7 @@ import {
 } from "@/components/common/form-layout";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
-import { formatarTelefone } from "@/utils/cliente";
+import { formatarTelefone, telefoneValido } from "@/utils/cliente";
 
 /**
  * Campos cujo nome no backend (`ApiFieldError.field`) corresponde exatamente
@@ -41,7 +41,12 @@ const vendedorSchema = z
   .object({
     nome: z.string().trim().min(1, "Nome é obrigatório.").max(120),
     foto: z.string().trim().max(400),
-    telefone: z.string().trim().max(20),
+    telefone: z
+      .string()
+      .trim()
+      .min(1, "Telefone é obrigatório.")
+      .max(20)
+      .refine(telefoneValido, "Informe DDD + número, ex.: (83) 99999-9999."),
     dataNascimento: z.string().trim(),
     observacao: z.string().trim().max(400),
     senha: z.string(),

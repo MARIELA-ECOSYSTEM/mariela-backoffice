@@ -28,7 +28,7 @@ import {
 import { useDefinirNovidade, useDefinirPromocao } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarMoeda, formatarPercentual } from "@/utils/format";
-import { fotosDoProduto, lucroFinal, margemVigente, precoFinal } from "@/utils/produto";
+import { fotosDoProduto, lucroFinal, precoFinal } from "@/utils/produto";
 import type { Produto } from "@/types/produto";
 
 export function ProdutoCardSkeleton() {
@@ -154,7 +154,8 @@ export function ProdutoCard({
   const semEstoque = produto.quantidadeTotal === 0;
   const preco = precoFinal(produto);
   const lucro = lucroFinal(produto);
-  const margem = margemVigente(produto);
+  // Consome o valor já calculado pela API em vez de duplicar a regra de negócio.
+  const margem = produto.margemLucro;
   // Guardas síncronas via ref: os itens de menu disparam a mutation direto
   // via DropdownMenuItem.onSelect, sem guarda própria — duplo clique/seleção
   // real disparava duas mutations aceitas pelo backend (Etapa 20.18). Esta é

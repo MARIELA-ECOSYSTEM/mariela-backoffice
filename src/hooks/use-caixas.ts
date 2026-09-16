@@ -61,6 +61,20 @@ export function useCaixa(id: string) {
   });
 }
 
+/**
+ * `CaixaDetalhe.movimentacoes` traz só as `MOVIMENTOS_RECENTES_NO_DETALHE`
+ * mais recentes (backend). O histórico completo vem de `GET
+ * /caixas/:id/movimentacoes` sem `page`/`limit` — contrato legado dedicado
+ * a esta tela (ver comentário em `caixas.controller.ts#movimentacoes`).
+ */
+export function useMovimentacoesCaixa(id: string) {
+  return useQuery({
+    queryKey: [...caixasKeys.detalhe(id), "movimentacoes"] as const,
+    queryFn: () => caixasApi.movimentacoes(id),
+    enabled: Boolean(id),
+  });
+}
+
 export function useAbrirCaixa() {
   const invalidar = useInvalidar();
   return useMutation({

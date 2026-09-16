@@ -484,23 +484,21 @@ function VendaDetalhePage() {
                 </CardContent>
               </Card>
 
-              {venda.cancelamento ? (
-                <Card className="border-destructive/25">
+              {venda.cancelamentos.map((cancelamento) => (
+                <Card key={cancelamento.id} className="border-destructive/25">
                   <CardHeader>
                     <CardTitle className="font-display text-2xl">
-                      {venda.cancelamento.tipo === "integral"
-                        ? "Cancelamento"
-                        : "Devolução parcial"}
+                      {cancelamento.tipo === "integral" ? "Cancelamento" : "Devolução parcial"}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm">
-                    <p className="text-muted-foreground">{venda.cancelamento.motivo}</p>
+                    <p className="text-muted-foreground">{cancelamento.motivo}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatarDataHora(venda.cancelamento.dataHora)} · {venda.cancelamento.autor} ·
-                      devolvido {formatarMoeda(venda.cancelamento.valorDevolvido)}
+                      {formatarDataHora(cancelamento.dataHora)} · {cancelamento.autor} ·
+                      devolvido {formatarMoeda(cancelamento.valorDevolvido)}
                     </p>
                     <ul className="space-y-1">
-                      {venda.cancelamento.itens.map((item) => (
+                      {cancelamento.itens.map((item) => (
                         <li key={item.itemId} className="flex justify-between gap-3 text-xs">
                           <span className="truncate">
                             {item.quantidade}× {item.nome}
@@ -511,7 +509,7 @@ function VendaDetalhePage() {
                     </ul>
                   </CardContent>
                 </Card>
-              ) : null}
+              ))}
 
               <Card>
                 <CardHeader>

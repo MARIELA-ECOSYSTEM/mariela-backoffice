@@ -85,7 +85,13 @@ export function VarianteDialog({
   }
 
   const corAtual = form.watch("cor");
-  const codigoPrevisto = corAtual ? formatarCodigoVariante(codProduto, corAtual) : "";
+  // codVariante é imutável após a criação (decisão de negócio do backend): em
+  // edição, exibe o código já gravado — nunca recalcula a partir da cor digitada.
+  const codigoPrevisto = variante
+    ? variante.codVariante
+    : corAtual
+      ? formatarCodigoVariante(codProduto, corAtual)
+      : "";
   const enviando = criar.isPending || atualizar.isPending;
 
   return (
@@ -112,7 +118,9 @@ export function VarianteDialog({
               value={codigoPrevisto || CODIGO_AUTOMATICO}
             />
             <p id="codVariante-hint" className="text-xs text-muted-foreground">
-              Gerado automaticamente pelo sistema a partir do código do produto e da cor.
+              {editando
+                ? "Código definitivo: não muda ao editar a cor."
+                : "Gerado automaticamente pelo sistema a partir do código do produto e da cor."}
             </p>
           </div>
 

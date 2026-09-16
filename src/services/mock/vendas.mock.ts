@@ -22,6 +22,7 @@ import {
   type ItemDevolvido,
   type ModalidadePagamento,
   type RegistrarRecebimentoPayload,
+  type TarifaAplicada,
   type VendaDetalhe,
   type VendaResumo,
   type VendasEstatisticas,
@@ -130,6 +131,13 @@ export function registerVendasMocks(): void {
     }
 
     if (parcela.pagoEm) throw ApiError.validation("Esta parcela já está baixada.");
+    if (parcela.valor > venda.valorPendente)
+      throw ApiError.validation("Dados inválidos.", [
+        {
+          field: "valor",
+          message: `O valor da parcela (${parcela.valor.toFixed(2)}) excede o saldo pendente da venda (${venda.valorPendente.toFixed(2)}).`,
+        },
+      ]);
 
     const forma = (payload.formaPagamento ?? venda.formaPagamento).trim() || venda.formaPagamento;
 
@@ -221,6 +229,9 @@ export function registerVendasMocks(): void {
     if (modalidade !== undefined && !MODALIDADES_PAGAMENTO.includes(modalidade))
       throw ApiError.validation("Modalidade de pagamento inválida.");
 
+    let tarifaAplicada: TarifaAplicada | undefined;
+    let parcelasResolvidas = payload.parcelas;
+
     if (modalidade === "dinheiro" || modalidade === "pix") {
       if (payload.adquirenteId)
         throw ApiError.validation(
@@ -237,6 +248,38 @@ export function registerVendasMocks(): void {
         if (!Number.isInteger(payload.parcelas) || payload.parcelas < 1 || payload.parcelas > 24)
           throw ApiError.validation("Parcelamento no crédito deve estar entre 1 e 24 parcelas.");
       }
+      parcelasResolvidas = modalidade === "debito" ? 1 : payload.parcelas;
+
+      const adquirente = db.adquirentes.find((item) => item.id === payload.adquirenteId);
+      if (!adquirente) throw ApiError.notFound("Adquirente não encontrada.");
+      if (!adquirente.ativo)
+        throw ApiError.validation("Dados inválidos.", [
+          { field: "pagamentos", message: "A adquirente informada está inativa." },
+        ]);
+
+      const entradaTarifa = adquirente.tabelaTarifas.find(
+        (tarifa) => tarifa.modalidade === modalidade && tarifa.parcelas === parcelasResolvidas,
+      );
+      if (!entradaTarifa) {
+        const rotulo =
+          modalidade === "credito" ? `Crédito em ${parcelasResolvidas}x` : "Pagamento no débito";
+        throw ApiError.validation("Dados inválidos.", [
+          { field: "pagamentos", message: `${rotulo} não está configurado para esta adquirente.` },
+        ]);
+      }
+
+      const valorBruto = arredondar(valor);
+      const valorTarifa = arredondar((valorBruto * entradaTarifa.percentual) / 100);
+      tarifaAplicada = {
+        adquirenteId: adquirente.id,
+        adquirenteNome: adquirente.nome,
+        modalidade,
+        parcelas: parcelasResolvidas!,
+        percentual: entradaTarifa.percentual,
+        valorBruto,
+        valorTarifa,
+        valorLiquido: arredondar(valorBruto - valorTarifa),
+      };
     }
 
     const dataHora = agora();
@@ -246,10 +289,11 @@ export function registerVendasMocks(): void {
       forma,
       valor: arredondar(valor),
       dataPagamento: dataHora,
-      parcelas: payload.parcelas ?? 1,
+      parcelas: parcelasResolvidas ?? 1,
       ...(observacao ? { observacao } : {}),
       ...(modalidade ? { modalidade: modalidade as ModalidadePagamento } : {}),
       ...(payload.adquirenteId ? { adquirenteId: payload.adquirenteId } : {}),
+      ...(tarifaAplicada ? { tarifaAplicada } : {}),
       ...(idempotencyKey ? { idempotencyKey } : {}),
     });
     venda.valorPago = arredondar(
@@ -285,17 +329,20 @@ export function registerVendasMocks(): void {
     // reconhecido mesmo com a venda continuando ativa.
     const idempotencyKey = payload.idempotencyKey?.trim() || undefined;
     const tipoSolicitado = payload.tipo === "parcial" ? "parcial" : "integral";
-    if (idempotencyKey && venda.cancelamento?.idempotencyKey === idempotencyKey) {
+    const eventoExistente = idempotencyKey
+      ? venda.cancelamentos.find((evento) => evento.idempotencyKey === idempotencyKey)
+      : undefined;
+    if (eventoExistente) {
       const itensSolicitados = (payload.itens ?? [])
         .map((item) => item.itemId)
         .sort()
         .join(",");
-      const itensRegistrados = venda.cancelamento.itens
+      const itensRegistrados = eventoExistente.itens
         .map((item) => item.itemId)
         .sort()
         .join(",");
       const mesmaOperacao =
-        venda.cancelamento.tipo === tipoSolicitado &&
+        eventoExistente.tipo === tipoSolicitado &&
         (tipoSolicitado === "integral" || itensSolicitados === itensRegistrados);
       if (!mesmaOperacao)
         throw ApiError.conflict(
@@ -365,7 +412,10 @@ export function registerVendasMocks(): void {
     const dataHora = agora();
 
     venda.valorDevolvido = arredondar(venda.valorDevolvido + valorDevolvido);
-    venda.cancelamento = {
+    // Array append-only (Etapa 10.22 do backend): cada cancelamento/devolução
+    // parcial é um evento novo, nunca sobrescreve o(s) anterior(es).
+    venda.cancelamentos.push({
+      id: gerarId("cnc"),
       tipo,
       motivo,
       dataHora,
@@ -373,7 +423,7 @@ export function registerVendasMocks(): void {
       valorDevolvido,
       itens: devolvidos,
       ...(idempotencyKey ? { idempotencyKey } : {}),
-    };
+    });
     venda.historico.push({
       id: gerarId("ev"),
       dataHora,

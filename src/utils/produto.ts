@@ -9,9 +9,10 @@ export function precoFinal(
   return produto.precoVenda;
 }
 
+/** Margem sobre o preço (não sobre o custo) — mesma fórmula do backend (`precos.util.ts`). */
 export function calcularMargem(precoCusto: number, precoFinalValor: number): number {
-  if (!precoCusto || precoCusto <= 0) return 0;
-  return Number((((precoFinalValor - precoCusto) / precoCusto) * 100).toFixed(2));
+  if (!precoFinalValor || precoFinalValor <= 0) return 0;
+  return Number((((precoFinalValor - precoCusto) / precoFinalValor) * 100).toFixed(2));
 }
 
 export type StatusEstoque = "disponivel" | "baixo" | "sem-estoque";
@@ -33,13 +34,6 @@ export function lucroFinal(
   produto: Pick<Produto, "ehPromocao" | "precoPromocional" | "precoVenda" | "precoCusto">,
 ): number {
   return Number((precoFinal(produto) - produto.precoCusto).toFixed(2));
-}
-
-/** Margem % sobre o preço vigente — mesma regra usada pela API. */
-export function margemVigente(
-  produto: Pick<Produto, "ehPromocao" | "precoPromocional" | "precoVenda" | "precoCusto">,
-): number {
-  return calcularMargem(produto.precoCusto, precoFinal(produto));
 }
 
 export interface FotoProdutoItem {

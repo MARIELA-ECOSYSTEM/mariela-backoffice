@@ -2,6 +2,7 @@ import { registerMock } from "./mock-transport";
 import { agora, clonar, db, gerarId, sincronizarAgregadosVendedores } from "./db";
 import { vendasDoVendedor } from "./vendedores-vendas.seed";
 import { proximoCodigo } from "./sequencias";
+import { normalizarTelefone } from "@/utils/cliente";
 import { ApiError, type ApiFieldError } from "@/types/api";
 import type { Vendedor, VendedorPayload } from "@/types/vendedor";
 
@@ -13,6 +14,20 @@ function encontrar(id: string): Vendedor {
   const vendedor = db.vendedores.find((item) => item.id === id);
   if (!vendedor) throw ApiError.notFound("Vendedor(a) não encontrado(a).");
   return vendedor;
+}
+
+/** Espelha `VendedoresService.validarTelefone`/`garantirTelefoneDisponivel` do backend. */
+function validarTelefoneVendedor(telefone: string, ignorarId?: string): void {
+  const normalizado = normalizarTelefone(telefone);
+  if (normalizado.length !== 10 && normalizado.length !== 11) {
+    throw ApiError.validation("Dados inválidos.", [
+      { field: "telefone", message: "Informe DDD + número (10 ou 11 dígitos)." },
+    ]);
+  }
+  const duplicado = db.vendedores.some(
+    (item) => item.id !== ignorarId && normalizarTelefone(item.telefone) === normalizado,
+  );
+  if (duplicado) throw ApiError.conflict("Já existe um vendedor cadastrado com este telefone.");
 }
 
 /** Simulação de hash: a API real (NestJS) fará o hash de verdade. */
@@ -28,6 +43,7 @@ function validarDados(body: unknown, exigirSenha: boolean) {
   const senha = texto(payload.senha);
 
   if (!nome) errors.push({ field: "nome", message: "Nome é obrigatório." });
+  if (!telefone) errors.push({ field: "telefone", message: "Telefone é obrigatório." });
   if (exigirSenha && !senha) errors.push({ field: "senha", message: "Senha é obrigatória." });
   if (senha && senha.length < 6)
     errors.push({ field: "senha", message: "A senha deve ter ao menos 6 caracteres." });
@@ -68,6 +84,7 @@ export function registerVendedoresMocks(): void {
 
   registerMock("POST", "/vendedores", ({ body }) => {
     const dados = validarDados(body, true);
+    validarTelefoneVendedor(dados.telefone);
     const vendedor: Vendedor = {
       id: gerarId("ven"),
       codigo: proximoCodigo("vendedor"),
@@ -91,6 +108,7 @@ export function registerVendedoresMocks(): void {
   registerMock("PUT", "/vendedores/:id", ({ params, body }) => {
     const vendedor = encontrar(params["id"]!);
     const dados = validarDados(body, false);
+    validarTelefoneVendedor(dados.telefone, vendedor.id);
     vendedor.nome = dados.nome;
     vendedor.foto = dados.foto;
     vendedor.telefone = dados.telefone;

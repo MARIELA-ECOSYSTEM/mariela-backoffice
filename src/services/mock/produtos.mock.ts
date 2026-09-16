@@ -17,6 +17,12 @@ import type {
   PromocaoRequest,
 } from "@/types/produto";
 
+/** Espelha `@IsNumber({ maxDecimalPlaces: 2 })` do backend (class-validator). */
+function temAteDuasCasasDecimais(valor: number): boolean {
+  const partes = valor.toString().split(".");
+  return partes.length === 1 || partes[1]!.length <= 2;
+}
+
 function encontrarProduto(id: string): Produto {
   const produto = db.produtos.find((p) => p.id === id);
   if (!produto) throw ApiError.notFound("Produto não encontrado.");
@@ -34,8 +40,12 @@ function validarPayload(payload: Partial<ProdutoPayload>): void {
     errors.push({ field: "categoria", message: "Categoria é obrigatória." });
   if (!payload.precoCusto || payload.precoCusto <= 0)
     errors.push({ field: "precoCusto", message: "Preço de custo deve ser maior que zero." });
+  else if (!temAteDuasCasasDecimais(payload.precoCusto))
+    errors.push({ field: "precoCusto", message: "Informe um valor com até 2 casas decimais." });
   if (!payload.precoVenda || payload.precoVenda <= 0)
     errors.push({ field: "precoVenda", message: "Preço de venda deve ser maior que zero." });
+  else if (!temAteDuasCasasDecimais(payload.precoVenda))
+    errors.push({ field: "precoVenda", message: "Informe um valor com até 2 casas decimais." });
 
   if (errors.length) throw ApiError.validation("Dados inválidos.", errors);
 }
@@ -136,6 +146,18 @@ export function registerProdutosMocks(): void {
     const produto = encontrarProduto(params["id"]!);
     const payload = (body ?? {}) as ProdutoPayload;
     validarPayload(payload);
+    // Integridade > conveniência: reduzir o preço de venda para menos do que
+    // o preço promocional ativo quebraria o invariante "promocional < venda"
+    // silenciosamente — bloqueado, ao invés de desativar a promoção sem avisar.
+    if (produto.ehPromocao && produto.precoPromocional && payload.precoVenda <= produto.precoPromocional) {
+      throw ApiError.validation("Dados inválidos.", [
+        {
+          field: "precoVenda",
+          message:
+            "O preço de venda deve ser maior que o preço promocional ativo. Desative a promoção antes de reduzir o preço.",
+        },
+      ]);
+    }
     // O código é imutável: gerado na criação e nunca reeditado.
     produto.nome = payload.nome.trim();
     produto.descricao = payload.descricao?.trim() ?? "";
@@ -189,6 +211,10 @@ export function registerProdutosMocks(): void {
       if (preco <= 0)
         throw ApiError.validation("Dados inválidos.", [
           { field: "precoPromocional", message: "Preço promocional deve ser maior que zero." },
+        ]);
+      if (!temAteDuasCasasDecimais(preco))
+        throw ApiError.validation("Dados inválidos.", [
+          { field: "precoPromocional", message: "Informe um valor com até 2 casas decimais." },
         ]);
       if (preco >= produto.precoVenda)
         throw ApiError.validation("Dados inválidos.", [

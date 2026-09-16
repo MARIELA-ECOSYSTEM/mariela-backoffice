@@ -10,6 +10,7 @@ import {
 import { historicoDoFornecedor } from "./fornecedores-historico.seed";
 import { vendasDoCliente } from "./clientes-vendas.seed";
 import { proximoCodigo } from "./sequencias";
+import { normalizarTelefone } from "@/utils/cliente";
 import { ApiError, type ApiFieldError } from "@/types/api";
 import type { Cliente, ClientePayload } from "@/types/cliente";
 import type { EnderecoFornecedor, Fornecedor, FornecedorPayload } from "@/types/fornecedor";
@@ -32,6 +33,20 @@ function encontrar<T extends { id: string }>(lista: T[], id: string, rotulo: str
   const item = lista.find((registro) => registro.id === id);
   if (!item) throw ApiError.notFound(`${rotulo} não encontrado(a).`);
   return item;
+}
+
+/** Espelha `ClientesService.validarTelefone`/`garantirTelefoneDisponivel` do backend. */
+function validarTelefoneCliente(telefone: string, ignorarId?: string): void {
+  const normalizado = normalizarTelefone(telefone);
+  if (normalizado.length !== 10 && normalizado.length !== 11) {
+    throw ApiError.validation("Dados inválidos.", [
+      { field: "telefone", message: "Informe DDD + número (10 ou 11 dígitos)." },
+    ]);
+  }
+  const duplicado = db.clientes.some(
+    (item) => item.id !== ignorarId && normalizarTelefone(item.telefone) === normalizado,
+  );
+  if (duplicado) throw ApiError.conflict("Já existe um cliente cadastrado com este telefone.");
 }
 
 /** `produtosVinculados` é sempre um agregado — nunca um campo editável (mesmo padrão de Fornecedor). */
@@ -120,6 +135,7 @@ function registrarClientes(): void {
     if (!nome) errors.push({ field: "nome", message: "Nome é obrigatório." });
     if (!telefone) errors.push({ field: "telefone", message: "Telefone é obrigatório." });
     validar(errors);
+    validarTelefoneCliente(telefone);
 
     const cliente: Cliente = {
       id: gerarId("cli"),
@@ -149,6 +165,7 @@ function registrarClientes(): void {
     if (!nome) errors.push({ field: "nome", message: "Nome é obrigatório." });
     if (!telefone) errors.push({ field: "telefone", message: "Telefone é obrigatório." });
     validar(errors);
+    validarTelefoneCliente(telefone, cliente.id);
 
     cliente.nome = nome;
     cliente.foto = texto(payload.foto) || null;

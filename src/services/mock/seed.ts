@@ -54,9 +54,10 @@ function iso(diasAtras: number): string {
   return new Date(Date.now() - diasAtras * 86_400_000).toISOString();
 }
 
+/** Margem sobre o preço (não sobre o custo) — mesma fórmula do backend (`precos.util.ts`). */
 function margem(custo: number, venda: number): number {
-  if (custo <= 0) return 0;
-  return Number((((venda - custo) / custo) * 100).toFixed(2));
+  if (venda <= 0) return 0;
+  return Number((((venda - custo) / venda) * 100).toFixed(2));
 }
 
 interface VarianteSeed {

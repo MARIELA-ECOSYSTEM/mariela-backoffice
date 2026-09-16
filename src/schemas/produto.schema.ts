@@ -1,5 +1,26 @@
 import { z } from "zod";
 
+/** Espelha `@IsNumber({ maxDecimalPlaces: 2 })` do backend (class-validator). */
+function temAteDuasCasasDecimais(valor: number): boolean {
+  const partes = valor.toString().split(".");
+  return partes.length === 1 || partes[1]!.length <= 2;
+}
+
+const precoComDuasCasas = z.coerce
+  .number({ invalid_type_error: "Informe um valor." })
+  .refine(temAteDuasCasasDecimais, "Informe um valor com até 2 casas decimais.");
+
+/** Espelha `@IsUrl()` + `@MaxLength(500)` do backend; string vazia = "sem valor" (vira `undefined` no envio). */
+const urlDeMidiaOpcional = z
+  .string()
+  .trim()
+  .max(500, "Máximo de 500 caracteres.")
+  .refine((valor) => valor === "" || /^https?:\/\/\S+$/i.test(valor), {
+    message: "Informe uma URL válida.",
+  })
+  .optional()
+  .transform((valor) => (valor === "" || valor === undefined ? undefined : valor));
+
 export const produtoSchema = z.object({
   nome: z.string().trim().min(1, "Nome é obrigatório.").max(120, "Máximo de 120 caracteres."),
   descricao: z.string().trim().max(1000, "Máximo de 1000 caracteres.").optional(),
@@ -7,12 +28,8 @@ export const produtoSchema = z.object({
   colecaoId: z.string().optional(),
   campanhaId: z.string().optional(),
   fornecedorId: z.string().optional(),
-  precoCusto: z.coerce
-    .number({ invalid_type_error: "Informe um valor." })
-    .positive("Preço de custo deve ser maior que zero."),
-  precoVenda: z.coerce
-    .number({ invalid_type_error: "Informe um valor." })
-    .positive("Preço de venda deve ser maior que zero."),
+  precoCusto: precoComDuasCasas.refine((valor) => valor > 0, "Preço de custo deve ser maior que zero."),
+  precoVenda: precoComDuasCasas.refine((valor) => valor > 0, "Preço de venda deve ser maior que zero."),
   ehNovidade: z.boolean(),
 });
 
@@ -20,8 +37,8 @@ export type ProdutoFormValues = z.infer<typeof produtoSchema>;
 
 export const varianteSchema = z.object({
   cor: z.string().trim().min(1, "Cor é obrigatória."),
-  foto: z.string().trim().max(500).optional(),
-  video: z.string().trim().max(500).optional(),
+  foto: urlDeMidiaOpcional,
+  video: urlDeMidiaOpcional,
 });
 
 export type VarianteFormValues = z.infer<typeof varianteSchema>;
@@ -54,9 +71,10 @@ export const movimentacaoSchema = entradaSchema.extend({
 export type MovimentacaoFormValues = z.infer<typeof movimentacaoSchema>;
 
 export const promocaoSchema = z.object({
-  precoPromocional: z.coerce
-    .number({ invalid_type_error: "Informe um valor." })
-    .positive("Preço promocional deve ser maior que zero."),
+  precoPromocional: precoComDuasCasas.refine(
+    (valor) => valor > 0,
+    "Preço promocional deve ser maior que zero.",
+  ),
 });
 
 export type PromocaoFormValues = z.infer<typeof promocaoSchema>;

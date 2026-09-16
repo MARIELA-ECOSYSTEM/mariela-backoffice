@@ -30,8 +30,13 @@ export function statusVigencia(
   hoje = hojeIso(),
 ): StatusVigencia {
   if (!item.ativo) return "inativa";
-  if (item.inicio > hoje) return "agendada";
-  if (item.fim < hoje) return "encerrada";
+  // `inicio`/`fim` podem chegar como datetime ISO completo (API real) ou como
+  // `YYYY-MM-DD` (mock) — compara só a parte de data, mesma convenção usada
+  // no pré-preenchimento dos diálogos de edição.
+  const inicio = item.inicio.slice(0, 10);
+  const fim = item.fim.slice(0, 10);
+  if (inicio > hoje) return "agendada";
+  if (fim < hoje) return "encerrada";
   return "ativa";
 }
 

@@ -20,7 +20,13 @@ import { EmptyState, ErrorState } from "@/components/common/states";
 import { MovimentacoesTabela } from "@/components/caixa/movimentacoes-tabela";
 import { MovimentacaoCaixaDialog } from "@/components/caixa/movimentacao-dialog";
 import { FechamentoCaixaDialog } from "@/components/caixa/fechamento-dialog";
-import { useCaixa, useEntradaCaixa, useFecharCaixa, useSaidaCaixa } from "@/hooks/use-caixas";
+import {
+  useCaixa,
+  useEntradaCaixa,
+  useFecharCaixa,
+  useMovimentacoesCaixa,
+  useSaidaCaixa,
+} from "@/hooks/use-caixas";
 import { mensagemDeErro } from "@/services/api/client";
 import { formatarData, formatarDataHora, formatarMoeda } from "@/utils/format";
 import {
@@ -134,6 +140,7 @@ function GrupoResumo({ titulo, children }: { titulo: string; children: React.Rea
 function CaixaDetalhePage() {
   const { id } = Route.useParams();
   const { data: caixa, isPending, isError, error, refetch } = useCaixa(id);
+  const { data: movimentacoes, isPending: movimentacoesPending } = useMovimentacoesCaixa(id);
   const entrada = useEntradaCaixa(id);
   const saida = useSaidaCaixa(id);
   const fechar = useFecharCaixa(id);
@@ -327,7 +334,11 @@ function CaixaDetalhePage() {
           <CardTitle className="font-display text-2xl">Movimentações</CardTitle>
         </CardHeader>
         <CardContent>
-          <MovimentacoesTabela movimentacoes={caixa.movimentacoes} />
+          {movimentacoesPending ? (
+            <Skeleton className="h-32 w-full rounded-xl" />
+          ) : (
+            <MovimentacoesTabela movimentacoes={movimentacoes ?? caixa.movimentacoes} />
+          )}
         </CardContent>
       </Card>
 

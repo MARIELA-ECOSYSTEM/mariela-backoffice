@@ -5,25 +5,18 @@ import { precoFinal } from "@/utils/produto";
 /**
  * Histórico determinístico de vínculos produto × fornecedor.
  *
- * Hoje o vínculo vive em `produto.fornecedorId` (relação atual). O histórico de
- * vínculos encerrados ainda não existe como coleção real — este seed cria
- * registros estáveis para demonstrar a tela e, principalmente, para fixar o
- * CONTRATO que o NestJS devolverá em `GET /fornecedores/:id/historico`.
+ * O vínculo vive em `produto.fornecedorId` (relação atual) — o backend real
+ * não tem conceito de "vínculo encerrado" (não há coleção/histórico de troca
+ * de fornecedor). Este seed reflete só isso: nenhum dado fictício de vínculo
+ * encerrado é fabricado (ver auditoria pré-corte, achado B9).
  */
-/**
- * Mapa auxiliar id-do-histórico → fornecedorId, apenas para os vínculos
- * encerrados (os atuais são resolvidos por `produto.fornecedorId`).
- */
-export const vinculosAnteriores = new Map<string, string>();
-
 export function seedHistoricoFornecedores(
   produtos: Produto[],
-  fornecedores: Fornecedor[],
+  _fornecedores: Fornecedor[],
 ): FornecedorHistoricoItem[] {
   const historico: FornecedorHistoricoItem[] = [];
   let sequencia = 0;
 
-  // 1. Vínculos ATUAIS — derivados da relação vigente do produto.
   produtos.forEach((produto) => {
     if (!produto.fornecedorId) return;
     sequencia += 1;
@@ -40,34 +33,6 @@ export function seedHistoricoFornecedores(
     });
   });
 
-  // 2. Vínculos ENCERRADOS — a cada 3º produto, um fornecedor anterior.
-  const comFornecedor = produtos.filter((produto) => produto.fornecedorId);
-  comFornecedor.forEach((produto, indice) => {
-    if (indice % 3 !== 0) return;
-    const anterior = fornecedores.find((item) => item.id !== produto.fornecedorId);
-    if (!anterior) return;
-
-    const vinculadoEm = new Date(produto.criadoEm);
-    vinculadoEm.setDate(vinculadoEm.getDate() - 120);
-    const desvinculadoEm = new Date(produto.criadoEm);
-    desvinculadoEm.setDate(desvinculadoEm.getDate() - 5);
-
-    sequencia += 1;
-    historico.push({
-      id: `fvh_${sequencia}`,
-      produtoId: produto.id,
-      produtoNome: produto.nome,
-      codProduto: produto.codProduto,
-      vinculadoEm: vinculadoEm.toISOString(),
-      desvinculadoEm: desvinculadoEm.toISOString(),
-      precoCusto: Number((produto.precoCusto * 0.9).toFixed(2)),
-      precoVenda: Number((precoFinal(produto) * 0.95).toFixed(2)),
-      situacao: "historico",
-    });
-    // O registro encerrado pertence ao fornecedor ANTERIOR.
-    vinculosAnteriores.set(`fvh_${sequencia}`, anterior.id);
-  });
-
   return historico;
 }
 
@@ -78,11 +43,7 @@ export function historicoDoFornecedor(
   produtos: Produto[],
 ): FornecedorHistoricoItem[] {
   return historico
-    .filter((item) => {
-      if (item.situacao === "historico") return vinculosAnteriores.get(item.id) === fornecedorId;
-      const produto = produtos.find((registro) => registro.id === item.produtoId);
-      return produto?.fornecedorId === fornecedorId;
-    })
+    .filter((item) => produtos.find((registro) => registro.id === item.produtoId)?.fornecedorId === fornecedorId)
     .sort((a, b) => b.vinculadoEm.localeCompare(a.vinculadoEm));
 }
 
