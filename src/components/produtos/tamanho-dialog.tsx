@@ -26,6 +26,7 @@ import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { useAdicionarTamanho } from "@/hooks/use-variantes";
 import { mensagemDeErro } from "@/services/api/client";
 import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
+import { conflitoTamanhoUnico, tamanhosDaVariante } from "@/utils/tamanho";
 import type { Variante } from "@/types/variante";
 
 /** Campos cujo nome no backend (`ApiFieldError.field`) corresponde exatamente ao campo do formulário. */
@@ -60,6 +61,15 @@ export function TamanhoDialog({
 
   async function onSubmit(values: TamanhoFormValues) {
     if (!variante) return;
+    // Fase 11.2 (Achado F11-01) — mesma regra já aplicada pelo backend
+    // (`conflitoTamanhoUnico`, `mariela-backend/produtos.service.ts`) e pelo
+    // Mock (`variantes.mock.ts`); só faltava o formulário real bloquear antes
+    // do request. Reaproveita a função existente, sem duplicar a regra.
+    const conflito = conflitoTamanhoUnico(tamanhosDaVariante(variante), values.tamanho);
+    if (conflito) {
+      form.setError("tamanho", { message: conflito });
+      return;
+    }
     try {
       await adicionar.mutateAsync({ varianteId: variante.id, payload: values });
       toast.success("Tamanho adicionado com sucesso.");

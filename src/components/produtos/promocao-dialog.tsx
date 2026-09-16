@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/common/field";
-import { promocaoSchema, type PromocaoFormValues } from "@/schemas/produto.schema";
+import { criarPromocaoSchema, type PromocaoFormValues } from "@/schemas/produto.schema";
 import { useDefinirPromocao } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
 import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
@@ -36,7 +36,7 @@ export function PromocaoDialog({
   const definir = useDefinirPromocao(produto.id);
 
   const form = useForm<PromocaoFormValues>({
-    resolver: zodResolver(promocaoSchema),
+    resolver: zodResolver(criarPromocaoSchema(produto.precoVenda)),
     defaultValues: { precoPromocional: produto.precoPromocional ?? 0 },
   });
 

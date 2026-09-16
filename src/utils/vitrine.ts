@@ -21,8 +21,19 @@ export interface ItemVitrine {
   fotoBanner: string | null;
 }
 
+/**
+ * Fase 11.2 (Achado F11-05) — data LOCAL, não UTC: `toISOString()` converte
+ * para UTC antes de formatar, então entre ~21h e 23h59 (horário de Brasília)
+ * `hojeIso()` devolvia o dia seguinte. Monta a string a partir dos
+ * componentes locais (`getFullYear`/`getMonth`/`getDate`), mesma filosofia
+ * de `utils/cliente.ts` (nunca depender de `toISOString()` para "hoje").
+ */
 export function hojeIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  const agora = new Date();
+  const ano = agora.getFullYear();
+  const mes = String(agora.getMonth() + 1).padStart(2, "0");
+  const dia = String(agora.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
 }
 
 export function statusVigencia(

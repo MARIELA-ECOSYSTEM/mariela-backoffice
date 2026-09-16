@@ -70,11 +70,23 @@ export const movimentacaoSchema = entradaSchema.extend({
 
 export type MovimentacaoFormValues = z.infer<typeof movimentacaoSchema>;
 
-export const promocaoSchema = z.object({
-  precoPromocional: precoComDuasCasas.refine(
-    (valor) => valor > 0,
-    "Preço promocional deve ser maior que zero.",
-  ),
-});
+/**
+ * Fase 11.2 (Achado F11-02) — função em vez de objeto fixo porque a regra
+ * `precoPromocional < precoVenda` depende do produto em edição; mensagem
+ * idêntica à do backend real (`ProdutosService.definirPromocao`) para o
+ * usuário ver o mesmo texto seja o bloqueio antecipado aqui ou tardio no
+ * servidor. Só há um call site (`promocao-dialog.tsx`), então a mudança de
+ * assinatura não afeta mais nada.
+ */
+export function criarPromocaoSchema(precoVenda: number) {
+  return z.object({
+    precoPromocional: precoComDuasCasas
+      .refine((valor) => valor > 0, "Preço promocional deve ser maior que zero.")
+      .refine(
+        (valor) => valor < precoVenda,
+        "Preço promocional deve ser menor que o preço de venda.",
+      ),
+  });
+}
 
-export type PromocaoFormValues = z.infer<typeof promocaoSchema>;
+export type PromocaoFormValues = z.infer<ReturnType<typeof criarPromocaoSchema>>;
