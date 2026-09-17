@@ -41,11 +41,50 @@ function bloquearConfiguracaoInvalidaDeApi(): Plugin {
   };
 }
 
+/**
+ * Fase 22 — build estático para Tauri, isolado do build web por uma variável
+ * de ambiente de PROCESSO (nunca `VITE_*`, para não vazar para o bundle nem
+ * para `import.meta.env`): `BUILD_TARGET=desktop bun run build:desktop`.
+ *
+ * Deliberadamente NÃO usamos `--mode desktop` para isso: `mode` continua
+ * "production" em ambos os builds, então `import.meta.env.PROD` (checado em
+ * `src/services/api/client.ts`) e o `mode === "production"` do plugin acima
+ * continuam protegendo o build desktop exatamente como já protegem o build
+ * web, sem precisar duplicar/generalizar nenhuma das duas checagens.
+ *
+ * Sem Nitro (`nitro: false`): nenhum servidor é empacotado — o Tauri carrega
+ * arquivos estáticos diretamente, sem processo Node/Worker por trás.
+ * `tanstackStart.spa` é o modo oficial do próprio TanStack Start para isso:
+ * pré-renderiza o shell da aplicação em HTML estático (hidratado no cliente)
+ * em vez de depender de SSR por requisição — só existe porque não há
+ * `createServerFn`/`loader` nas rotas hoje (confirmado por auditoria; ver
+ * relatório da Fase 22), então nenhum dado real depende do servidor.
+ */
+const isDesktopBuild = process.env["BUILD_TARGET"] === "desktop";
+
 export default defineConfig({
   plugins: [bloquearConfiguracaoInvalidaDeApi()],
+  vite: {
+    server: {
+      port: 8081,
+      strictPort: true,
+    },
+  },
+  ...(isDesktopBuild ? { nitro: false } : {}),
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+    ...(isDesktopBuild
+      ? {
+          spa: {
+            enabled: true,
+            // Default outputPath ("/_shell") is meant for a rewrite rule on a
+            // static host; Tauri just serves whatever file sits at the root
+            // of frontendDist, so the shell needs to physically be index.html.
+            prerender: { enabled: true, outputPath: "/index" },
+          },
+        }
+      : {}),
   },
 });
