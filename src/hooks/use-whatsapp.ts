@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { whatsappApi, type MensagemWhatsappPayload } from "@/services/api/whatsapp.api";
+import { integracoesKeys } from "@/hooks/use-integracoes";
 
 export const whatsappKeys = { status: ["integracoes", "whatsapp", "status"] as const };
 
@@ -25,7 +26,10 @@ export function useConectarWhatsapp() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => whatsappApi.conectar(),
-    onSuccess: (status) => queryClient.setQueryData(whatsappKeys.status, status),
+    onSuccess: (status) => {
+      queryClient.setQueryData(whatsappKeys.status, status);
+      void queryClient.invalidateQueries({ queryKey: integracoesKeys.todos });
+    },
   });
 }
 
@@ -33,6 +37,9 @@ export function useDesconectarWhatsapp() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => whatsappApi.desconectar(),
-    onSuccess: (status) => queryClient.setQueryData(whatsappKeys.status, status),
+    onSuccess: (status) => {
+      queryClient.setQueryData(whatsappKeys.status, status);
+      void queryClient.invalidateQueries({ queryKey: integracoesKeys.todos });
+    },
   });
 }

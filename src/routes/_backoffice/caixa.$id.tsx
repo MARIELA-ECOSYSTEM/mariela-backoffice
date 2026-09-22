@@ -140,7 +140,13 @@ function GrupoResumo({ titulo, children }: { titulo: string; children: React.Rea
 function CaixaDetalhePage() {
   const { id } = Route.useParams();
   const { data: caixa, isPending, isError, error, refetch } = useCaixa(id);
-  const { data: movimentacoes, isPending: movimentacoesPending } = useMovimentacoesCaixa(id);
+  const {
+    data: movimentacoes,
+    isPending: movimentacoesPending,
+    isError: movimentacoesIsError,
+    error: movimentacoesError,
+    refetch: refetchMovimentacoes,
+  } = useMovimentacoesCaixa(id);
   const entrada = useEntradaCaixa(id);
   const saida = useSaidaCaixa(id);
   const fechar = useFecharCaixa(id);
@@ -336,6 +342,12 @@ function CaixaDetalhePage() {
         <CardContent>
           {movimentacoesPending ? (
             <Skeleton className="h-32 w-full rounded-xl" />
+          ) : movimentacoesIsError ? (
+            <ErrorState
+              error={movimentacoesError}
+              onRetry={() => void refetchMovimentacoes()}
+              fallback="Não foi possível carregar as movimentações deste caixa."
+            />
           ) : (
             <MovimentacoesTabela movimentacoes={movimentacoes ?? caixa.movimentacoes} />
           )}

@@ -3,6 +3,7 @@ import { vendasApi } from "@/services/api/vendas.api";
 import { clientesKeys, fornecedoresKeys } from "@/hooks/use-cadastros";
 import { vendedoresKeys } from "@/hooks/use-vendedores";
 import { produtosKeys } from "@/hooks/use-produtos";
+import { estoqueKeys } from "@/hooks/use-estoque";
 import { caixasKeys } from "@/hooks/use-caixas";
 import { dashboardKeys } from "@/hooks/use-dashboard";
 import type {
@@ -28,6 +29,7 @@ function useInvalidar() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: vendasKeys.todas }),
       queryClient.invalidateQueries({ queryKey: produtosKeys.todos }),
+      queryClient.invalidateQueries({ queryKey: estoqueKeys.todos }),
       queryClient.invalidateQueries({ queryKey: clientesKeys.todos }),
       queryClient.invalidateQueries({ queryKey: fornecedoresKeys.todos }),
       queryClient.invalidateQueries({ queryKey: vendedoresKeys.todos }),
