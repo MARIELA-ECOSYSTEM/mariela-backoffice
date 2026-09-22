@@ -11,6 +11,7 @@ import { registerCaixasMocks } from "./caixas.mock";
 import { registerRelatoriosMocks } from "./relatorios.mock";
 import { registerDashboardMocks } from "./dashboard.mock";
 import { registerIntegracoesMocks } from "./integracoes.mock";
+import { registerMediaMocks } from "./media.mock";
 
 let registrado = false;
 
@@ -40,4 +41,5 @@ export function registrarMocks(): void {
   registerRelatoriosMocks();
   registerDashboardMocks();
   registerIntegracoesMocks();
+  registerMediaMocks();
 }
