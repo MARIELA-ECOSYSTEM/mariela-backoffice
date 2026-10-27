@@ -8,6 +8,7 @@ import type { Colecao } from "@/types/colecao";
 import type { Campanha } from "@/types/campanha";
 import type { Adquirente } from "@/types/adquirente";
 import { formatarCodigo } from "@/lib/codigos";
+import { calcularMargem } from "@/utils/produto";
 import vestido1 from "@/assets/produtos/vestido-1.jpg";
 import vestido2 from "@/assets/produtos/vestido-2.jpg";
 import blusa1 from "@/assets/produtos/blusa-1.jpg";
@@ -52,12 +53,6 @@ export const FORMAS_PAGAMENTO = [
 
 function iso(diasAtras: number): string {
   return new Date(Date.now() - diasAtras * 86_400_000).toISOString();
-}
-
-/** Margem sobre o preço (não sobre o custo) — mesma fórmula do backend (`precos.util.ts`). */
-function margem(custo: number, venda: number): number {
-  if (venda <= 0) return 0;
-  return Number((((venda - custo) / venda) * 100).toFixed(2));
 }
 
 interface VarianteSeed {
@@ -510,7 +505,7 @@ export function seedProdutos(): Produto[] {
       campanhaId: seed.campanhaId ?? null,
       fornecedorId: seed.fornecedorId ?? null,
       precoCusto: seed.custo,
-      margemLucro: margem(seed.custo, precoVigente),
+      margemLucro: calcularMargem(seed.custo, precoVigente),
       precoVenda: seed.venda,
       ehNovidade: seed.novidade ?? false,
       ehPromocao: seed.promocao ?? false,

@@ -9,10 +9,14 @@ export function precoFinal(
   return produto.precoVenda;
 }
 
-/** Margem sobre o preço (não sobre o custo) — mesma fórmula do backend (`precos.util.ts`). */
+/**
+ * Margem sobre o preço de CUSTO — mesma fórmula do backend (`precos.util.ts`):
+ * `((precoFinal - precoCusto) / precoCusto) * 100`. Ex.: custo R$100, venda
+ * R$220 → 120%. `precoCusto <= 0` devolve 0 (evita Infinity/NaN).
+ */
 export function calcularMargem(precoCusto: number, precoFinalValor: number): number {
-  if (!precoFinalValor || precoFinalValor <= 0) return 0;
-  return Number((((precoFinalValor - precoCusto) / precoFinalValor) * 100).toFixed(2));
+  if (!precoCusto || precoCusto <= 0) return 0;
+  return Number((((precoFinalValor - precoCusto) / precoCusto) * 100).toFixed(2));
 }
 
 export type StatusEstoque = "disponivel" | "baixo" | "sem-estoque";

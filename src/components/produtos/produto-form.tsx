@@ -96,15 +96,16 @@ export function ProdutoForm({
   );
   const margemCalculada = calcularMargem(custo, venda);
 
-  /** Inverso da regra oficial de margem (sobre o preço): venda = custo / (1 - margem/100). */
+  /** Inverso da regra oficial de margem (sobre o custo): venda = custo * (1 + margem/100). */
   function vendaPelaMargem(precoCusto: number, margem: number): number {
-    return Number((precoCusto / (1 - margem / 100)).toFixed(2));
+    return Number((precoCusto * (1 + margem / 100)).toFixed(2));
   }
 
   function aplicarMargem(valor: string) {
     setMargemInformada(valor);
     const margem = Number(valor);
-    if (!Number.isFinite(margem) || margem >= 100 || custo <= 0) return;
+    // margem <= -100 geraria preço de venda zero/negativo (custo*(1+margem/100)).
+    if (!Number.isFinite(margem) || margem <= -100 || custo <= 0) return;
     form.setValue("precoVenda", vendaPelaMargem(custo, margem), { shouldValidate: true });
   }
 
@@ -112,7 +113,7 @@ export function ProdutoForm({
     const novoCusto = Number(valor) || 0;
     if (!porMargem) return;
     const margem = Number(margemInformada);
-    if (!Number.isFinite(margem) || margem >= 100 || novoCusto <= 0) return;
+    if (!Number.isFinite(margem) || margem <= -100 || novoCusto <= 0) return;
     form.setValue("precoVenda", vendaPelaMargem(novoCusto, margem), { shouldValidate: true });
   }
 
