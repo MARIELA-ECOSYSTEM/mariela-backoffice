@@ -38,7 +38,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERDQjhCODM4MTM4NDc5MTIKUldRU2VZUVRPTGk0M0twdmxJYlJBenJxVk9KdnQ4bUdyNVZQSzZxWWV6SmlWeXJBaFlhMkRsbHcK",
       "endpoints": ["https://github.com/MARIELA-ECOSYSTEM/mariela-backoffice/releases/latest/download/latest.json"],
       "windows": {
         "installMode": "passive"
