@@ -33,6 +33,16 @@
       "nsis": {
         "installerIcon": "icons/icon.ico"
       }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": ["https://github.com/MARIELA-ECOSYSTEM/mariela-backoffice/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

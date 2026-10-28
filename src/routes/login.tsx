@@ -4,13 +4,15 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/use-auth";
 import { mensagemDeErro } from "@/services/api/client";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { useUpdaterStatus, type UpdaterStatus } from "@/hooks/use-updater";
 
 export const Route = createFileRoute("/login")({
   ssr: false,
@@ -40,6 +42,9 @@ type LoginForm = z.infer<typeof loginSchema>;
 function LoginPage() {
   const { login, autenticado, carregando } = useAuth();
   const navigate = useNavigate();
+  // Verificação de atualização do app desktop — nunca bloqueia o login,
+  // mesmo em caso de falha (ver `useUpdaterStatus`).
+  const updater = useUpdaterStatus();
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -139,8 +144,94 @@ function LoginPage() {
               Entrar
             </Button>
           </form>
+
+          <AtualizacaoStatus updater={updater} />
         </div>
       </div>
     </div>
   );
+}
+
+/**
+ * Indicador discreto de atualização do app desktop, abaixo do formulário de
+ * login. Nunca bloqueia nem interfere no fluxo de autenticação — mesmo no
+ * estado "erro" (verificação indisponível), o login continua normal.
+ */
+function AtualizacaoStatus({ updater }: { updater: UpdaterStatus }) {
+  const { estado, versaoAtual, versaoDisponivel, progresso, erro, atualizarAgora, tentarNovamente } =
+    updater;
+
+  const baseClass = "mt-6 flex items-center justify-center gap-2 text-center text-xs";
+
+  switch (estado) {
+    case "verificando":
+      return (
+        <p role="status" className={`${baseClass} text-muted-foreground/70`}>
+          <Loader2 aria-hidden className="size-3.5 animate-spin" />
+          Verificando atualizações...
+        </p>
+      );
+
+    case "atualizado":
+      return (
+        <p role="status" className={`${baseClass} text-muted-foreground/70`}>
+          <CheckCircle2 aria-hidden className="size-3.5" />
+          Você está na versão mais recente{versaoAtual ? ` (v${versaoAtual})` : ""}.
+        </p>
+      );
+
+    case "disponivel":
+      return (
+        <div role="status" className="mt-6 flex flex-col items-center gap-2 text-center text-xs">
+          <p className="text-muted-foreground">
+            Nova versão disponível: <span className="font-medium text-foreground">v{versaoDisponivel}</span>
+            {versaoAtual ? ` (atual: v${versaoAtual})` : ""}
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={atualizarAgora}>
+            Atualizar agora
+          </Button>
+        </div>
+      );
+
+    case "baixando":
+      return (
+        <div role="status" className="mt-6 flex flex-col items-center gap-2 text-center text-xs">
+          <p className="text-muted-foreground">
+            Baixando atualização{progresso !== null ? `... ${progresso}%` : "..."}
+          </p>
+          <Progress value={progresso ?? undefined} className="h-1.5 w-40" />
+        </div>
+      );
+
+    case "instalando":
+      return (
+        <p role="status" className={`${baseClass} text-muted-foreground/70`}>
+          <Loader2 aria-hidden className="size-3.5 animate-spin" />
+          Instalando atualização...
+        </p>
+      );
+
+    case "erro":
+      return (
+        <div role="alert" className="mt-6 flex flex-col items-center gap-2 text-center text-xs">
+          <p className="flex items-center gap-2 text-muted-foreground/70">
+            <AlertTriangle aria-hidden className="size-3.5" />
+            {erro ?? "Não foi possível verificar atualizações."}
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={tentarNovamente}
+            className="h-auto gap-1.5 px-2 py-1 text-xs text-muted-foreground"
+          >
+            <RefreshCw aria-hidden className="size-3" />
+            Tentar novamente
+          </Button>
+        </div>
+      );
+
+    default:
+      return null;
+  }
 }
