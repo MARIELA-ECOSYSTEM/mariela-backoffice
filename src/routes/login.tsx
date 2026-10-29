@@ -4,11 +4,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/use-auth";
 import { mensagemDeErro } from "@/services/api/client";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -158,8 +157,7 @@ function LoginPage() {
  * estado "erro" (verificação indisponível), o login continua normal.
  */
 function AtualizacaoStatus({ updater }: { updater: UpdaterStatus }) {
-  const { estado, versaoAtual, versaoDisponivel, progresso, erro, atualizarAgora, tentarNovamente } =
-    updater;
+  const { estado, versaoAtual, versaoDisponivel, notas, erro, baixarAgora, tentarNovamente } = updater;
 
   const baseClass = "mt-6 flex items-center justify-center gap-2 text-center text-xs";
 
@@ -183,32 +181,15 @@ function AtualizacaoStatus({ updater }: { updater: UpdaterStatus }) {
     case "disponivel":
       return (
         <div role="status" className="mt-6 flex flex-col items-center gap-2 text-center text-xs">
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground" title={notas ?? undefined}>
             Nova versão disponível: <span className="font-medium text-foreground">v{versaoDisponivel}</span>
             {versaoAtual ? ` (atual: v${versaoAtual})` : ""}
           </p>
-          <Button type="button" variant="outline" size="sm" onClick={atualizarAgora}>
-            Atualizar agora
+          <Button type="button" variant="outline" size="sm" onClick={baixarAgora} className="gap-1.5">
+            <Download aria-hidden className="size-3.5" />
+            Baixar atualização
           </Button>
         </div>
-      );
-
-    case "baixando":
-      return (
-        <div role="status" className="mt-6 flex flex-col items-center gap-2 text-center text-xs">
-          <p className="text-muted-foreground">
-            Baixando atualização{progresso !== null ? `... ${progresso}%` : "..."}
-          </p>
-          <Progress value={progresso ?? undefined} className="h-1.5 w-40" />
-        </div>
-      );
-
-    case "instalando":
-      return (
-        <p role="status" className={`${baseClass} text-muted-foreground/70`}>
-          <Loader2 aria-hidden className="size-3.5 animate-spin" />
-          Instalando atualização...
-        </p>
       );
 
     case "erro":

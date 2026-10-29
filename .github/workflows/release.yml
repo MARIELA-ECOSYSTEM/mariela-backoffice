@@ -1,0 +1,62 @@
+name: Publicar release do MARIELA Backoffice (Windows)
+
+# Fluxo de publicação da Fase 53.4: cada push de uma tag `vX.Y.Z` compila o
+# instalador Windows e publica uma GitHub Release versionada. O Backoffice
+# consulta essa mesma release (via `GET /repos/.../releases/latest`, API
+# pública do GitHub — não um arquivo latest.json customizado) para saber se
+# há uma versão nova, e oferece o link do instalador para download manual.
+# Não há assinatura/updater nativo do Tauri neste fluxo.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+# Necessário para que a action possa criar a release e subir os artefatos.
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Instalar Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Instalar Rust estável
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Instalar dependências do frontend
+        run: bun install --frozen-lockfile
+
+      - name: TypeScript
+        run: bunx tsc --noEmit
+
+      # Garante que a tag publicada sempre corresponde exatamente à versão
+      # embutida no app (src-tauri/tauri.conf.json). Evita publicar uma
+      # release cuja tag diverge do binário/instalador gerado — a mesma
+      # inconsistência que a comparação semântica no app depende de nunca
+      # acontecer.
+      - name: Conferir que a tag corresponde à versão do app
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          APP_VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "Tag: $TAG — tauri.conf.json: $APP_VERSION"
+          if [ "$TAG" != "$APP_VERSION" ]; then
+            echo "::error::A tag v$TAG não corresponde à versão $APP_VERSION em src-tauri/tauri.conf.json. Atualize a versão (tauri.conf.json, package.json, src-tauri/Cargo.toml) e crie a tag novamente."
+            exit 1
+          fi
+
+      - name: Build e publicação (Tauri)
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "MARIELA Backoffice ${{ github.ref_name }}"
+          generateReleaseNotes: true
+          releaseDraft: false
+          prerelease: false

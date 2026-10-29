@@ -1,52 +1,76 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { check, type Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
-export type EstadoUpdater =
-  | "verificando"
-  | "atualizado"
-  | "disponivel"
-  | "baixando"
-  | "instalando"
-  | "erro";
+export type EstadoUpdater = "verificando" | "atualizado" | "disponivel" | "erro";
 
 export interface UpdaterStatus {
   estado: EstadoUpdater;
   versaoAtual: string | null;
   versaoDisponivel: string | null;
-  /** 0–100 quando o tamanho do download é conhecido; `null` quando indeterminado. */
-  progresso: number | null;
+  /** Notas da versão (corpo da release), quando disponíveis. */
+  notas: string | null;
   erro: string | null;
-  atualizarAgora: () => void;
+  /** Abre o instalador da nova versão no navegador padrão. Nunca baixa/instala nada por aqui dentro. */
+  baixarAgora: () => void;
   tentarNovamente: () => void;
 }
 
+const REPO = "MARIELA-ECOSYSTEM/mariela-backoffice";
+const RELEASES_API_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
+const TIMEOUT_MS = 8000;
+
+interface GithubReleaseAsset {
+  name: string;
+  browser_download_url: string;
+}
+
+interface GithubRelease {
+  tag_name: string;
+  body: string | null;
+  assets: GithubReleaseAsset[];
+}
+
+type Semver = readonly [number, number, number];
+
+/** Extrai X.Y.Z de tags como "v0.2.0" ou "0.2.0" (ignora sufixo de pré-release, se houver). */
+function parseVersao(valor: string): Semver | null {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(valor.trim());
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
 /**
- * Verificação e instalação de atualizações via o plugin oficial do Tauri
- * (`@tauri-apps/plugin-updater` + `@tauri-apps/plugin-process`).
+ * Comparação semântica (nunca lexicográfica): `a` é considerada mais nova que
+ * `b` apenas por valor numérico de major/minor/patch — "0.10.0" > "0.9.0".
+ */
+function versaoMaisNova(a: Semver, b: Semver): boolean {
+  if (a[0] !== b[0]) return a[0] > b[0];
+  if (a[1] !== b[1]) return a[1] > b[1];
+  return a[2] > b[2];
+}
+
+/**
+ * Verificação simples de atualização via a API pública de Releases do GitHub
+ * (`GET /repos/.../releases/latest` — envia `Access-Control-Allow-Origin: *`,
+ * diferente dos assets de download, que não enviam CORS e por isso não podem
+ * ser lidos via `fetch()` direto). Não baixa nem instala nada: apenas abre o
+ * instalador no navegador padrão do sistema via o plugin oficial `opener`,
+ * para instalação manual pelo administrador.
  *
- * Fora do app empacotado (ex.: `vite dev`/preview no navegador) não existe
- * ponte Tauri — `check()`/`getVersion()` rejeitam, e isso é tratado como
- * estado "erro" normal, nunca como crash: a tela de login nunca deve ser
- * bloqueada por isso.
- *
- * A assinatura/integridade do pacote é verificada pelo mecanismo interno do
- * plugin — nenhuma lógica própria de verificação é implementada aqui.
+ * Nunca bloqueia o login: qualquer falha (rede, timeout, resposta inválida,
+ * repositório sem releases ainda) cai no estado "erro" ou "atualizado",
+ * nunca lança para fora do hook.
  */
 export function useUpdaterStatus(): UpdaterStatus {
   const [estado, setEstado] = useState<EstadoUpdater>("verificando");
   const [versaoAtual, setVersaoAtual] = useState<string | null>(null);
   const [versaoDisponivel, setVersaoDisponivel] = useState<string | null>(null);
-  const [progresso, setProgresso] = useState<number | null>(null);
+  const [notas, setNotas] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
-  // Guarda o recurso do Tauri (`Update extends Resource`) para poder
-  // `.close()` quando não for usado, e os refs evitam checagens/ações
-  // concorrentes (StrictMode, remontagem da tela, cliques repetidos).
-  const updateRef = useRef<Update | null>(null);
+  const urlInstaladorRef = useRef<string | null>(null);
   const verificacaoEmAndamento = useRef(false);
-  const acaoEmAndamento = useRef(false);
 
   const verificar = useCallback(() => {
     if (verificacaoEmAndamento.current) return;
@@ -58,23 +82,50 @@ export function useUpdaterStatus(): UpdaterStatus {
       try {
         const versao = await getVersion();
         setVersaoAtual(versao);
+        const atual = parseVersao(versao);
 
-        if (updateRef.current) {
-          await updateRef.current.close().catch(() => undefined);
-          updateRef.current = null;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        let resposta: Response;
+        try {
+          resposta = await fetch(RELEASES_API_URL, {
+            headers: { Accept: "application/vnd.github+json" },
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
         }
 
-        const resultado = await check();
-        if (resultado) {
-          updateRef.current = resultado;
-          setVersaoDisponivel(resultado.version);
-          setEstado("disponivel");
-        } else {
+        // Repositório ainda sem nenhuma release publicada: nada a atualizar
+        // (não é uma falha, é um estado válido e atual do projeto).
+        if (resposta.status === 404) {
+          urlInstaladorRef.current = null;
           setVersaoDisponivel(null);
+          setNotas(null);
           setEstado("atualizado");
+          return;
         }
+        if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+
+        const release = (await resposta.json()) as GithubRelease;
+        const disponivel = parseVersao(release.tag_name);
+        const instalador = release.assets.find((asset) => asset.name.endsWith("-setup.exe"));
+
+        if (!disponivel || !atual || !instalador || !versaoMaisNova(disponivel, atual)) {
+          urlInstaladorRef.current = null;
+          setVersaoDisponivel(null);
+          setNotas(null);
+          setEstado("atualizado");
+          return;
+        }
+
+        urlInstaladorRef.current = instalador.browser_download_url;
+        setVersaoDisponivel(release.tag_name.replace(/^v/, ""));
+        setNotas(release.body?.trim() || null);
+        setEstado("disponivel");
       } catch (e) {
         console.error("[updater] Falha ao verificar atualizações:", e);
+        urlInstaladorRef.current = null;
         setEstado("erro");
         setErro("Não foi possível verificar se há uma nova versão agora.");
       } finally {
@@ -85,62 +136,21 @@ export function useUpdaterStatus(): UpdaterStatus {
 
   useEffect(() => {
     verificar();
-    return () => {
-      // Libera o recurso do updater se a tela de login desmontar (ex.: login
-      // concluído) antes do administrador decidir atualizar.
-      if (updateRef.current) void updateRef.current.close().catch(() => undefined);
-    };
     // Executa só uma vez, ao abrir a tela de login — `verificar` é estável ([]).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const atualizarAgora = useCallback(() => {
-    if (acaoEmAndamento.current) return;
-    const atualizacao = updateRef.current;
-    if (!atualizacao) return;
-
-    acaoEmAndamento.current = true;
-    setEstado("baixando");
-    setProgresso(null);
-    setErro(null);
-
-    void (async () => {
-      try {
-        let tamanhoTotal = 0;
-        let baixado = 0;
-        await atualizacao.downloadAndInstall((evento) => {
-          switch (evento.event) {
-            case "Started":
-              tamanhoTotal = evento.data.contentLength ?? 0;
-              baixado = 0;
-              setProgresso(tamanhoTotal > 0 ? 0 : null);
-              break;
-            case "Progress":
-              baixado += evento.data.chunkLength;
-              setProgresso(tamanhoTotal > 0 ? Math.min(100, Math.round((baixado / tamanhoTotal) * 100)) : null);
-              break;
-            case "Finished":
-              setEstado("instalando");
-              break;
-          }
-        });
-        // No Windows, `downloadAndInstall` já encerra o app ao lançar o
-        // instalador (comportamento documentado do plugin); `relaunch()`
-        // cobre o caso de a reabertura não ser automática — mesmo padrão
-        // do exemplo oficial do plugin updater.
-        await relaunch();
-      } catch (e) {
-        console.error("[updater] Falha ao baixar/instalar a atualização:", e);
-        setEstado("erro");
-        setErro("Não foi possível concluir a atualização. Tente novamente mais tarde.");
-        acaoEmAndamento.current = false;
-      }
-    })();
+  const baixarAgora = useCallback(() => {
+    const url = urlInstaladorRef.current;
+    if (!url) return;
+    void openUrl(url).catch((e) => {
+      console.error("[updater] Falha ao abrir o link do instalador:", e);
+    });
   }, []);
 
   const tentarNovamente = useCallback(() => {
     verificar();
   }, [verificar]);
 
-  return { estado, versaoAtual, versaoDisponivel, progresso, erro, atualizarAgora, tentarNovamente };
+  return { estado, versaoAtual, versaoDisponivel, notas, erro, baixarAgora, tentarNovamente };
 }
