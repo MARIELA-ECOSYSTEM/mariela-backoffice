@@ -18,6 +18,15 @@ permissions:
 jobs:
   publicar:
     runs-on: windows-latest
+    # O GitHub Actions roda em ambiente limpo, sem o `.env.local` usado em
+    # builds locais (gitignorado de propósito — nunca versionado). Essas duas
+    # variáveis não são segredo: são a mesma configuração de produção já
+    # usada localmente (ver `.env.local`), necessárias para que o plugin de
+    # validação do `vite.config.ts` e `src/services/api/client.ts` aceitem o
+    # build (ambos rejeitam Mock API em modo produção).
+    env:
+      VITE_USE_MOCK_API: "false"
+      VITE_API_URL: https://mariela-backend.onrender.com/api/v1
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
