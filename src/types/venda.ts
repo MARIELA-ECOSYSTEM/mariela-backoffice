@@ -188,15 +188,20 @@ export type EstadoRestauracaoEstoque =
  *   - `nao_aplicavel`: nenhum item devolvido;
  *   - `concluida`: todo o estoque devolvido;
  *   - `pendente`: devolução registrada, estoque ainda sendo devolvido (a API tenta de novo automaticamente);
- *   - `requer_intervencao`: as tentativas automáticas se esgotaram — precisa de um operador.
+ *   - `requer_intervencao`: as tentativas automáticas se esgotaram — precisa de um operador;
+ *   - `indeterminado` (Fase 22.6.1, já existente no backend): ao menos uma linha histórica sem prova do estado do
+ *     estoque — nada é devolvido automaticamente; nunca é sucesso.
+ * Cobre a venda INTEIRA. O estado de UMA operação vem de `resumoRestauracaoDoEvento` (`utils/operacao-cancelamento`).
  */
 export interface RestauracaoEstoqueResumo {
-  status: "nao_aplicavel" | "concluida" | "pendente" | "requer_intervencao";
+  status: "nao_aplicavel" | "concluida" | "pendente" | "requer_intervencao" | "indeterminado";
   totalItens: number;
   concluidos: number;
   pendentes: number;
   emFalhaRecuperavel: number;
   requerIntervencao: number;
+  /** Fase 22.6.1 — opcional: ausente em versões da API anteriores ao estado `indeterminado`. */
+  indeterminados?: number;
   proximaTentativaEm: string | null;
 }
 
@@ -208,8 +213,11 @@ export interface CancelamentoVenda {
   autor: string;
   valorDevolvido: number;
   itens: ItemDevolvido[];
-  /** idempotencyKey da requisição que gerou este cancelamento, quando informada. */
-  idempotencyKey?: string;
+  /**
+   * idempotencyKey da requisição que gerou este cancelamento; `null` em eventos legados sem chave (o backend serializa
+   * `null`). Fase 22.6.1 — é por ela, e só por ela, que o Backoffice reconcilia uma operação de resultado incerto.
+   */
+  idempotencyKey?: string | null;
 }
 
 export interface VendaDetalhe extends VendaResumo {

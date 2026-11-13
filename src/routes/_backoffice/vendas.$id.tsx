@@ -42,12 +42,21 @@ import { gerarIdempotencyKey } from "@/utils/idempotencia";
 import {
   decidirChave,
   ehResultadoIncerto,
+  eventoComChave,
+  lerAssinatura,
   lerOperacaoIncerta,
   marcarIncerta,
-  persistirOperacaoIncerta,
+  mensagemDeRestauracao,
+  persistirOperacao,
+  reconciliarPelaChave,
   removerOperacaoIncerta,
+  resumoRestauracaoDoEvento,
+  type EventoCancelamentoLido,
+  type LeituraVendaParaReconciliacao,
   type OperacaoCancelamento,
+  type StatusRestauracaoOperacao,
 } from "@/utils/operacao-cancelamento";
+import { vendasApi } from "@/services/api/vendas.api";
 import {
   LABEL_STATUS_VENDA,
   type CancelamentoPayload,
@@ -131,6 +140,74 @@ function ResumoLinha({
   );
 }
 
+// ─── Fase 22.6.1 — apoio ao cancelamento/devolução (fora do componente: sem estado) ────────────────────────────────
+
+function avisoIncerta(
+  operacao: OperacaoCancelamento,
+  persistida: boolean,
+  interrompida = false,
+): AvisoOperacaoCancelamento {
+  return {
+    vendaId: operacao.vendaId,
+    estado: "incerta",
+    assinatura: operacao.assinatura,
+    incertaDesde: operacao.incertaDesde,
+    persistida,
+    interrompida,
+  };
+}
+
+function rotuloDaOperacao(assinatura: string): string {
+  return lerAssinatura(assinatura)?.tipo === "integral"
+    ? "Venda cancelada"
+    : "Devolução parcial registrada";
+}
+
+/** Lê a venda para reconciliar; qualquer falha vira `{ ok: false }` (inconclusivo — nunca "não registrada"). */
+async function lerVendaParaReconciliacao(vendaId: string): Promise<LeituraVendaParaReconciliacao> {
+  try {
+    return { ok: true, venda: await vendasApi.obter(vendaId) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * Mensagem de operação registrada, com o estoque DESTA operação (nunca o resumo da venda inteira). `via` distingue a
+ * confirmação pela resposta normal, a confirmação pelo histórico após uma resposta de erro e a confirmação de uma
+ * operação pendente ao carregar/atualizar a venda.
+ */
+function notificarConclusao(
+  registrado: string,
+  evento: EventoCancelamentoLido | null,
+  via: "resposta" | "reconciliacao_apos_erro" | "historico",
+  erroOriginal?: string,
+) {
+  const restauracao = mensagemDeRestauracao(resumoRestauracaoDoEvento(evento).status);
+  const prefixo =
+    via === "resposta"
+      ? registrado
+      : via === "reconciliacao_apos_erro"
+        ? `${registrado}: confirmada pelo histórico da venda, embora a resposta do servidor tenha indicado erro${erroOriginal ? ` (“${erroOriginal}”)` : ""}`
+        : `A operação pendente foi confirmada pelo histórico da venda (${registrado.toLowerCase()})`;
+  const texto = restauracao.texto ? `${prefixo}; ${restauracao.texto}` : `${prefixo}.`;
+  if (restauracao.tom === "sucesso") toast.success(texto);
+  else toast.warning(texto);
+}
+
+const SELO_RESTAURACAO: Partial<
+  Record<
+    StatusRestauracaoOperacao,
+    { texto: string; variante: "success" | "warning" | "destructive" }
+  >
+> = {
+  concluida: { texto: "Estoque devolvido", variante: "success" },
+  pendente: { texto: "Estoque: devolução pendente", variante: "warning" },
+  falha_recuperavel: { texto: "Estoque: falha, nova tentativa automática", variante: "warning" },
+  requer_intervencao: { texto: "Estoque: requer intervenção", variante: "destructive" },
+  indeterminado: { texto: "Estoque: situação indeterminada", variante: "warning" },
+};
+
 function VendaDetalhePage() {
   const { id } = Route.useParams();
   const { data: venda, isPending, isError, error, refetch } = useVenda(id);
@@ -205,13 +282,9 @@ function VendaDetalhePage() {
       if (!(atual && atual.vendaId === id && atual.incerta)) {
         operacaoCancelamentoRef.current = leitura.operacao;
       }
-      setAvisoOperacao({
-        vendaId: id,
-        estado: "incerta",
-        assinatura: leitura.operacao.assinatura,
-        incertaDesde: leitura.operacao.incertaDesde,
-        persistida: true,
-      });
+      // Fase 22.6.1 — `em_andamento` recuperado = a página foi recarregada/fechada DURANTE o envio. Nada é reenviado;
+      // a reconciliação abaixo encerra a pendência se a venda carregada já tiver o evento com esta chave.
+      setAvisoOperacao(avisoIncerta(leitura.operacao, true, leitura.origem === "em_andamento"));
     } else if (leitura.estado === "invalida") {
       // Registro ilegível: nenhuma chave é inventada nem reaproveitada; novas operações ficam bloqueadas até o
       // operador conferir o histórico e descartar.
@@ -221,6 +294,32 @@ function VendaDetalhePage() {
       setAvisoOperacao((atual) => (atual?.vendaId === id ? atual : null));
     }
   }, [id]);
+
+  /**
+   * Fase 22.6.1 — reconciliação CONTÍNUA de uma operação pendente desta venda com os dados carregados (abertura da
+   * página, refetch, invalidação): se a venda contiver um evento com EXATAMENTE a chave pendente, a operação FOI
+   * registrada (eventos são append-only) — encerra a pendência e avisa o operador. Não envia nada. Ausência da chave
+   * nunca libera a operação. Não roda durante um envio (o próprio envio reconcilia ao terminar).
+   */
+  useEffect(() => {
+    if (!venda || cancelandoRef.current) return;
+    const pendente = operacaoCancelamentoRef.current;
+    if (!pendente || pendente.vendaId !== id || !pendente.incerta) return;
+    const evento = eventoComChave(venda, pendente.chave);
+    if (!evento) return;
+    operacaoCancelamentoRef.current = null;
+    removerOperacaoIncerta(id);
+    setAvisoOperacao((atual) => (atual?.vendaId === id ? null : atual));
+    notificarConclusao(rotuloDaOperacao(pendente.assinatura), evento, "historico");
+  }, [venda, id, avisoOperacao]);
+
+  /** Encerra a operação pendente da venda (registro confirmado): memória, registro DESTA venda e aviso. */
+  function encerrarOperacao(vendaId: string) {
+    if (operacaoCancelamentoRef.current?.vendaId === vendaId)
+      operacaoCancelamentoRef.current = null;
+    removerOperacaoIncerta(vendaId);
+    setAvisoOperacao((atual) => (atual?.vendaId === vendaId ? null : atual));
+  }
 
   function descartarOperacaoIncerta() {
     const removido = removerOperacaoIncerta(id);
@@ -254,58 +353,62 @@ function VendaDetalhePage() {
       );
       return;
     }
-    const operacao = decisao.operacao;
-    operacaoCancelamentoRef.current = operacao;
     cancelandoRef.current = true;
+    // Fase 22.6.1 (A3) — a operação é gravada ANTES do envio (`em_andamento`; uma já incerta continua `incerta`):
+    // um reload/fechamento durante a requisição não perde a chave. Sem armazenamento, a proteção fica só em memória
+    // e o operador é avisado de que ela não sobrevive a um reload.
+    const operacao: OperacaoCancelamento = {
+      ...decisao.operacao,
+      incertaDesde: decisao.operacao.incertaDesde ?? new Date().toISOString(),
+    };
+    operacaoCancelamentoRef.current = operacao;
+    if (!persistirOperacao(operacao, operacao.incerta ? "incerta" : "em_andamento")) {
+      toast.warning(
+        "Não foi possível guardar a proteção desta operação no navegador: se a página for recarregada ou fechada durante o envio, a identificação da operação se perde.",
+      );
+    }
     const payload: CancelamentoPayload = { ...payloadDoDialogo, idempotencyKey: operacao.chave };
+    const registrado = rotuloDaOperacao(operacao.assinatura);
     try {
       const resultado = await cancelar.mutateAsync(payload);
       // Operação confirmada pelo backend (registro novo ou replay): limpa memória e o registro DESTA venda; a próxima
       // operação recebe chave nova.
-      if (operacaoCancelamentoRef.current?.vendaId === operacao.vendaId) {
-        operacaoCancelamentoRef.current = null;
-      }
-      removerOperacaoIncerta(operacao.vendaId);
-      setAvisoOperacao((atual) => (atual?.vendaId === operacao.vendaId ? null : atual));
-      const registrado =
-        payload.tipo === "integral" ? "Venda cancelada" : "Devolução parcial registrada";
-      // Fase 60.4.3.4.18 — o cancelamento pode ser registrado com a devolução de estoque ainda pendente. Não é erro:
-      // NÃO repetir a operação (a API conclui o estoque sozinha); só um aviso honesto do estado real.
-      const restauracao = resultado.restauracaoEstoque?.status;
-      if (restauracao === "pendente") {
-        toast.warning(
-          `${registrado}, mas a devolução de estoque ainda está pendente. O sistema tentará novamente automaticamente — não é preciso repetir a operação.`,
-        );
-      } else if (restauracao === "requer_intervencao") {
-        toast.warning(
-          `${registrado}, mas a devolução de estoque não pôde ser concluída e precisa de verificação do administrador. Não repita a operação.`,
-        );
-      } else {
-        toast.success(`${registrado}.`);
-      }
+      encerrarOperacao(operacao.vendaId);
+      notificarConclusao(registrado, eventoComChave(resultado, operacao.chave), "resposta");
       setCancelamentoAberto(false);
     } catch (err) {
-      if (ehResultadoIncerto(err)) {
-        // Fase 22.5.1/22.5.2 — TIMEOUT, NETWORK_ERROR ou 502/503/504: a operação pode ter sido gravada sem a
-        // confirmação chegar. Não é falha certa: fixa a chave (sem gerar outra nem reenviar), persiste para sobreviver
-        // a reload, pede dados atualizados e manda o operador conferir o histórico.
-        const incerta = marcarIncerta(operacao, new Date());
-        operacaoCancelamentoRef.current = incerta;
-        const persistida = persistirOperacaoIncerta(incerta);
-        setAvisoOperacao({
-          vendaId: incerta.vendaId,
-          estado: "incerta",
-          assinatura: incerta.assinatura,
-          incertaDesde: incerta.incertaDesde,
-          persistida,
-        });
-        void queryClient.invalidateQueries({ queryKey: vendasKeys.todas });
+      // Fase 22.6.1 (A2) — QUALQUER falha: o backend pode ter gravado o evento e respondido erro depois (caixa
+      // fechado no meio, agregados, auditoria…). Relê a venda e procura a chave EXATA enviada.
+      const leitura = await lerVendaParaReconciliacao(operacao.vendaId);
+      void queryClient.invalidateQueries({ queryKey: vendasKeys.todas });
+      const reconciliacao = reconciliarPelaChave(operacao.vendaId, operacao.chave, leitura);
+      if (reconciliacao.tipo === "registrada") {
+        encerrarOperacao(operacao.vendaId);
+        notificarConclusao(
+          registrado,
+          reconciliacao.evento,
+          "reconciliacao_apos_erro",
+          mensagemDeErro(err, ""),
+        );
+        setCancelamentoAberto(false);
+        return;
+      }
+      // Não confirmada (consulta inconclusiva OU chave ausente neste momento — que não prova nada): a operação fica
+      // PROTEGIDA — chave e assinatura fixadas e persistidas, sem chave nova e sem reenvio automático.
+      const incerta = marcarIncerta(operacao, new Date());
+      operacaoCancelamentoRef.current = incerta;
+      setAvisoOperacao(avisoIncerta(incerta, persistirOperacao(incerta, "incerta")));
+      if (ehResultadoIncerto(err) || reconciliacao.tipo === "inconclusiva") {
         toast.warning(
           "Não foi possível confirmar se a operação foi registrada. Confira o histórico da venda antes de tentar novamente.",
         );
         setCancelamentoAberto(false);
       } else {
-        toast.error(mensagemDeErro(err, "Não foi possível concluir a operação."));
+        // Erro definitivo e a venda relida não tem a chave: mantém o feedback do backend; o diálogo continua aberto
+        // para reenviar EXATAMENTE a mesma operação (mesma chave — replay seguro).
+        toast.error(
+          `${mensagemDeErro(err, "Não foi possível concluir a operação.")} A operação não aparece no histórico da venda e continua protegida: reenviar exatamente a mesma operação é seguro.`,
+        );
       }
     } finally {
       cancelandoRef.current = false;
@@ -620,32 +723,37 @@ function VendaDetalhePage() {
                 </CardContent>
               </Card>
 
-              {venda.cancelamentos.map((cancelamento) => (
-                <Card key={cancelamento.id} className="border-destructive/25">
-                  <CardHeader>
-                    <CardTitle className="font-display text-2xl">
-                      {cancelamento.tipo === "integral" ? "Cancelamento" : "Devolução parcial"}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <p className="text-muted-foreground">{cancelamento.motivo}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatarDataHora(cancelamento.dataHora)} · {cancelamento.autor} ·
-                      devolvido {formatarMoeda(cancelamento.valorDevolvido)}
-                    </p>
-                    <ul className="space-y-1">
-                      {cancelamento.itens.map((item) => (
-                        <li key={item.itemId} className="flex justify-between gap-3 text-xs">
-                          <span className="truncate">
-                            {item.quantidade}× {item.nome}
-                          </span>
-                          <span className="tabular-nums">{formatarMoeda(item.valor)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              ))}
+              {venda.cancelamentos.map((cancelamento) => {
+                const selo = SELO_RESTAURACAO[resumoRestauracaoDoEvento(cancelamento).status];
+                return (
+                  <Card key={cancelamento.id} className="border-destructive/25">
+                    <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
+                      <CardTitle className="font-display text-2xl">
+                        {cancelamento.tipo === "integral" ? "Cancelamento" : "Devolução parcial"}
+                      </CardTitle>
+                      {/* Fase 22.6.1 — estado do estoque DESTE evento (nunca o resumo da venda inteira). */}
+                      {selo ? <Badge variant={selo.variante}>{selo.texto}</Badge> : null}
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p className="text-muted-foreground">{cancelamento.motivo}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatarDataHora(cancelamento.dataHora)} · {cancelamento.autor} · devolvido{" "}
+                        {formatarMoeda(cancelamento.valorDevolvido)}
+                      </p>
+                      <ul className="space-y-1">
+                        {cancelamento.itens.map((item) => (
+                          <li key={item.itemId} className="flex justify-between gap-3 text-xs">
+                            <span className="truncate">
+                              {item.quantidade}× {item.nome}
+                            </span>
+                            <span className="tabular-nums">{formatarMoeda(item.valor)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                );
+              })}
 
               <Card>
                 <CardHeader>

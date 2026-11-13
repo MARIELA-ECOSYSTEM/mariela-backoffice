@@ -29,7 +29,10 @@ const PORTA = Number(process.env.UI_PORT ?? 5317);
 const BASE = `http://localhost:${PORTA}`;
 const PREFIXO_API_FICTICIA = "/__api_ficticia__";
 const API = `${BASE}${PREFIXO_API_FICTICIA}/api/v1`;
-const PREFIXO_REGISTRO = "mariela.backoffice.cancelamento-incerto.v1.";
+/** Registros de operação pendente: v2 (gravado desde a Fase 22.6.1) e v1 (legado, ainda lido — usado nos seeds). */
+const PREFIXO_BASE_REGISTRO = "mariela.backoffice.cancelamento-incerto.";
+const PREFIXO_REGISTRO = `${PREFIXO_BASE_REGISTRO}v1.`;
+const PREFIXO_REGISTRO_V2 = `${PREFIXO_BASE_REGISTRO}v2.`;
 const SHOT_DIR = process.env.SHOT_DIR ?? null;
 
 const VENDA_A = "venda-ficticia-a";
@@ -41,6 +44,15 @@ const MSG_AVISO_INCERTA = "Há uma operação anterior cuja confirmação não f
 const MSG_AVISO_INVALIDA = "Foi encontrado um registro de operação anterior sem confirmação";
 const MSG_BLOQUEIO = "Há uma operação anterior desta venda sem confirmação";
 const MSG_SEM_PERSISTENCIA = "Não foi possível guardar esta proteção no navegador";
+// Fase 22.6.1
+const MSG_CONFIRMADA_APOS_ERRO =
+  "confirmada pelo histórico da venda, embora a resposta do servidor tenha indicado erro";
+const MSG_CONFIRMADA_PENDENTE = "A operação pendente foi confirmada pelo histórico da venda";
+const MSG_PROTEGIDA_APOS_ERRO =
+  "A operação não aparece no histórico da venda e continua protegida: reenviar exatamente a mesma operação é seguro.";
+const MSG_AVISO_INTERROMPIDA = "A página foi recarregada ou fechada enquanto ela era enviada";
+const MSG_SEM_PERSISTENCIA_ENVIO =
+  "Não foi possível guardar a proteção desta operação no navegador";
 
 // ─── Utilitários ───────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -162,9 +174,13 @@ function criarBackend() {
   const getsVenda = new Map(); // vendaId → nº de GET
   /** Comportamentos das próximas requisições de cancelamento (FIFO); vazio ⇒ "normal". */
   const comportamentos = [];
+  /** Fase 22.6.1 — controle das próximas leituras da venda (reconciliação): falhar (503) ou vir sem `cancelamentos`. */
+  const leituras = { comFalha: 0, incompletas: 0 };
+  /** Fase 22.6.1 — gancho chamado quando um POST de cancelamento CHEGA (antes de processar). */
+  const ganchos = { aoReceberPost: null };
 
   /** Aplica a operação como o backend real faria (inclui replay e 409 por idempotência). */
-  function processar(vendaId, corpo) {
+  function processar(vendaId, corpo, restauracao = "concluida") {
     const venda = vendas.get(vendaId);
     const assinatura = assinaturaDe(corpo);
     const existente = chaves.get(corpo.idempotencyKey);
@@ -188,12 +204,19 @@ function criarBackend() {
         return erroJson(400, "VALIDATION_ERROR", "Quantidade a devolver inválida.");
       }
     }
-    registrar(venda, corpo, itens);
+    registrar(venda, corpo, itens, restauracao);
     chaves.set(corpo.idempotencyKey, { vendaId, assinatura });
     return { status: 201, corpo: { data: comResumo(venda) }, replay: false };
   }
 
-  function registrar(venda, corpo, itens) {
+  /** Estado de restauração por linha, no formato real do backend (`restaurado` + `estadoRestauracao`). */
+  function linhaDeRestauracao(restauracao) {
+    if (restauracao === "concluida") return { restaurado: true, estadoRestauracao: "concluida" };
+    if (restauracao === "indeterminado") return { restaurado: false }; // linha histórica sem prova
+    return { restaurado: false, estadoRestauracao: restauracao };
+  }
+
+  function registrar(venda, corpo, itens, restauracao = "concluida") {
     const dataHora = new Date().toISOString();
     let valor = 0;
     const devolvidos = itens.map(({ itemId, quantidade }) => {
@@ -205,7 +228,7 @@ function criarBackend() {
         nome: i.nome,
         quantidade,
         valor: i.precoPraticado * quantidade,
-        restaurado: true,
+        ...linhaDeRestauracao(restauracao),
       };
     });
     venda.valorDevolvido += valor;
@@ -228,19 +251,62 @@ function criarBackend() {
     if (corpo.tipo === "integral") venda.status = "cancelada";
   }
 
+  /**
+   * Resumo da VENDA INTEIRA, com a mesma precedência do backend real (`resumoRestauracao`): o Backoffice NÃO deve
+   * usá-lo para descrever a operação atual (Fase 22.6.1).
+   */
   function comResumo(venda) {
+    const linhas = venda.cancelamentos.flatMap((e) => e.itens);
+    const conta = (f) => linhas.filter(f).length;
+    const concluidos = conta((l) => l.restaurado === true);
+    const requerIntervencao = conta(
+      (l) => !l.restaurado && l.estadoRestauracao === "requer_intervencao",
+    );
+    const indeterminados = conta(
+      (l) =>
+        !l.restaurado &&
+        !["pendente", "falha_recuperavel", "requer_intervencao"].includes(l.estadoRestauracao),
+    );
+    const status =
+      linhas.length === 0
+        ? "nao_aplicavel"
+        : requerIntervencao > 0
+          ? "requer_intervencao"
+          : indeterminados > 0
+            ? "indeterminado"
+            : concluidos === linhas.length
+              ? "concluida"
+              : "pendente";
     return {
       ...venda,
       restauracaoEstoque: {
-        status: "concluida",
-        totalItens: 1,
-        concluidos: 1,
-        pendentes: 0,
-        emFalhaRecuperavel: 0,
-        requerIntervencao: 0,
+        status,
+        totalItens: linhas.length,
+        concluidos,
+        pendentes: conta((l) => !l.restaurado && l.estadoRestauracao === "pendente"),
+        emFalhaRecuperavel: conta(
+          (l) => !l.restaurado && l.estadoRestauracao === "falha_recuperavel",
+        ),
+        requerIntervencao,
+        indeterminados,
         proximaTentativaEm: null,
       },
     };
+  }
+
+  /** Acrescenta direto no "banco" um evento de OUTRA operação (outra chave), com o estado de restauração dado. */
+  function adicionarEvento(vendaId, idempotencyKey, itemId = "item-2", restauracao = "concluida") {
+    const venda = vendas.get(vendaId);
+    registrar(
+      venda,
+      { tipo: "parcial", motivo: "operação anterior (fictícia)", idempotencyKey },
+      [{ itemId, quantidade: 1 }],
+      restauracao,
+    );
+    chaves.set(idempotencyKey, {
+      vendaId,
+      assinatura: assinaturaDe({ tipo: "parcial", itens: [{ itemId, quantidade: 1 }] }),
+    });
   }
 
   function erroJson(status, code, message) {
@@ -286,8 +352,17 @@ function criarBackend() {
     if (metodo === "GET" && m) {
       const venda = vendas.get(m[1]);
       getsVenda.set(m[1], (getsVenda.get(m[1]) ?? 0) + 1);
+      if (leituras.comFalha > 0) {
+        leituras.comFalha -= 1;
+        return responder(route, erroJson(503, "HTTP_ERROR", "Leitura indisponível (fictício)."));
+      }
+      if (venda && leituras.incompletas > 0) {
+        leituras.incompletas -= 1;
+        const { cancelamentos, ...semCancelamentos } = venda;
+        return responder(route, { status: 200, corpo: { data: semCancelamentos } });
+      }
       return venda
-        ? responder(route, { status: 200, corpo: { data: venda } })
+        ? responder(route, { status: 200, corpo: { data: comResumo(venda) } })
         : responder(route, erroJson(404, "NOT_FOUND", "Venda não encontrada."));
     }
     m = caminho.match(/^\/vendas\/([^/]+)\/cancelamento$/);
@@ -295,14 +370,23 @@ function criarBackend() {
       const vendaId = m[1];
       const corpo = JSON.parse(req.postData() ?? "{}");
       posts.push({ vendaId, corpo });
+      if (ganchos.aoReceberPost) await ganchos.aoReceberPost(corpo);
       const c = comportamentos.shift() ?? { tipo: "normal" };
       switch (c.tipo) {
         case "normal":
-          return responder(route, processar(vendaId, corpo));
+          return responder(route, processar(vendaId, corpo, c.restauracao));
         case "erro": // erro definitivo devolvido pelo backend, SEM registrar
+          return responder(route, erroJson(c.status, c.code, c.message));
+        case "registrar-e-erro": // Fase 22.6.1 (A2): backend GRAVOU e depois respondeu erro (caixa, agregados…)
+          processar(vendaId, corpo, c.restauracao);
           return responder(route, erroJson(c.status, c.code, c.message));
         case "registrar-e-gateway": // backend gravou, mas o gateway devolveu 502/503/504 (corpo HTML)
           processar(vendaId, corpo);
+          return responder(route, {
+            status: c.status,
+            html: `<html><body>${c.status}</body></html>`,
+          });
+        case "gateway": // gateway respondeu 502/503/504 SEM a requisição ter sido processada
           return responder(route, {
             status: c.status,
             html: `<html><body>${c.status}</body></html>`,
@@ -311,7 +395,10 @@ function criarBackend() {
           return route.abort("failed");
         case "registrar-e-travar": // backend gravou, resposta nunca chega → TIMEOUT no cliente (15 s)
           processar(vendaId, corpo);
-          await dormir(25_000);
+          await dormir(20_000);
+          return route.abort("timedout").catch(() => {});
+        case "travar": // requisição nunca processada nem respondida → TIMEOUT no cliente (ou reload no meio)
+          await dormir(20_000);
           return route.abort("timedout").catch(() => {});
         default:
           throw new Error(`comportamento desconhecido: ${c.tipo}`);
@@ -323,7 +410,18 @@ function criarBackend() {
   }
 
   const naoPrevistas = [];
-  return { vendas, chaves, posts, getsVenda, comportamentos, naoPrevistas, atender };
+  return {
+    vendas,
+    chaves,
+    posts,
+    getsVenda,
+    comportamentos,
+    leituras,
+    ganchos,
+    adicionarEvento,
+    naoPrevistas,
+    atender,
+  };
 }
 
 // ─── Infra: Vite + navegador ───────────────────────────────────────────────────────────────────────────────────────
@@ -401,7 +499,7 @@ async function novaSessao({
           return original.call(this, chave, ...resto);
         };
       }
-    }, PREFIXO_REGISTRO);
+    }, PREFIXO_BASE_REGISTRO);
   }
   const pagina = await contexto.newPage();
   const errosDePagina = [];
@@ -431,14 +529,27 @@ async function novaSessao({
       await pagina.reload();
       await pagina.getByText("Itens da venda").waitFor({ timeout: 60_000 });
     },
+    /** Registro EFETIVO da venda (v2 tem precedência sobre o legado v1), como texto bruto; `null` se não houver. */
     registro(vendaId) {
-      return pagina.evaluate((k) => {
-        try {
-          return sessionStorage.getItem(k);
-        } catch {
-          return "<<inacessível>>";
-        }
-      }, PREFIXO_REGISTRO + vendaId);
+      return pagina.evaluate(
+        ([v2, v1]) => {
+          try {
+            return sessionStorage.getItem(v2) ?? sessionStorage.getItem(v1);
+          } catch {
+            return "<<inacessível>>";
+          }
+        },
+        [PREFIXO_REGISTRO_V2 + vendaId, PREFIXO_REGISTRO + vendaId],
+      );
+    },
+    /** Registro efetivo já interpretado (`null` se não houver). */
+    async registroJson(vendaId) {
+      const bruto = await this.registro(vendaId);
+      return bruto === null ? null : JSON.parse(bruto);
+    },
+    /** Força o refetch da venda como numa volta de foco (React Query `refetchOnWindowFocus`). */
+    async simularFoco() {
+      await pagina.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
     },
     async encerrar() {
       const apiExterna = externas.filter((u) => /\/api\/|\/auth\/|\/vendas/.test(u));
@@ -573,64 +684,51 @@ describe("6.3 isolamento entre vendas", () => {
 // ─── 6.4 ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 describe("6.4 repetição da operação incerta", () => {
-  for (const jaRegistrada of [true, false]) {
-    test(`mesma assinatura usa a chave original; sucesso limpa aviso e registro (backend ${jaRegistrada ? "já tinha registrado → replay" : "não tinha registrado → registra uma vez"})`, async () => {
-      const s = await novaSessao({
-        sessionStorage: {
-          [PREFIXO_REGISTRO + VENDA_A]: registroValido(VENDA_A),
-          [PREFIXO_REGISTRO + VENDA_B]: registroValido(
-            VENDA_B,
-            OP_INTEGRAL,
-            "chave-da-venda-b-0001",
-          ),
-        },
-      });
-      if (jaRegistrada) {
-        // Estado do backend após a tentativa "perdida": a devolução existe e a chave é conhecida.
-        const venda = s.backend.vendas.get(VENDA_A);
-        venda.itens[0].quantidadeDevolvida = 1;
-        venda.cancelamentos.push({
-          id: "canc-1",
-          tipo: "parcial",
-          motivo: "tentativa perdida",
-          dataHora: "2026-11-12T15:30:00.000Z",
-          autor: "Admin Fictício",
-          valorDevolvido: 100,
-          itens: [
-            {
-              itemId: "item-1",
-              nome: "Blusa Fictícia",
-              quantidade: 1,
-              valor: 100,
-              restaurado: true,
-            },
-          ],
-        });
-        s.backend.chaves.set(CHAVE_ORIGINAL, {
-          vendaId: VENDA_A,
-          assinatura: assinaturaDe(OP_PARCIAL_ITEM1),
-        });
-      }
-      await s.abrirVenda(VENDA_A);
-      await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
-      await abrirDialogo(s.pagina);
-      await preencher(s.pagina, OP_PARCIAL_ITEM1, "motivo diferente do original");
-      await enviar(s.pagina, OP_PARCIAL_ITEM1);
-      await esperarTexto(s.pagina, "Devolução parcial registrada.");
-
-      assert.equal(s.backend.posts.length, 1);
-      assert.equal(s.backend.posts[0].corpo.idempotencyKey, CHAVE_ORIGINAL);
-      await semNovasRequisicoes(s.backend, 1);
-      assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1, "devolução duplicada");
-      assert.equal(await s.registro(VENDA_A), null);
-      assert.notEqual(await s.registro(VENDA_B), null, "o registro de outra venda foi apagado");
-      await esperarAte(
-        async () => (await s.pagina.getByText(MSG_AVISO_INCERTA).count()) === 0,
-        "aviso desaparecer",
-      );
-      await s.encerrar();
+  test("backend NÃO tinha registrado: mesma assinatura usa a chave original, registra uma vez e limpa só a venda atual", async () => {
+    const s = await novaSessao({
+      sessionStorage: {
+        [PREFIXO_REGISTRO + VENDA_A]: registroValido(VENDA_A),
+        [PREFIXO_REGISTRO + VENDA_B]: registroValido(VENDA_B, OP_INTEGRAL, "chave-da-venda-b-0001"),
+      },
     });
-  }
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1, "motivo diferente do original");
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, "Devolução parcial registrada.");
+
+    assert.equal(s.backend.posts.length, 1);
+    assert.equal(s.backend.posts[0].corpo.idempotencyKey, CHAVE_ORIGINAL);
+    await semNovasRequisicoes(s.backend, 1);
+    assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1, "devolução duplicada");
+    assert.equal(await s.registro(VENDA_A), null);
+    assert.notEqual(await s.registro(VENDA_B), null, "o registro de outra venda foi apagado");
+    await esperarAte(
+      async () => (await s.pagina.getByText(MSG_AVISO_INCERTA).count()) === 0,
+      "aviso desaparecer",
+    );
+    await s.encerrar();
+  });
+
+  test("Fase 22.6.1 (A5): backend JÁ tinha registrado (evento com a chave) → pendência encerrada ao abrir, sem repetir nem selecionar itens", async () => {
+    const s = await novaSessao({
+      sessionStorage: {
+        [PREFIXO_REGISTRO + VENDA_A]: registroValido(VENDA_A, OP_PARCIAL_ITEM2),
+        [PREFIXO_REGISTRO + VENDA_B]: registroValido(VENDA_B, OP_INTEGRAL, "chave-da-venda-b-0001"),
+      },
+    });
+    // A operação perdida consumiu TODO o restante do item 2 (que some da lista do diálogo): não daria para repeti-la.
+    s.backend.adicionarEvento(VENDA_A, CHAVE_ORIGINAL, "item-2");
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_CONFIRMADA_PENDENTE);
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    assert.equal(await s.pagina.getByText(MSG_AVISO_INCERTA).count(), 0);
+    assert.notEqual(await s.registro(VENDA_B), null, "o registro de outra venda foi apagado");
+    await semNovasRequisicoes(s.backend, 0);
+    assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
+    await s.encerrar();
+  });
 });
 
 // ─── 6.5 ───────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -665,9 +763,9 @@ describe("6.5 mudança de tipo, itens ou quantidades", () => {
 // ─── 6.6 ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 describe("6.6 erros incertos", () => {
-  const casos = [
+  // Fase 22.6.1 — quando o backend GRAVOU, a releitura encontra a chave e encerra a operação na hora.
+  const gravou = [
     ["TIMEOUT (backend gravou, resposta nunca chegou)", { tipo: "registrar-e-travar" }, 30_000],
-    ["NETWORK_ERROR (falha antes de chegar ao backend)", { tipo: "abortar" }, 10_000],
     [
       "HTTP 502 (backend gravou, gateway falhou)",
       { tipo: "registrar-e-gateway", status: 502 },
@@ -684,7 +782,37 @@ describe("6.6 erros incertos", () => {
       10_000,
     ],
   ];
-  for (const [nome, comportamento, espera] of casos) {
+  for (const [nome, comportamento, espera] of gravou) {
+    test(
+      `${nome}: reconciliação pela chave confirma; sem aviso, sem registro, sem repetição`,
+      { timeout: 120_000 },
+      async () => {
+        const s = await novaSessao();
+        await s.abrirVenda(VENDA_A);
+        await abrirDialogo(s.pagina);
+        await preencher(s.pagina, OP_PARCIAL_ITEM1);
+        s.backend.comportamentos.push(comportamento);
+        await enviar(s.pagina, OP_PARCIAL_ITEM1);
+        await esperarTexto(s.pagina, MSG_CONFIRMADA_APOS_ERRO, espera);
+        assert.equal(await s.pagina.getByText(MSG_INCERTA).count(), 0);
+        assert.equal(await s.registro(VENDA_A), null);
+        assert.equal(await s.pagina.getByText(MSG_AVISO_INCERTA).count(), 0);
+        await semNovasRequisicoes(s.backend, 1);
+        assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
+        await s.encerrar();
+      },
+    );
+  }
+
+  // Quando NÃO gravou: a chave ausente não prova nada — a operação fica protegida e sobrevive à remontagem.
+  const naoGravou = [
+    ["TIMEOUT (nada processado)", { tipo: "travar" }, 30_000],
+    ["NETWORK_ERROR (falha antes de chegar ao backend)", { tipo: "abortar" }, 10_000],
+    ["HTTP 502 (gateway, nada processado)", { tipo: "gateway", status: 502 }, 10_000],
+    ["HTTP 503 (gateway, nada processado)", { tipo: "gateway", status: 503 }, 10_000],
+    ["HTTP 504 (gateway, nada processado)", { tipo: "gateway", status: 504 }, 10_000],
+  ];
+  for (const [nome, comportamento, espera] of naoGravou) {
     test(
       `${nome}: persiste, avisa, invalida, não repete; após remontagem reusa a chave sem duplicar`,
       { timeout: 120_000 },
@@ -699,28 +827,30 @@ describe("6.6 erros incertos", () => {
         await esperarTexto(s.pagina, MSG_INCERTA, espera);
 
         const chave = s.backend.posts[0].corpo.idempotencyKey;
-        const reg = JSON.parse(await s.registro(VENDA_A));
+        const reg = await s.registroJson(VENDA_A);
         assert.equal(reg.chave, chave);
         assert.equal(reg.assinatura, assinaturaDe(OP_PARCIAL_ITEM1));
         assert.equal(reg.vendaId, VENDA_A);
+        assert.equal(reg.estado, "incerta");
         assert.deepEqual(Object.keys(reg).sort(), [
           "assinatura",
           "chave",
-          "incertaDesde",
+          "estado",
+          "iniciadaEm",
           "vendaId",
           "versao",
         ]);
         await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
         await esperarAte(
           async () => (s.backend.getsVenda.get(VENDA_A) ?? 0) > getsAntes,
-          "refetch da venda (invalidação)",
+          "releitura/refetch da venda",
         );
         await semNovasRequisicoes(s.backend, 1);
 
         await s.recarregar();
         await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
         await semNovasRequisicoes(s.backend, 1, 1_000);
-        assert.equal(JSON.parse(await s.registro(VENDA_A)).chave, chave);
+        assert.equal((await s.registroJson(VENDA_A)).chave, chave);
 
         await abrirDialogo(s.pagina);
         await preencher(s.pagina, OP_PARCIAL_ITEM1);
@@ -742,9 +872,9 @@ describe("6.6 erros incertos", () => {
 
 // ─── 6.7 ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-describe("6.7 erros definitivos", () => {
-  for (const status of [400, 409, 422]) {
-    test(`HTTP ${status}: feedback de erro, nada persistido, sem retry`, async () => {
+describe("6.7 erros definitivos SEM registro (Fase 22.6.1: a operação fica protegida)", () => {
+  for (const status of [400, 409, 422, 500]) {
+    test(`HTTP ${status} sem evento: feedback do backend, operação protegida (mesma chave), sem retry`, async () => {
       const s = await novaSessao();
       await s.abrirVenda(VENDA_A);
       await abrirDialogo(s.pagina);
@@ -757,14 +887,32 @@ describe("6.7 erros definitivos", () => {
       });
       await enviar(s.pagina, OP_PARCIAL_ITEM1);
       await esperarTexto(s.pagina, `Erro fictício ${status}.`);
-      assert.equal(await s.pagina.getByText(MSG_INCERTA).count(), 0);
-      assert.equal(await s.pagina.getByText(MSG_AVISO_INCERTA).count(), 0);
-      assert.equal(await s.registro(VENDA_A), null);
+      await esperarTexto(s.pagina, MSG_PROTEGIDA_APOS_ERRO);
+      assert.equal(await s.pagina.getByText(MSG_CONFIRMADA_APOS_ERRO).count(), 0);
+      const chave = s.backend.posts[0].corpo.idempotencyKey;
+      const reg = await s.registroJson(VENDA_A);
+      assert.equal(reg.chave, chave);
+      assert.equal(reg.estado, "incerta");
+      await esperarTexto(dialogo(s.pagina), MSG_AVISO_INCERTA); // diálogo continua aberto, com o aviso
       await semNovasRequisicoes(s.backend, 1);
+
+      // Outra operação: bloqueada. A mesma: reenviada com a MESMA chave.
+      await preencher(s.pagina, OP_PARCIAL_ITEM2);
+      await enviar(s.pagina, OP_PARCIAL_ITEM2);
+      await esperarTexto(s.pagina, MSG_BLOQUEIO);
+      await semNovasRequisicoes(s.backend, 1, 500);
+      await s.pagina.keyboard.press("Escape");
+      await dialogo(s.pagina).waitFor({ state: "detached" });
+      await abrirDialogo(s.pagina);
+      await preencher(s.pagina, OP_PARCIAL_ITEM1);
+      await enviar(s.pagina, OP_PARCIAL_ITEM1);
+      await esperarTexto(s.pagina, "Devolução parcial registrada.");
+      assert.equal(s.backend.posts[1].corpo.idempotencyKey, chave);
+      assert.equal(await s.registro(VENDA_A), null);
       await s.encerrar();
     });
 
-    test(`HTTP ${status} com operação incerta anterior: o registro e a chave permanecem`, async () => {
+    test(`HTTP ${status} com operação incerta anterior: chave e assinatura permanecem`, async () => {
       const reg = registroValido(VENDA_A);
       const s = await novaSessao({ sessionStorage: { [PREFIXO_REGISTRO + VENDA_A]: reg } });
       await s.abrirVenda(VENDA_A);
@@ -779,7 +927,9 @@ describe("6.7 erros definitivos", () => {
       await enviar(s.pagina, OP_PARCIAL_ITEM1);
       await esperarTexto(s.pagina, `Erro fictício ${status}.`);
       assert.equal(s.backend.posts[0].corpo.idempotencyKey, CHAVE_ORIGINAL);
-      assert.equal(await s.registro(VENDA_A), reg);
+      const atual = await s.registroJson(VENDA_A);
+      assert.equal(atual.chave, CHAVE_ORIGINAL);
+      assert.equal(atual.assinatura, JSON.parse(reg).assinatura);
       await esperarTexto(dialogo(s.pagina), MSG_AVISO_INCERTA);
       await semNovasRequisicoes(s.backend, 1);
       await s.encerrar();
@@ -855,6 +1005,8 @@ describe("6.9 descarte em duas etapas", () => {
     assert.equal(await s.registro(VENDA_A), regA, "1ª etapa apagou o registro");
     await esperarTexto(s.pagina, "uma nova igual será uma segunda devolução");
     await esperarTexto(s.pagina, "Descarte apenas depois de conferir o histórico");
+    // Fase 22.6.1 — o texto deixa claro que descartar NÃO desfaz nada no backend.
+    await esperarTexto(s.pagina, "não desfaz nem cancela");
 
     await s.pagina.getByRole("button", { name: "Manter operação pendente" }).click();
     assert.equal(await s.registro(VENDA_A), regA);
@@ -887,8 +1039,10 @@ describe("6.10 armazenamento indisponível", () => {
 
       await abrirDialogo(s.pagina);
       await preencher(s.pagina, OP_PARCIAL_ITEM1);
-      s.backend.comportamentos.push({ tipo: "registrar-e-gateway", status: 503 });
+      s.backend.comportamentos.push({ tipo: "gateway", status: 503 });
       await enviar(s.pagina, OP_PARCIAL_ITEM1);
+      // Fase 22.6.1 — já ANTES do envio o operador é avisado de que a proteção não sobrevive a reload.
+      await esperarTexto(s.pagina, MSG_SEM_PERSISTENCIA_ENVIO);
       await esperarTexto(s.pagina, MSG_INCERTA);
       await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
       await esperarTexto(
@@ -897,7 +1051,7 @@ describe("6.10 armazenamento indisponível", () => {
       );
       const chave = s.backend.posts[0].corpo.idempotencyKey;
 
-      // Proteção em memória: operação diferente bloqueada; a mesma reusa a chave (replay, sem duplicar).
+      // Proteção em memória: operação diferente bloqueada; a mesma reusa a chave (registra uma única vez).
       await abrirDialogo(s.pagina);
       await preencher(s.pagina, OP_PARCIAL_ITEM2);
       await enviar(s.pagina, OP_PARCIAL_ITEM2);
@@ -925,6 +1079,306 @@ describe("6.10 armazenamento indisponível", () => {
       await s.encerrar();
     },
   );
+});
+
+// ─── Fase 22.6.1 — reconciliação pela chave, persistência antes do envio, restauração da operação ─────────────────
+
+describe("22.6.1 reconciliação pela chave após erro", () => {
+  for (const [status, code, message] of [
+    [400, "VALIDATION_ERROR", "Este caixa está fechado e é imutável (fictício)."],
+    [404, "NOT_FOUND", "Vendedor(a) não encontrado(a) (fictício)."],
+    [409, "CONFLICT", "A venda foi modificada por outra operação simultânea (fictício)."],
+    [500, "INTERNAL_ERROR", "Erro interno (fictício)."],
+  ]) {
+    test(`1–4/10/16. HTTP ${status} DEPOIS de gravar: a chave exata na venda relida confirma; limpa só a venda atual`, async () => {
+      const regB = registroValido(VENDA_B, OP_INTEGRAL, "chave-da-venda-b-0001");
+      const s = await novaSessao({ sessionStorage: { [PREFIXO_REGISTRO + VENDA_B]: regB } });
+      await s.abrirVenda(VENDA_A);
+      await abrirDialogo(s.pagina);
+      await preencher(s.pagina, OP_PARCIAL_ITEM1);
+      s.backend.comportamentos.push({ tipo: "registrar-e-erro", status, code, message });
+      await enviar(s.pagina, OP_PARCIAL_ITEM1);
+      await esperarTexto(s.pagina, MSG_CONFIRMADA_APOS_ERRO);
+      await esperarTexto(s.pagina, message); // o erro original continua informado, mas não como falha
+      assert.equal(await s.pagina.getByText(MSG_PROTEGIDA_APOS_ERRO).count(), 0);
+      assert.equal(await s.pagina.getByText(MSG_INCERTA).count(), 0);
+      await dialogo(s.pagina).waitFor({ state: "detached" });
+      assert.equal(await s.registro(VENDA_A), null);
+      assert.equal(await s.registro(VENDA_B), regB, "registro de outra venda foi removido");
+      assert.equal(await s.pagina.getByText(MSG_AVISO_INCERTA).count(), 0);
+      await semNovasRequisicoes(s.backend, 1);
+      assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
+      // Uma NOVA operação depois disso recebe chave nova (a anterior foi encerrada).
+      await abrirDialogo(s.pagina);
+      await preencher(s.pagina, OP_PARCIAL_ITEM2);
+      await enviar(s.pagina, OP_PARCIAL_ITEM2);
+      await esperarTexto(s.pagina, "Devolução parcial registrada.");
+      assert.notEqual(
+        s.backend.posts[1].corpo.idempotencyKey,
+        s.backend.posts[0].corpo.idempotencyKey,
+      );
+      await s.encerrar();
+    });
+  }
+
+  test("7/13. releitura FALHA (backend gravou): chave preservada; depois do reload a pendência é confirmada sem POST", async () => {
+    const s = await novaSessao();
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    s.backend.comportamentos.push({
+      tipo: "registrar-e-erro",
+      status: 500,
+      code: "INTERNAL_ERROR",
+      message: "Erro interno (fictício).",
+    });
+    s.backend.leituras.comFalha = 3; // releitura + refetch + retry do React Query
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, MSG_INCERTA);
+    const chave = s.backend.posts[0].corpo.idempotencyKey;
+    const reg = await s.registroJson(VENDA_A);
+    assert.equal(reg.chave, chave);
+    assert.equal(reg.estado, "incerta");
+    await semNovasRequisicoes(s.backend, 1);
+
+    s.backend.leituras.comFalha = 0;
+    await s.recarregar();
+    await esperarTexto(s.pagina, MSG_CONFIRMADA_PENDENTE);
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    await semNovasRequisicoes(s.backend, 1);
+    assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
+    await s.encerrar();
+  });
+
+  test("8. releitura INCOMPLETA (sem cancelamentos): inconclusiva — chave preservada, operação protegida", async () => {
+    const s = await novaSessao();
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    s.backend.comportamentos.push({
+      tipo: "erro",
+      status: 500,
+      code: "INTERNAL_ERROR",
+      message: "Erro interno (fictício).",
+    });
+    s.backend.leituras.incompletas = 1;
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, MSG_INCERTA); // inconclusiva ⇒ tratada como incerta, não como "não registrada"
+    const chave = s.backend.posts[0].corpo.idempotencyKey;
+    assert.equal((await s.registroJson(VENDA_A)).chave, chave);
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    await semNovasRequisicoes(s.backend, 1);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, "Devolução parcial registrada.");
+    assert.equal(s.backend.posts[1].corpo.idempotencyKey, chave);
+    await s.encerrar();
+  });
+
+  test("9. venda relida tem evento de OUTRA chave (mesmo item): não conta como sucesso", async () => {
+    const s = await novaSessao();
+    s.backend.adicionarEvento(VENDA_A, "chave-de-outra-operacao-0001", "item-1");
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    s.backend.comportamentos.push({
+      tipo: "erro",
+      status: 500,
+      code: "INTERNAL_ERROR",
+      message: "Erro interno (fictício).",
+    });
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, MSG_PROTEGIDA_APOS_ERRO);
+    assert.equal(await s.pagina.getByText(MSG_CONFIRMADA_APOS_ERRO).count(), 0);
+    const reg = await s.registroJson(VENDA_A);
+    assert.equal(reg.chave, s.backend.posts[0].corpo.idempotencyKey);
+    assert.notEqual(reg.chave, "chave-de-outra-operacao-0001");
+    await semNovasRequisicoes(s.backend, 1);
+    await s.encerrar();
+  });
+});
+
+describe("22.6.1 persistência antes do envio e reload durante a requisição", () => {
+  test("11. o registro 'em_andamento' (só campos mínimos) já existe quando o POST chega ao backend", async () => {
+    const s = await novaSessao();
+    await s.abrirVenda(VENDA_A);
+    let noMomentoDoPost = null;
+    s.backend.ganchos.aoReceberPost = async () => {
+      noMomentoDoPost = await s.registroJson(VENDA_A);
+    };
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1, "motivo que não deve ser gravado");
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, "Devolução parcial registrada.");
+    assert.ok(noMomentoDoPost, "nada gravado antes do POST");
+    assert.equal(noMomentoDoPost.estado, "em_andamento");
+    assert.equal(noMomentoDoPost.chave, s.backend.posts[0].corpo.idempotencyKey);
+    assert.equal(noMomentoDoPost.assinatura, assinaturaDe(OP_PARCIAL_ITEM1));
+    assert.deepEqual(Object.keys(noMomentoDoPost).sort(), [
+      "assinatura",
+      "chave",
+      "estado",
+      "iniciadaEm",
+      "vendaId",
+      "versao",
+    ]);
+    assert.ok(!JSON.stringify(noMomentoDoPost).includes("motivo que não deve"));
+    assert.equal(await s.registro(VENDA_A), null, "sucesso deveria limpar o registro");
+    await s.encerrar();
+  });
+
+  test("12/13. reload DURANTE o envio, backend gravou: ao recarregar, a pendência é confirmada sem POST automático", async () => {
+    const s = await novaSessao();
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    s.backend.comportamentos.push({ tipo: "registrar-e-travar" });
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarAte(async () => s.backend.posts.length === 1, "POST chegar");
+    await s.recarregar(); // requisição ainda pendente
+    await esperarTexto(s.pagina, MSG_CONFIRMADA_PENDENTE);
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    await semNovasRequisicoes(s.backend, 1);
+    assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
+    await s.encerrar();
+  });
+
+  test("12/13. reload DURANTE o envio, nada gravado: aviso de envio interrompido, chave preservada, sem POST automático", async () => {
+    const s = await novaSessao();
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    s.backend.comportamentos.push({ tipo: "travar" });
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarAte(async () => s.backend.posts.length === 1, "POST chegar");
+    const chave = s.backend.posts[0].corpo.idempotencyKey;
+    await s.recarregar();
+    await esperarTexto(s.pagina, MSG_AVISO_INTERROMPIDA);
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    const reg = await s.registroJson(VENDA_A);
+    assert.equal(reg.chave, chave);
+    assert.equal(reg.estado, "em_andamento");
+    await semNovasRequisicoes(s.backend, 1);
+
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM2);
+    await enviar(s.pagina, OP_PARCIAL_ITEM2);
+    await esperarTexto(s.pagina, MSG_BLOQUEIO); // outra operação: bloqueada
+    await semNovasRequisicoes(s.backend, 1, 500);
+    await s.pagina.keyboard.press("Escape");
+    await dialogo(s.pagina).waitFor({ state: "detached" });
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, "Devolução parcial registrada.");
+    assert.equal(s.backend.posts[1].corpo.idempotencyKey, chave);
+    assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
+    await s.encerrar();
+  });
+});
+
+describe("22.6.1 restauração de estoque DA OPERAÇÃO (20–22)", () => {
+  const casos = [
+    ["concluida", null, "Estoque devolvido"],
+    [
+      "pendente",
+      "a devolução de estoque desta operação ainda está pendente",
+      "Estoque: devolução pendente",
+    ],
+    [
+      "falha_recuperavel",
+      "a devolução de estoque desta operação falhou nesta tentativa",
+      "Estoque: falha, nova tentativa automática",
+    ],
+    [
+      "requer_intervencao",
+      "a devolução de estoque desta operação não pôde ser concluída e precisa de verificação do administrador",
+      "Estoque: requer intervenção",
+    ],
+    [
+      "indeterminado",
+      "não foi possível determinar se o estoque desta operação foi devolvido",
+      "Estoque: situação indeterminada",
+    ],
+  ];
+  for (const [estado, trecho, selo] of casos) {
+    test(`estoque '${estado}' da operação atual, com evento ANTIGO indeterminado na mesma venda`, async () => {
+      const s = await novaSessao();
+      // Linha antiga sem prova: o resumo da VENDA vira "indeterminado" — não pode contaminar a operação atual.
+      s.backend.adicionarEvento(VENDA_A, "chave-antiga-0001", "item-2", "indeterminado");
+      await s.abrirVenda(VENDA_A);
+      await abrirDialogo(s.pagina);
+      await preencher(s.pagina, OP_PARCIAL_ITEM1);
+      s.backend.comportamentos.push({ tipo: "normal", restauracao: estado });
+      await enviar(s.pagina, OP_PARCIAL_ITEM1);
+      if (trecho === null) {
+        await esperarTexto(s.pagina, "Devolução parcial registrada.");
+        assert.equal(await s.pagina.getByText("não foi possível determinar").count(), 0);
+      } else {
+        await esperarTexto(s.pagina, `Devolução parcial registrada; ${trecho}`);
+      }
+      // Selos no histórico: a operação nova com o próprio estado; a antiga continua "indeterminada".
+      await esperarAte(
+        async () => (await s.pagina.getByText(selo, { exact: true }).count()) >= 1,
+        `selo '${selo}'`,
+      );
+      await esperarAte(
+        async () =>
+          (await s.pagina.getByText("Estoque: situação indeterminada", { exact: true }).count()) >=
+          (estado === "indeterminado" ? 2 : 1),
+        "selo do evento antigo",
+      );
+      await s.encerrar();
+    });
+  }
+
+  test("pendência NOVA não fica escondida por intervenção ANTIGA", async () => {
+    const s = await novaSessao();
+    s.backend.adicionarEvento(VENDA_A, "chave-antiga-0002", "item-2", "requer_intervencao");
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    s.backend.comportamentos.push({ tipo: "normal", restauracao: "pendente" });
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, "a devolução de estoque desta operação ainda está pendente");
+    assert.equal(
+      await s.pagina.getByText("desta operação não pôde ser concluída").count(),
+      0,
+      "a intervenção antiga foi atribuída à operação atual",
+    );
+    await s.encerrar();
+  });
+});
+
+describe("22.6.1 refetch com o diálogo aberto (23)", () => {
+  test("dados novos SEM a chave pendente: aviso e registro preservados; COM a chave: encerra avisando (nunca em silêncio)", async () => {
+    const reg = registroValido(VENDA_A);
+    const s = await novaSessao({ sessionStorage: { [PREFIXO_REGISTRO + VENDA_A]: reg } });
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await esperarTexto(dialogo(s.pagina), MSG_AVISO_INCERTA);
+
+    // Outro operador registra outra devolução (outra chave) e o item muda: refetch com o diálogo aberto.
+    s.backend.adicionarEvento(VENDA_A, "chave-de-outro-operador-0001", "item-2");
+    let gets = s.backend.getsVenda.get(VENDA_A) ?? 0;
+    await s.simularFoco();
+    await esperarAte(async () => (s.backend.getsVenda.get(VENDA_A) ?? 0) > gets, "refetch");
+    await dormir(500);
+    await esperarTexto(dialogo(s.pagina), MSG_AVISO_INCERTA);
+    assert.equal(await s.registro(VENDA_A), reg);
+    await semNovasRequisicoes(s.backend, 0, 200);
+
+    // Agora o histórico passa a ter a chave pendente: encerra COM aviso ao operador.
+    s.backend.adicionarEvento(VENDA_A, CHAVE_ORIGINAL, "item-1");
+    gets = s.backend.getsVenda.get(VENDA_A) ?? 0;
+    await s.simularFoco();
+    await esperarAte(async () => (s.backend.getsVenda.get(VENDA_A) ?? 0) > gets, "refetch");
+    await esperarTexto(s.pagina, MSG_CONFIRMADA_PENDENTE);
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    await semNovasRequisicoes(s.backend, 0, 200);
+    await s.encerrar();
+  });
 });
 
 // ─── 7. Validação visual (capturas + checagem automática de overflow) ──────────────────────────────────────────────

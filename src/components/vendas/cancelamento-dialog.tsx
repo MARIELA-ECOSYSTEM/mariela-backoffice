@@ -32,6 +32,8 @@ export type AvisoOperacaoCancelamento =
       incertaDesde: string | null;
       /** `false` se o registro não pôde ser gravado no `sessionStorage` (proteção só até sair/recarregar). */
       persistida: boolean;
+      /** Fase 22.6.1 — recuperada de um envio interrompido (reload/fechamento durante a requisição). */
+      interrompida?: boolean;
     }
   | { vendaId: string; estado: "invalida" };
 
@@ -73,7 +75,11 @@ export function AvisoOperacaoIncerta({
           <p>
             <strong>Há uma operação anterior cuja confirmação não foi obtida</strong>
             {aviso.incertaDesde ? ` (tentativa de ${formatarDataHora(aviso.incertaDesde)})` : ""}.
-            Confira o histórico da venda antes de continuar.
+            {aviso.interrompida
+              ? " A página foi recarregada ou fechada enquanto ela era enviada — ela pode ter sido registrada."
+              : ""}{" "}
+            Confira o histórico da venda antes de continuar. Assim que o histórico mostrar esta
+            operação, este aviso se encerra sozinho.
           </p>
           {resumo ? <p className="text-muted-foreground">Operação pendente: {resumo}.</p> : null}
           <p>
@@ -102,9 +108,10 @@ export function AvisoOperacaoIncerta({
       {confirmandoDescarte ? (
         <div className="space-y-2 rounded-lg border border-destructive/30 bg-background/60 px-3 py-2">
           <p>
-            Descartar permite registrar uma nova operação. Se a operação anterior já tiver sido
-            registrada, uma nova igual será uma <strong>segunda devolução</strong>. Descarte apenas
-            depois de conferir o histórico.
+            Descartar <strong>não desfaz nem cancela</strong> uma operação que já tenha sido
+            registrada no sistema: apenas remove esta proteção neste navegador e permite registrar
+            uma nova operação. Se a operação anterior já tiver sido registrada, uma nova igual será
+            uma <strong>segunda devolução</strong>. Descarte apenas depois de conferir o histórico.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button

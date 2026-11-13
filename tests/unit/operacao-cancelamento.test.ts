@@ -10,6 +10,7 @@ import { ApiError } from "@/types/api";
 import {
   PREFIXO_ARMAZENAMENTO,
   VERSAO_FORMATO,
+  VERSAO_FORMATO_LEGADO,
   assinaturaDaOperacao,
   chaveDeArmazenamento,
   decidirChave,
@@ -528,16 +529,25 @@ describe("limpeza", () => {
 // ─── 12, 13, 14: dados inválidos e armazenamento inacessível ─────────────────────────────────────────────────────
 
 describe("validação do que vem do sessionStorage", () => {
+  // Fase 22.6.1 — formato v2 (gravado) e v1 (legado, só lido). Ambos validados campo a campo.
   const registroValido = () => ({
     versao: VERSAO_FORMATO,
     vendaId: VENDA_A,
     chave: "0b7c1d1e-6a0f-4c49-9d1b-3c1f1c7a2b11",
     assinatura: assinaturaDaOperacao(PARCIAL),
+    iniciadaEm: "2026-11-12T12:00:00.000Z",
+    estado: "incerta",
+  });
+  const registroLegado = () => ({
+    versao: VERSAO_FORMATO_LEGADO,
+    vendaId: VENDA_A,
+    chave: "0b7c1d1e-6a0f-4c49-9d1b-3c1f1c7a2b11",
+    assinatura: assinaturaDaOperacao(PARCIAL),
     incertaDesde: "2026-11-12T12:00:00.000Z",
   });
-  const gravar = (valor: unknown) =>
+  const gravar = (valor: unknown, versao: number = VERSAO_FORMATO) =>
     armazenamento.setItem(
-      chaveDeArmazenamento(VENDA_A),
+      chaveDeArmazenamento(VENDA_A, versao),
       typeof valor === "string" ? valor : JSON.stringify(valor),
     );
 
@@ -545,9 +555,13 @@ describe("validação do que vem do sessionStorage", () => {
     expect(chaveDeArmazenamento(VENDA_A)).toBe(
       `${PREFIXO_ARMAZENAMENTO}.v${VERSAO_FORMATO}.${VENDA_A}`,
     );
+    expect(VERSAO_FORMATO).toBe(2);
+    expect(chaveDeArmazenamento(VENDA_A, VERSAO_FORMATO_LEGADO)).toBe(
+      `${PREFIXO_ARMAZENAMENTO}.v1.${VENDA_A}`,
+    );
   });
 
-  test("registro válido é recuperado e só contém os campos mínimos", () => {
+  test("registro válido (v2) é recuperado e só contém os campos mínimos", () => {
     gravar(registroValido());
     expect(lerOperacaoIncerta(VENDA_A, armazenamento).estado).toBe("recuperada");
     persistirOperacaoIncerta(
@@ -563,59 +577,98 @@ describe("validação do que vem do sessionStorage", () => {
     );
     const gravado = JSON.parse(armazenamento.getItem(chaveDeArmazenamento(VENDA_B)) ?? "{}");
     expect(Object.keys(gravado).sort()).toEqual(
-      ["assinatura", "chave", "incertaDesde", "vendaId", "versao"].sort(),
+      ["assinatura", "chave", "estado", "iniciadaEm", "vendaId", "versao"].sort(),
     );
+    expect(gravado.estado).toBe("incerta");
   });
 
-  test("12. JSON inválido → 'invalida' (sem exceção, sem chave inventada)", () => {
-    for (const lixo of ["{", "não é json", "", "undefined"]) {
-      gravar(lixo);
+  test("registro legado (v1) válido é recuperado como incerta, com a chave original", () => {
+    gravar(registroLegado(), VERSAO_FORMATO_LEGADO);
+    const leitura = lerOperacaoIncerta(VENDA_A, armazenamento);
+    expect(leitura.estado).toBe("recuperada");
+    if (leitura.estado !== "recuperada") throw new Error("inalcançável");
+    expect(leitura.origem).toBe("legado_v1");
+    expect(leitura.operacao.chave).toBe("0b7c1d1e-6a0f-4c49-9d1b-3c1f1c7a2b11");
+    expect(leitura.operacao.incerta).toBe(true);
+  });
+
+  test("12. JSON inválido → 'invalida' (sem exceção, sem chave inventada), em v2 e v1", () => {
+    for (const versao of [VERSAO_FORMATO, VERSAO_FORMATO_LEGADO]) {
+      for (const lixo of ["{", "não é json", "", "undefined"]) {
+        armazenamento.clear();
+        gravar(lixo, versao);
+        expect(lerOperacaoIncerta(VENDA_A, armazenamento)).toEqual({ estado: "invalida" });
+      }
+    }
+  });
+
+  /** Variantes inválidas comuns a v1 e v2 (venda, chave, assinatura). */
+  const variantesComuns = (base: Record<string, unknown>): unknown[] => [
+    null,
+    [],
+    42,
+    "texto",
+    { ...base, versao: "1" },
+    { ...base, versao: 3 },
+    (({ versao, ...resto }) => resto)(base),
+    (({ chave, ...resto }) => resto)(base),
+    (({ assinatura, ...resto }) => resto)(base),
+    (({ vendaId, ...resto }) => resto)(base),
+    { ...base, chave: "" },
+    { ...base, chave: "x y" },
+    { ...base, chave: 123 },
+    { ...base, assinatura: "{}" },
+    { ...base, assinatura: '{"tipo":"parcial","itens":[]}' },
+    { ...base, assinatura: '{"tipo":"integral","itens":[{"itemId":"a","quantidade":1}]}' },
+    // fora da forma canônica: itens fora de ordem
+    {
+      ...base,
+      assinatura:
+        '{"tipo":"parcial","itens":[{"itemId":"b","quantidade":1},{"itemId":"a","quantidade":1}]}',
+    },
+    // item repetido
+    {
+      ...base,
+      assinatura:
+        '{"tipo":"parcial","itens":[{"itemId":"a","quantidade":1},{"itemId":"a","quantidade":1}]}',
+    },
+    // quantidade inválida
+    { ...base, assinatura: '{"tipo":"parcial","itens":[{"itemId":"a","quantidade":0}]}' },
+    { ...base, assinatura: '{"tipo":"parcial","itens":[{"itemId":"a","quantidade":1.5}]}' },
+    // campo extra
+    { ...base, assinatura: '{"tipo":"integral","itens":[],"motivo":"x"}' },
+    { ...base, vendaId: VENDA_B },
+  ];
+
+  test("13. estrutura incompatível ou incompleta (v2) → 'invalida'", () => {
+    const base = registroValido();
+    const variantes: unknown[] = [
+      ...variantesComuns(base),
+      { ...base, versao: VERSAO_FORMATO_LEGADO }, // v1 sob a chave v2
+      (({ iniciadaEm, ...resto }) => resto)(base),
+      (({ estado, ...resto }) => resto)(base),
+      { ...base, iniciadaEm: "ontem" },
+      { ...base, estado: "concluida" },
+      { ...base, estado: "" },
+    ];
+    for (const v of variantes) {
+      armazenamento.clear();
+      gravar(v);
       expect(lerOperacaoIncerta(VENDA_A, armazenamento)).toEqual({ estado: "invalida" });
     }
   });
 
-  test("13. estrutura incompatível ou incompleta → 'invalida'", () => {
-    const base = registroValido();
+  test("13. estrutura incompatível ou incompleta (legado v1) → 'invalida'", () => {
+    const base = registroLegado();
     const variantes: unknown[] = [
-      null,
-      [],
-      42,
-      "texto",
-      { ...base, versao: 2 },
-      { ...base, versao: "1" },
-      (({ versao, ...resto }) => resto)(base),
-      (({ chave, ...resto }) => resto)(base),
-      (({ assinatura, ...resto }) => resto)(base),
+      ...variantesComuns(base),
+      { ...base, versao: VERSAO_FORMATO }, // v2 sob a chave v1
       (({ incertaDesde, ...resto }) => resto)(base),
-      (({ vendaId, ...resto }) => resto)(base),
-      { ...base, chave: "" },
-      { ...base, chave: "x y" },
-      { ...base, chave: 123 },
       { ...base, incertaDesde: "ontem" },
-      { ...base, assinatura: "{}" },
-      { ...base, assinatura: '{"tipo":"parcial","itens":[]}' },
-      { ...base, assinatura: '{"tipo":"integral","itens":[{"itemId":"a","quantidade":1}]}' },
-      // fora da forma canônica: itens fora de ordem
-      {
-        ...base,
-        assinatura:
-          '{"tipo":"parcial","itens":[{"itemId":"b","quantidade":1},{"itemId":"a","quantidade":1}]}',
-      },
-      // item repetido
-      {
-        ...base,
-        assinatura:
-          '{"tipo":"parcial","itens":[{"itemId":"a","quantidade":1},{"itemId":"a","quantidade":1}]}',
-      },
-      // quantidade inválida
-      { ...base, assinatura: '{"tipo":"parcial","itens":[{"itemId":"a","quantidade":0}]}' },
-      { ...base, assinatura: '{"tipo":"parcial","itens":[{"itemId":"a","quantidade":1.5}]}' },
-      // campo extra
-      { ...base, assinatura: '{"tipo":"integral","itens":[],"motivo":"x"}' },
-      { ...base, vendaId: VENDA_B },
     ];
     for (const v of variantes) {
-      gravar(v);
+      armazenamento.clear();
+      gravar(v, VERSAO_FORMATO_LEGADO);
       expect(lerOperacaoIncerta(VENDA_A, armazenamento)).toEqual({ estado: "invalida" });
     }
   });
