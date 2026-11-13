@@ -13,13 +13,122 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CodigoBadge } from "@/components/common/codigo-badge";
-import { formatarMoeda } from "@/utils/format";
+import { formatarDataHora, formatarMoeda } from "@/utils/format";
+import { lerAssinatura } from "@/utils/operacao-cancelamento";
 import { descricaoItemVenda } from "@/utils/venda";
 import type { CancelamentoPayload, VendaDetalhe } from "@/types/venda";
 
 interface SelecaoItem {
   marcado: boolean;
   quantidade: number;
+}
+
+/** Fase 22.5.2 — estado exibido de uma operação de cancelamento sem confirmação, sempre de UMA venda. */
+export type AvisoOperacaoCancelamento =
+  | {
+      vendaId: string;
+      estado: "incerta";
+      assinatura: string;
+      incertaDesde: string | null;
+      /** `false` se o registro não pôde ser gravado no `sessionStorage` (proteção só até sair/recarregar). */
+      persistida: boolean;
+    }
+  | { vendaId: string; estado: "invalida" };
+
+function resumoDaOperacao(assinatura: string, venda: VendaDetalhe): string | null {
+  const operacao = lerAssinatura(assinatura);
+  if (!operacao) return null;
+  if (operacao.tipo === "integral") return "Cancelamento integral";
+  const itens = operacao.itens.map(({ itemId, quantidade }) => {
+    const nome = venda.itens.find((item) => item.id === itemId)?.nome ?? itemId;
+    return `${quantidade}× ${nome}`;
+  });
+  return `Devolução parcial: ${itens.join(", ")}`;
+}
+
+/**
+ * Fase 22.5.2 — aviso de operação anterior sem confirmação (usado na página e no diálogo). O descarte pede uma
+ * segunda confirmação: ele libera uma chave nova e, se a operação anterior TIVER sido registrada, repeti-la depois
+ * gera uma segunda devolução.
+ */
+export function AvisoOperacaoIncerta({
+  aviso,
+  venda,
+  onDescartar,
+}: {
+  aviso: AvisoOperacaoCancelamento;
+  venda: VendaDetalhe;
+  onDescartar: () => void;
+}) {
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  const resumo = aviso.estado === "incerta" ? resumoDaOperacao(aviso.assinatura, venda) : null;
+
+  return (
+    <div
+      role="status"
+      className="space-y-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm"
+    >
+      {aviso.estado === "incerta" ? (
+        <>
+          <p>
+            <strong>Há uma operação anterior cuja confirmação não foi obtida</strong>
+            {aviso.incertaDesde ? ` (tentativa de ${formatarDataHora(aviso.incertaDesde)})` : ""}.
+            Confira o histórico da venda antes de continuar.
+          </p>
+          {resumo ? <p className="text-muted-foreground">Operação pendente: {resumo}.</p> : null}
+          <p>
+            Reenviar <strong>exatamente a mesma operação</strong> é seguro: se ela já tiver sido
+            registrada, não será duplicada. Uma operação diferente só pode ser feita depois de
+            descartar a pendente.
+          </p>
+          {aviso.persistida ? null : (
+            <p className="text-warning">
+              Não foi possível guardar esta proteção no navegador: ela se perde se você recarregar
+              ou sair desta página.
+            </p>
+          )}
+        </>
+      ) : (
+        <p>
+          <strong>
+            Foi encontrado um registro de operação anterior sem confirmação, mas ele está ilegível
+            ou em formato incompatível
+          </strong>{" "}
+          e não pode ser usado para reenviar com segurança. Confira o histórico da venda. Novas
+          operações ficam bloqueadas até você descartar este registro.
+        </p>
+      )}
+
+      {confirmandoDescarte ? (
+        <div className="space-y-2 rounded-lg border border-destructive/30 bg-background/60 px-3 py-2">
+          <p>
+            Descartar permite registrar uma nova operação. Se a operação anterior já tiver sido
+            registrada, uma nova igual será uma <strong>segunda devolução</strong>. Descarte apenas
+            depois de conferir o histórico.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => {
+                setConfirmandoDescarte(false);
+                onDescartar();
+              }}
+            >
+              Confirmar descarte
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setConfirmandoDescarte(false)}>
+              Manter operação pendente
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button size="sm" variant="outline" onClick={() => setConfirmandoDescarte(true)}>
+          Já conferi o histórico — descartar
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -31,7 +140,7 @@ export function CancelamentoDialog({
   open,
   onOpenChange,
   salvando,
-  operacaoIncerta,
+  avisoOperacao,
   onDescartarOperacaoIncerta,
   onConfirmar,
 }: {
@@ -39,9 +148,9 @@ export function CancelamentoDialog({
   open: boolean;
   onOpenChange: (aberto: boolean) => void;
   salvando: boolean;
-  /** Fase 22.5.1 — há uma tentativa anterior cujo resultado não foi confirmado (timeout/falha de rede). */
-  operacaoIncerta: boolean;
-  /** Fase 22.5.1 — o operador conferiu o histórico e quer registrar uma operação nova (chave nova). */
+  /** Fase 22.5.1/22.5.2 — tentativa anterior sem confirmação (ou registro dela ilegível) para ESTA venda. */
+  avisoOperacao: AvisoOperacaoCancelamento | null;
+  /** Fase 22.5.1/22.5.2 — o operador conferiu o histórico e descarta a operação pendente (após confirmar). */
   onDescartarOperacaoIncerta: () => void;
   /** O payload sai SEM `idempotencyKey` — a página anexa a chave da operação. */
   onConfirmar: (payload: CancelamentoPayload) => void;
@@ -107,20 +216,12 @@ export function CancelamentoDialog({
         </DialogHeader>
 
         <div className="space-y-5">
-          {operacaoIncerta ? (
-            <div
-              role="status"
-              className="space-y-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm"
-            >
-              <p>
-                A tentativa anterior não teve o resultado confirmado. Confira o histórico da venda
-                antes de continuar. Reenviar <strong>exatamente a mesma operação</strong> é seguro:
-                se ela já tiver sido registrada, não será duplicada.
-              </p>
-              <Button size="sm" variant="outline" onClick={onDescartarOperacaoIncerta}>
-                Já conferi — registrar como nova operação
-              </Button>
-            </div>
+          {avisoOperacao ? (
+            <AvisoOperacaoIncerta
+              aviso={avisoOperacao}
+              venda={venda}
+              onDescartar={onDescartarOperacaoIncerta}
+            />
           ) : null}
 
           <div className="grid gap-2 sm:grid-cols-2">
@@ -239,7 +340,7 @@ export function CancelamentoDialog({
           </Button>
           <Button
             variant="destructive"
-            disabled={invalido || salvando}
+            disabled={invalido || salvando || avisoOperacao?.estado === "invalida"}
             onClick={() =>
               onConfirmar(
                 tipo === "integral"

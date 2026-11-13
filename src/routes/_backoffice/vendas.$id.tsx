@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
@@ -23,7 +23,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { ErrorState } from "@/components/common/states";
 import { NotaDemonstracao } from "@/components/common/data-toolbar";
-import { CancelamentoDialog } from "@/components/vendas/cancelamento-dialog";
+import {
+  AvisoOperacaoIncerta,
+  CancelamentoDialog,
+  type AvisoOperacaoCancelamento,
+} from "@/components/vendas/cancelamento-dialog";
 import { RecebimentoDialog } from "@/components/vendas/recebimento-dialog";
 import {
   useBaixarParcela,
@@ -33,9 +37,17 @@ import {
   vendasKeys,
 } from "@/hooks/use-vendas";
 import { mensagemDeErro } from "@/services/api/client";
-import { ApiError } from "@/types/api";
 import { formatarData, formatarDataHora, formatarMoeda, pluralizar } from "@/utils/format";
 import { gerarIdempotencyKey } from "@/utils/idempotencia";
+import {
+  decidirChave,
+  ehResultadoIncerto,
+  lerOperacaoIncerta,
+  marcarIncerta,
+  persistirOperacaoIncerta,
+  removerOperacaoIncerta,
+  type OperacaoCancelamento,
+} from "@/utils/operacao-cancelamento";
 import {
   LABEL_STATUS_VENDA,
   type CancelamentoPayload,
@@ -173,73 +185,88 @@ function VendaDetalhePage() {
   }
 
   /**
-   * Fase 60.4.3.4.18 + 22.5.1 — UMA `idempotencyKey` por operação de cancelamento/devolução, reusada em toda nova
-   * tentativa da MESMA operação, para o backend reconhecer a repetição como replay (sem segunda devolução).
+   * Fase 60.4.3.4.18 + 22.5.1 + 22.5.2 — UMA `idempotencyKey` por operação de cancelamento/devolução, reusada em
+   * toda nova tentativa da MESMA operação, para o backend reconhecer a repetição como replay (sem segunda devolução).
+   * Regras em `utils/operacao-cancelamento.ts` (`decidirChave`).
    *
-   * Identidade da operação = tipo + itens/quantidades normalizados (o motivo NÃO entra, como na assinatura do
-   * backend) + nº de eventos de cancelamento da venda quando a chave foi criada.
-   *   - Mesma assinatura e mesmo nº de eventos → mesma chave (reenvio, duplo clique, reabertura do diálogo).
-   *   - Assinatura diferente → chave nova (reusar a anterior seria recusado com 409).
-   *   - Sucesso → a chave é descartada; a próxima operação recebe chave nova.
-   *   - Resultado INCERTO (TIMEOUT/NETWORK_ERROR) → a chave fica FIXADA à assinatura e passa a ignorar o nº de
-   *     eventos: se o backend registrou a operação, o refetch incrementa `cancelamentos.length`, e gerar chave nova
-   *     aí transformaria o reenvio numa SEGUNDA devolução. Só sai desse estado por sucesso (replay ou registro),
-   *     por mudança da operação ou por descarte explícito do operador.
-   *
-   * Fica aqui, e não no `CancelamentoDialog`, porque o diálogo desmonta quando a consulta da venda entra em erro
-   * (refetch sem rede) — um `useRef` dentro dele perderia a chave pendente justamente no cenário incerto.
+   * Fica na página, e não no `CancelamentoDialog`, porque o diálogo desmonta quando a consulta da venda entra em erro
+   * (refetch sem rede). Uma operação INCERTA (timeout, rede, 502/503/504) também vai para o `sessionStorage` da aba,
+   * por venda, e é recuperada ao abrir esta página — sobrevive a reload. Recuperar NUNCA dispara requisição.
    */
-  const operacaoCancelamentoRef = useRef<{
-    vendaId: string;
-    assinatura: string;
-    eventos: number;
-    chave: string;
-    incerta: boolean;
-  } | null>(null);
-  /** Venda cuja última tentativa de cancelamento terminou sem confirmação (estado de UI; a chave fica no ref). */
-  const [vendaComOperacaoIncerta, setVendaComOperacaoIncerta] = useState<string | null>(null);
+  const operacaoCancelamentoRef = useRef<OperacaoCancelamento | null>(null);
+  const [avisoOperacao, setAvisoOperacao] = useState<AvisoOperacaoCancelamento | null>(null);
+  const avisoOperacaoDaVenda = avisoOperacao?.vendaId === id ? avisoOperacao : null;
 
-  function chaveDaOperacaoDeCancelamento(payload: CancelamentoPayload): string {
-    const itens =
-      payload.tipo === "integral"
-        ? []
-        : (payload.itens ?? [])
-            .map(({ itemId, quantidade }) => ({ itemId, quantidade }))
-            .sort((a, b) => a.itemId.localeCompare(b.itemId));
-    const assinatura = JSON.stringify({ tipo: payload.tipo, itens });
-    const eventos = venda?.cancelamentos.length ?? 0;
-    const atual = operacaoCancelamentoRef.current;
-    if (
-      atual &&
-      atual.vendaId === id &&
-      atual.assinatura === assinatura &&
-      (atual.incerta || atual.eventos === eventos)
-    ) {
-      return atual.chave;
+  useEffect(() => {
+    const leitura = lerOperacaoIncerta(id);
+    if (leitura.estado === "recuperada") {
+      const atual = operacaoCancelamentoRef.current;
+      // Uma operação incerta desta venda já em memória tem a mesma chave; não há o que trocar.
+      if (!(atual && atual.vendaId === id && atual.incerta)) {
+        operacaoCancelamentoRef.current = leitura.operacao;
+      }
+      setAvisoOperacao({
+        vendaId: id,
+        estado: "incerta",
+        assinatura: leitura.operacao.assinatura,
+        incertaDesde: leitura.operacao.incertaDesde,
+        persistida: true,
+      });
+    } else if (leitura.estado === "invalida") {
+      // Registro ilegível: nenhuma chave é inventada nem reaproveitada; novas operações ficam bloqueadas até o
+      // operador conferir o histórico e descartar.
+      setAvisoOperacao({ vendaId: id, estado: "invalida" });
+    } else {
+      // Nada persistido (ou armazenamento inacessível): mantém só um aviso em memória que seja desta venda.
+      setAvisoOperacao((atual) => (atual?.vendaId === id ? atual : null));
     }
-    const chave = gerarIdempotencyKey();
-    operacaoCancelamentoRef.current = { vendaId: id, assinatura, eventos, chave, incerta: false };
-    setVendaComOperacaoIncerta(null);
-    return chave;
-  }
+  }, [id]);
 
   function descartarOperacaoIncerta() {
-    operacaoCancelamentoRef.current = null;
-    setVendaComOperacaoIncerta(null);
+    const removido = removerOperacaoIncerta(id);
+    if (operacaoCancelamentoRef.current?.vendaId === id) operacaoCancelamentoRef.current = null;
+    setAvisoOperacao(null);
+    if (!removido && lerOperacaoIncerta(id).estado !== "indisponivel") {
+      toast.warning(
+        "A operação pendente foi descartada nesta página, mas o registro salvo no navegador não pôde ser apagado e pode reaparecer ao recarregar.",
+      );
+    }
   }
 
   async function confirmarCancelamento(payloadDoDialogo: CancelamentoPayload) {
     if (cancelandoRef.current) return;
+    if (avisoOperacaoDaVenda?.estado === "invalida") {
+      toast.error(
+        "Há um registro ilegível de operação anterior sem confirmação. Confira o histórico da venda e descarte-o antes de registrar uma nova operação.",
+      );
+      return;
+    }
+    const decisao = decidirChave({
+      atual: operacaoCancelamentoRef.current,
+      vendaId: id,
+      payload: payloadDoDialogo,
+      eventos: venda?.cancelamentos.length ?? 0,
+      gerarChave: gerarIdempotencyKey,
+    });
+    if (decisao.tipo === "bloqueada") {
+      toast.error(
+        "Há uma operação anterior desta venda sem confirmação. Reenvie exatamente a mesma operação ou, depois de conferir o histórico, descarte-a antes de registrar uma operação diferente.",
+      );
+      return;
+    }
+    const operacao = decisao.operacao;
+    operacaoCancelamentoRef.current = operacao;
     cancelandoRef.current = true;
-    const payload: CancelamentoPayload = {
-      ...payloadDoDialogo,
-      idempotencyKey: chaveDaOperacaoDeCancelamento(payloadDoDialogo),
-    };
+    const payload: CancelamentoPayload = { ...payloadDoDialogo, idempotencyKey: operacao.chave };
     try {
       const resultado = await cancelar.mutateAsync(payload);
-      // Operação confirmada pelo backend (registro novo ou replay): a próxima operação recebe chave nova.
-      operacaoCancelamentoRef.current = null;
-      setVendaComOperacaoIncerta(null);
+      // Operação confirmada pelo backend (registro novo ou replay): limpa memória e o registro DESTA venda; a próxima
+      // operação recebe chave nova.
+      if (operacaoCancelamentoRef.current?.vendaId === operacao.vendaId) {
+        operacaoCancelamentoRef.current = null;
+      }
+      removerOperacaoIncerta(operacao.vendaId);
+      setAvisoOperacao((atual) => (atual?.vendaId === operacao.vendaId ? null : atual));
       const registrado =
         payload.tipo === "integral" ? "Venda cancelada" : "Devolução parcial registrada";
       // Fase 60.4.3.4.18 — o cancelamento pode ser registrado com a devolução de estoque ainda pendente. Não é erro:
@@ -258,12 +285,20 @@ function VendaDetalhePage() {
       }
       setCancelamentoAberto(false);
     } catch (err) {
-      if (err instanceof ApiError && (err.code === "TIMEOUT" || err.code === "NETWORK_ERROR")) {
-        // Fase 22.5.1 — a requisição pode ter sido gravada sem a resposta chegar. Não é falha certa: fixa a chave
-        // (sem gerar outra nem reenviar), pede dados atualizados e manda o operador conferir o histórico.
-        const operacao = operacaoCancelamentoRef.current;
-        if (operacao && operacao.chave === payload.idempotencyKey) operacao.incerta = true;
-        setVendaComOperacaoIncerta(id);
+      if (ehResultadoIncerto(err)) {
+        // Fase 22.5.1/22.5.2 — TIMEOUT, NETWORK_ERROR ou 502/503/504: a operação pode ter sido gravada sem a
+        // confirmação chegar. Não é falha certa: fixa a chave (sem gerar outra nem reenviar), persiste para sobreviver
+        // a reload, pede dados atualizados e manda o operador conferir o histórico.
+        const incerta = marcarIncerta(operacao, new Date());
+        operacaoCancelamentoRef.current = incerta;
+        const persistida = persistirOperacaoIncerta(incerta);
+        setAvisoOperacao({
+          vendaId: incerta.vendaId,
+          estado: "incerta",
+          assinatura: incerta.assinatura,
+          incertaDesde: incerta.incertaDesde,
+          persistida,
+        });
         void queryClient.invalidateQueries({ queryKey: vendasKeys.todas });
         toast.warning(
           "Não foi possível confirmar se a operação foi registrada. Confira o histórico da venda antes de tentar novamente.",
@@ -375,6 +410,14 @@ function VendaDetalhePage() {
               </div>
             </CardContent>
           </Card>
+
+          {avisoOperacaoDaVenda ? (
+            <AvisoOperacaoIncerta
+              aviso={avisoOperacaoDaVenda}
+              venda={venda}
+              onDescartar={descartarOperacaoIncerta}
+            />
+          ) : null}
 
           {venda.status === "cancelada" ? (
             <NotaDemonstracao>
@@ -637,7 +680,7 @@ function VendaDetalhePage() {
             open={cancelamentoAberto}
             onOpenChange={setCancelamentoAberto}
             salvando={cancelar.isPending}
-            operacaoIncerta={vendaComOperacaoIncerta === id}
+            avisoOperacao={avisoOperacaoDaVenda}
             onDescartarOperacaoIncerta={descartarOperacaoIncerta}
             onConfirmar={(payload) => void confirmarCancelamento(payload)}
           />
