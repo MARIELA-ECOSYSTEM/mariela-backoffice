@@ -168,8 +168,36 @@ export interface ItemDevolvido {
   nome: string;
   quantidade: number;
   valor: number;
-  /** `true` quando o estoque desta linha já foi fisicamente devolvido. */
-  restaurado: boolean;
+  /**
+   * `true` quando o estoque desta linha já foi fisicamente devolvido. Pode vir AUSENTE em eventos antigos — ausência
+   * nunca significa "devolvido" (Fase 60.4.3.4.18).
+   */
+  restaurado?: boolean;
+  /** Fase 60.4.3.4.18 — estado da devolução de estoque desta linha (ausente em eventos antigos). */
+  estadoRestauracao?: EstadoRestauracaoEstoque;
+  tentativas?: number;
+  proximaTentativaEm?: string | null;
+}
+
+/** Fase 60.4.3.4.18 — espelha `ESTADOS_RESTAURACAO` do mariela-backend. */
+export type EstadoRestauracaoEstoque =
+  "pendente" | "falha_recuperavel" | "requer_intervencao" | "concluida";
+
+/**
+ * Fase 60.4.3.4.18 — resumo da devolução de estoque da venda (`restauracaoEstoque`, campo derivado no backend):
+ *   - `nao_aplicavel`: nenhum item devolvido;
+ *   - `concluida`: todo o estoque devolvido;
+ *   - `pendente`: devolução registrada, estoque ainda sendo devolvido (a API tenta de novo automaticamente);
+ *   - `requer_intervencao`: as tentativas automáticas se esgotaram — precisa de um operador.
+ */
+export interface RestauracaoEstoqueResumo {
+  status: "nao_aplicavel" | "concluida" | "pendente" | "requer_intervencao";
+  totalItens: number;
+  concluidos: number;
+  pendentes: number;
+  emFalhaRecuperavel: number;
+  requerIntervencao: number;
+  proximaTentativaEm: string | null;
 }
 
 export interface CancelamentoVenda {
@@ -192,6 +220,8 @@ export interface VendaDetalhe extends VendaResumo {
   historico: EventoVenda[];
   /** Histórico de cancelamentos/devoluções (append-only; pode haver mais de um parcial). */
   cancelamentos: CancelamentoVenda[];
+  /** Fase 60.4.3.4.18 — opcional: ausente em respostas de versões anteriores da API (e no mock). */
+  restauracaoEstoque?: RestauracaoEstoqueResumo;
 }
 
 export interface VendasEstatisticas {
@@ -247,6 +277,11 @@ export interface CancelamentoPayload {
   motivo: string;
   /** Obrigatório na devolução parcial. */
   itens?: DevolucaoItemPayload[];
-  /** Gerada no cliente a cada tentativa, para o backend deduplicar retries. */
+  /**
+   * Fase 60.4.3.4.18 — gerada no cliente UMA vez por operação e REUSADA em toda nova tentativa da mesma operação
+   * (anexada em `routes/_backoffice/vendas.$id.tsx`, `chaveDaOperacaoDeCancelamento` — Fase 22.5.1; mantida fixa
+   * enquanto um timeout/falha de rede deixar o resultado incerto): é o que permite ao backend reconhecer a repetição
+   * e concluir o que faltou, em vez de rejeitar com "venda já cancelada" ou registrar uma segunda devolução.
+   */
   idempotencyKey?: string;
 }

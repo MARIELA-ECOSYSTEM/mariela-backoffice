@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -29,8 +30,10 @@ import {
   useCancelarVenda,
   useReceberPagamento,
   useVenda,
+  vendasKeys,
 } from "@/hooks/use-vendas";
 import { mensagemDeErro } from "@/services/api/client";
+import { ApiError } from "@/types/api";
 import { formatarData, formatarDataHora, formatarMoeda, pluralizar } from "@/utils/format";
 import { gerarIdempotencyKey } from "@/utils/idempotencia";
 import {
@@ -122,6 +125,7 @@ function VendaDetalhePage() {
   const baixar = useBaixarParcela(id);
   const cancelar = useCancelarVenda(id);
   const receber = useReceberPagamento(id);
+  const queryClient = useQueryClient();
   const [cancelamentoAberto, setCancelamentoAberto] = useState(false);
   const [recebimentoAberto, setRecebimentoAberto] = useState(false);
   // Guardas síncronas via ref — Etapa 20.20. `baixarParcela` NÃO recebeu
@@ -168,17 +172,106 @@ function VendaDetalhePage() {
     }
   }
 
-  async function confirmarCancelamento(payload: CancelamentoPayload) {
+  /**
+   * Fase 60.4.3.4.18 + 22.5.1 — UMA `idempotencyKey` por operação de cancelamento/devolução, reusada em toda nova
+   * tentativa da MESMA operação, para o backend reconhecer a repetição como replay (sem segunda devolução).
+   *
+   * Identidade da operação = tipo + itens/quantidades normalizados (o motivo NÃO entra, como na assinatura do
+   * backend) + nº de eventos de cancelamento da venda quando a chave foi criada.
+   *   - Mesma assinatura e mesmo nº de eventos → mesma chave (reenvio, duplo clique, reabertura do diálogo).
+   *   - Assinatura diferente → chave nova (reusar a anterior seria recusado com 409).
+   *   - Sucesso → a chave é descartada; a próxima operação recebe chave nova.
+   *   - Resultado INCERTO (TIMEOUT/NETWORK_ERROR) → a chave fica FIXADA à assinatura e passa a ignorar o nº de
+   *     eventos: se o backend registrou a operação, o refetch incrementa `cancelamentos.length`, e gerar chave nova
+   *     aí transformaria o reenvio numa SEGUNDA devolução. Só sai desse estado por sucesso (replay ou registro),
+   *     por mudança da operação ou por descarte explícito do operador.
+   *
+   * Fica aqui, e não no `CancelamentoDialog`, porque o diálogo desmonta quando a consulta da venda entra em erro
+   * (refetch sem rede) — um `useRef` dentro dele perderia a chave pendente justamente no cenário incerto.
+   */
+  const operacaoCancelamentoRef = useRef<{
+    vendaId: string;
+    assinatura: string;
+    eventos: number;
+    chave: string;
+    incerta: boolean;
+  } | null>(null);
+  /** Venda cuja última tentativa de cancelamento terminou sem confirmação (estado de UI; a chave fica no ref). */
+  const [vendaComOperacaoIncerta, setVendaComOperacaoIncerta] = useState<string | null>(null);
+
+  function chaveDaOperacaoDeCancelamento(payload: CancelamentoPayload): string {
+    const itens =
+      payload.tipo === "integral"
+        ? []
+        : (payload.itens ?? [])
+            .map(({ itemId, quantidade }) => ({ itemId, quantidade }))
+            .sort((a, b) => a.itemId.localeCompare(b.itemId));
+    const assinatura = JSON.stringify({ tipo: payload.tipo, itens });
+    const eventos = venda?.cancelamentos.length ?? 0;
+    const atual = operacaoCancelamentoRef.current;
+    if (
+      atual &&
+      atual.vendaId === id &&
+      atual.assinatura === assinatura &&
+      (atual.incerta || atual.eventos === eventos)
+    ) {
+      return atual.chave;
+    }
+    const chave = gerarIdempotencyKey();
+    operacaoCancelamentoRef.current = { vendaId: id, assinatura, eventos, chave, incerta: false };
+    setVendaComOperacaoIncerta(null);
+    return chave;
+  }
+
+  function descartarOperacaoIncerta() {
+    operacaoCancelamentoRef.current = null;
+    setVendaComOperacaoIncerta(null);
+  }
+
+  async function confirmarCancelamento(payloadDoDialogo: CancelamentoPayload) {
     if (cancelandoRef.current) return;
     cancelandoRef.current = true;
+    const payload: CancelamentoPayload = {
+      ...payloadDoDialogo,
+      idempotencyKey: chaveDaOperacaoDeCancelamento(payloadDoDialogo),
+    };
     try {
-      await cancelar.mutateAsync(payload);
-      toast.success(
-        payload.tipo === "integral" ? "Venda cancelada." : "Devolução parcial registrada.",
-      );
+      const resultado = await cancelar.mutateAsync(payload);
+      // Operação confirmada pelo backend (registro novo ou replay): a próxima operação recebe chave nova.
+      operacaoCancelamentoRef.current = null;
+      setVendaComOperacaoIncerta(null);
+      const registrado =
+        payload.tipo === "integral" ? "Venda cancelada" : "Devolução parcial registrada";
+      // Fase 60.4.3.4.18 — o cancelamento pode ser registrado com a devolução de estoque ainda pendente. Não é erro:
+      // NÃO repetir a operação (a API conclui o estoque sozinha); só um aviso honesto do estado real.
+      const restauracao = resultado.restauracaoEstoque?.status;
+      if (restauracao === "pendente") {
+        toast.warning(
+          `${registrado}, mas a devolução de estoque ainda está pendente. O sistema tentará novamente automaticamente — não é preciso repetir a operação.`,
+        );
+      } else if (restauracao === "requer_intervencao") {
+        toast.warning(
+          `${registrado}, mas a devolução de estoque não pôde ser concluída e precisa de verificação do administrador. Não repita a operação.`,
+        );
+      } else {
+        toast.success(`${registrado}.`);
+      }
       setCancelamentoAberto(false);
     } catch (err) {
-      toast.error(mensagemDeErro(err, "Não foi possível concluir a operação."));
+      if (err instanceof ApiError && (err.code === "TIMEOUT" || err.code === "NETWORK_ERROR")) {
+        // Fase 22.5.1 — a requisição pode ter sido gravada sem a resposta chegar. Não é falha certa: fixa a chave
+        // (sem gerar outra nem reenviar), pede dados atualizados e manda o operador conferir o histórico.
+        const operacao = operacaoCancelamentoRef.current;
+        if (operacao && operacao.chave === payload.idempotencyKey) operacao.incerta = true;
+        setVendaComOperacaoIncerta(id);
+        void queryClient.invalidateQueries({ queryKey: vendasKeys.todas });
+        toast.warning(
+          "Não foi possível confirmar se a operação foi registrada. Confira o histórico da venda antes de tentar novamente.",
+        );
+        setCancelamentoAberto(false);
+      } else {
+        toast.error(mensagemDeErro(err, "Não foi possível concluir a operação."));
+      }
     } finally {
       cancelandoRef.current = false;
     }
@@ -544,6 +637,8 @@ function VendaDetalhePage() {
             open={cancelamentoAberto}
             onOpenChange={setCancelamentoAberto}
             salvando={cancelar.isPending}
+            operacaoIncerta={vendaComOperacaoIncerta === id}
+            onDescartarOperacaoIncerta={descartarOperacaoIncerta}
             onConfirmar={(payload) => void confirmarCancelamento(payload)}
           />
 

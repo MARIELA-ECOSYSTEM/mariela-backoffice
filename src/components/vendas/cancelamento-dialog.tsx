@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { formatarMoeda } from "@/utils/format";
-import { gerarIdempotencyKey } from "@/utils/idempotencia";
 import { descricaoItemVenda } from "@/utils/venda";
 import type { CancelamentoPayload, VendaDetalhe } from "@/types/venda";
 
@@ -32,12 +31,19 @@ export function CancelamentoDialog({
   open,
   onOpenChange,
   salvando,
+  operacaoIncerta,
+  onDescartarOperacaoIncerta,
   onConfirmar,
 }: {
   venda: VendaDetalhe;
   open: boolean;
   onOpenChange: (aberto: boolean) => void;
   salvando: boolean;
+  /** Fase 22.5.1 — há uma tentativa anterior cujo resultado não foi confirmado (timeout/falha de rede). */
+  operacaoIncerta: boolean;
+  /** Fase 22.5.1 — o operador conferiu o histórico e quer registrar uma operação nova (chave nova). */
+  onDescartarOperacaoIncerta: () => void;
+  /** O payload sai SEM `idempotencyKey` — a página anexa a chave da operação. */
   onConfirmar: (payload: CancelamentoPayload) => void;
 }) {
   const [tipo, setTipo] = useState<"integral" | "parcial">("integral");
@@ -82,6 +88,10 @@ export function CancelamentoDialog({
   const invalido =
     motivo.trim().length < 3 || (tipo === "parcial" && itensSelecionados.length === 0);
 
+  // Fase 22.5.1 — a `idempotencyKey` NÃO é gerada aqui: a página (`vendas.$id.tsx`) a anexa ao payload. Este diálogo
+  // desmonta quando a consulta da venda entra em erro (ex.: refetch sem rede após um timeout) e a chave da operação
+  // pendente se perderia junto com qualquer `useRef` local.
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="lg">
@@ -97,6 +107,22 @@ export function CancelamentoDialog({
         </DialogHeader>
 
         <div className="space-y-5">
+          {operacaoIncerta ? (
+            <div
+              role="status"
+              className="space-y-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm"
+            >
+              <p>
+                A tentativa anterior não teve o resultado confirmado. Confira o histórico da venda
+                antes de continuar. Reenviar <strong>exatamente a mesma operação</strong> é seguro:
+                se ela já tiver sido registrada, não será duplicada.
+              </p>
+              <Button size="sm" variant="outline" onClick={onDescartarOperacaoIncerta}>
+                Já conferi — registrar como nova operação
+              </Button>
+            </div>
+          ) : null}
+
           <div className="grid gap-2 sm:grid-cols-2">
             {(
               [
@@ -217,17 +243,8 @@ export function CancelamentoDialog({
             onClick={() =>
               onConfirmar(
                 tipo === "integral"
-                  ? {
-                      tipo: "integral",
-                      motivo: motivo.trim(),
-                      idempotencyKey: gerarIdempotencyKey(),
-                    }
-                  : {
-                      tipo: "parcial",
-                      motivo: motivo.trim(),
-                      itens: itensSelecionados,
-                      idempotencyKey: gerarIdempotencyKey(),
-                    },
+                  ? { tipo: "integral", motivo: motivo.trim() }
+                  : { tipo: "parcial", motivo: motivo.trim(), itens: itensSelecionados },
               )
             }
           >
