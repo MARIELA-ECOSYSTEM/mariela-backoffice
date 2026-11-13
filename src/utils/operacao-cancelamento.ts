@@ -361,6 +361,8 @@ export function removerOperacaoIncerta(
 export interface EventoCancelamentoLido {
   idempotencyKey?: string | null;
   itens?: unknown;
+  /** Fase 22.6.3 — `unknown` de propósito: só os três valores do contrato são reconhecidos (`avaliarConclusao`). */
+  efeitosPosteriores?: unknown;
 }
 
 /** Resultado da LEITURA da venda feita para reconciliar (o chamador faz a requisição; aqui só se interpreta). */
@@ -411,6 +413,74 @@ export function eventoComChave(venda: unknown, chave: string): EventoCancelament
   if (!ehObjeto(venda) || typeof venda["id"] !== "string") return null;
   const r = reconciliarPelaChave(venda["id"], chave, { ok: true, venda });
   return r.tipo === "registrada" ? r.evento : null;
+}
+
+// ─── Conclusão da operação (Fase 22.6.3) ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * Situação da OPERAÇÃO (não só do evento). Encontrar o evento com a chave prova que ele foi REGISTRADO — não que o
+ * processamento terminou: o backend (Fase 22.6.2) grava o evento e só depois lança caixa, agregados e auditoria. A
+ * decisão de encerrar a proteção local vem do indicador `efeitosPosteriores` do próprio evento:
+ *   - `concluida`: `efeitosPosteriores: "concluidos"` → encerra a operação;
+ *   - `efeitos_pendentes`: `"pendentes"` → MANTÉM chave, assinatura e registro; repetir a mesma operação conclui;
+ *   - `registrada_sem_rastreio`: `"nao_rastreados"` (evento anterior ao acompanhamento) → compatibilidade: o evento
+ *     está registrado e o backend não acompanha os efeitos dele; encerra com aviso para conferir caixa e histórico (não
+ *     é tratado como falha nem como conclusão comprovada);
+ *   - `nao_encontrada`: venda lida por completo e sem a chave (não prova nada);
+ *   - `inconclusiva`: consulta falhou, dados incompletos, outra venda, ou evento SEM o indicador / com valor
+ *     desconhecido (`indicador_ausente` — backend anterior à Fase 22.6.3): mantém a proteção.
+ */
+export type ConclusaoDaOperacao =
+  | { tipo: "concluida"; evento: EventoCancelamentoLido }
+  | { tipo: "efeitos_pendentes"; evento: EventoCancelamentoLido }
+  | { tipo: "registrada_sem_rastreio"; evento: EventoCancelamentoLido }
+  | { tipo: "nao_encontrada" }
+  | {
+      tipo: "inconclusiva";
+      motivo: "consulta_falhou" | "dados_incompletos" | "venda_diferente" | "indicador_ausente";
+      /** Presente quando o evento foi encontrado mas o indicador não permite concluir. */
+      evento?: EventoCancelamentoLido;
+    };
+
+export function avaliarConclusao(reconciliacao: ResultadoReconciliacao): ConclusaoDaOperacao {
+  if (reconciliacao.tipo !== "registrada") return reconciliacao;
+  const { evento } = reconciliacao;
+  switch (evento.efeitosPosteriores) {
+    case "concluidos":
+      return { tipo: "concluida", evento };
+    case "pendentes":
+      return { tipo: "efeitos_pendentes", evento };
+    case "nao_rastreados":
+      return { tipo: "registrada_sem_rastreio", evento };
+    default:
+      return { tipo: "inconclusiva", motivo: "indicador_ausente", evento };
+  }
+}
+
+/** Reconciliação pela chave EXATA + leitura do indicador de conclusão (a leitura da venda é feita pelo chamador). */
+export function avaliarOperacaoPelaChave(
+  vendaId: string,
+  chave: string,
+  leitura: LeituraVendaParaReconciliacao,
+): ConclusaoDaOperacao {
+  return avaliarConclusao(reconciliarPelaChave(vendaId, chave, leitura));
+}
+
+/** A conclusão permite encerrar a proteção local (chave em memória + registro da venda no `sessionStorage`)? */
+export function encerraOperacao(conclusao: ConclusaoDaOperacao): boolean {
+  return conclusao.tipo === "concluida" || conclusao.tipo === "registrada_sem_rastreio";
+}
+
+/** Payload para REPETIR exatamente a operação pendente (mesma assinatura ⇒ mesma chave). `null` se ilegível. */
+export function payloadDaOperacaoPendente(
+  assinatura: string,
+  motivo: string,
+): CancelamentoPayload | null {
+  const operacao = lerAssinatura(assinatura);
+  if (!operacao) return null;
+  return operacao.tipo === "integral"
+    ? { tipo: "integral", motivo }
+    : { tipo: "parcial", motivo, itens: operacao.itens.map((item) => ({ ...item })) };
 }
 
 // ─── Restauração de estoque DA OPERAÇÃO (Fase 22.6.1) ──────────────────────────────────────────────────────────────

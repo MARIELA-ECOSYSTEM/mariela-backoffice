@@ -34,6 +34,19 @@ export type AvisoOperacaoCancelamento =
       persistida: boolean;
       /** Fase 22.6.1 — recuperada de um envio interrompido (reload/fechamento durante a requisição). */
       interrompida?: boolean;
+      /** Fase 22.6.3 — o evento com a chave foi encontrado, mas sem o indicador de conclusão dos efeitos. */
+      semIndicador?: boolean;
+    }
+  /**
+   * Fase 22.6.3 — o evento com a chave EXISTE (devolução registrada), mas o backend informa efeitos obrigatórios ainda
+   * pendentes (caixa, agregados ou auditoria). A chave continua fixada; repetir a mesma operação conclui sem duplicar.
+   */
+  | {
+      vendaId: string;
+      estado: "efeitos_pendentes";
+      assinatura: string;
+      incertaDesde: string | null;
+      persistida: boolean;
     }
   | { vendaId: string; estado: "invalida" };
 
@@ -57,29 +70,68 @@ export function AvisoOperacaoIncerta({
   aviso,
   venda,
   onDescartar,
+  onConcluir,
+  concluindo = false,
 }: {
   aviso: AvisoOperacaoCancelamento;
   venda: VendaDetalhe;
   onDescartar: () => void;
+  /** Fase 22.6.3 — repete a operação pendente com a MESMA chave (só no estado `efeitos_pendentes`). */
+  onConcluir?: () => void;
+  concluindo?: boolean;
 }) {
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
-  const resumo = aviso.estado === "incerta" ? resumoDaOperacao(aviso.assinatura, venda) : null;
+  const [cienteDoRegistro, setCienteDoRegistro] = useState(false);
+  const resumo =
+    aviso.estado === "incerta" || aviso.estado === "efeitos_pendentes"
+      ? resumoDaOperacao(aviso.assinatura, venda)
+      : null;
+  const registrada = aviso.estado === "efeitos_pendentes";
 
   return (
     <div
       role="status"
       className="space-y-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm"
     >
-      {aviso.estado === "incerta" ? (
+      {aviso.estado === "efeitos_pendentes" ? (
+        <>
+          <p>
+            <strong>A operação foi registrada, mas o processamento ainda não terminou</strong>
+            {aviso.incertaDesde ? ` (tentativa de ${formatarDataHora(aviso.incertaDesde)})` : ""}.
+            Ainda há efeitos pendentes no servidor — por exemplo, o lançamento no caixa, a
+            atualização dos totais do vendedor/cliente ou o registro de auditoria.
+          </p>
+          {resumo ? <p className="text-muted-foreground">Operação registrada: {resumo}.</p> : null}
+          <p>
+            Não registre a devolução de novo. Use <strong>Concluir processamento</strong>: a mesma
+            operação é reenviada com a <strong>mesma chave</strong>, o servidor conclui apenas o que
+            falta e nada é devolvido em dobro. Se o motivo for caixa fechado, abra o caixa antes.
+          </p>
+          {onConcluir ? (
+            <Button size="sm" onClick={onConcluir} disabled={concluindo}>
+              {concluindo ? "Concluindo…" : "Concluir processamento"}
+            </Button>
+          ) : null}
+          {aviso.persistida ? null : (
+            <p className="text-warning">
+              Não foi possível guardar esta proteção no navegador: ela se perde se você recarregar
+              ou sair desta página.
+            </p>
+          )}
+        </>
+      ) : aviso.estado === "incerta" ? (
         <>
           <p>
             <strong>Há uma operação anterior cuja confirmação não foi obtida</strong>
             {aviso.incertaDesde ? ` (tentativa de ${formatarDataHora(aviso.incertaDesde)})` : ""}.
             {aviso.interrompida
               ? " A página foi recarregada ou fechada enquanto ela era enviada — ela pode ter sido registrada."
+              : ""}
+            {aviso.semIndicador
+              ? " Ela aparece no histórico da venda, mas não foi possível confirmar se o processamento dela terminou."
               : ""}{" "}
-            Confira o histórico da venda antes de continuar. Assim que o histórico mostrar esta
-            operação, este aviso se encerra sozinho.
+            Confira o histórico da venda antes de continuar. Assim que a conclusão desta operação
+            for confirmada, este aviso se encerra sozinho.
           </p>
           {resumo ? <p className="text-muted-foreground">Operação pendente: {resumo}.</p> : null}
           <p>
@@ -107,31 +159,66 @@ export function AvisoOperacaoIncerta({
 
       {confirmandoDescarte ? (
         <div className="space-y-2 rounded-lg border border-destructive/30 bg-background/60 px-3 py-2">
-          <p>
-            Descartar <strong>não desfaz nem cancela</strong> uma operação que já tenha sido
-            registrada no sistema: apenas remove esta proteção neste navegador e permite registrar
-            uma nova operação. Se a operação anterior já tiver sido registrada, uma nova igual será
-            uma <strong>segunda devolução</strong>. Descarte apenas depois de conferir o histórico.
-          </p>
+          {registrada ? (
+            <>
+              <p>
+                <strong>Esta devolução JÁ ESTÁ REGISTRADA.</strong> Descartar{" "}
+                <strong>não desfaz</strong> a devolução e <strong>não conclui</strong> os efeitos
+                pendentes: apenas remove deste navegador a proteção que permite concluí-los com a
+                mesma chave. Registrar uma nova operação igual depois disso será uma{" "}
+                <strong>segunda devolução</strong>.
+              </p>
+              <label className="flex items-start gap-2">
+                <Checkbox
+                  checked={cienteDoRegistro}
+                  onCheckedChange={(marcado) => setCienteDoRegistro(marcado === true)}
+                  aria-label="Entendo que a devolução já está registrada e que descartar não a desfaz"
+                />
+                <span>
+                  Entendo que a devolução já está registrada, que descartar não a desfaz e que os
+                  efeitos pendentes continuarão sem conclusão por este navegador.
+                </span>
+              </label>
+            </>
+          ) : (
+            <p>
+              Descartar <strong>não desfaz nem cancela</strong> uma operação que já tenha sido
+              registrada no sistema: apenas remove esta proteção neste navegador e permite registrar
+              uma nova operação. Se a operação anterior já tiver sido registrada, uma nova igual
+              será uma <strong>segunda devolução</strong>. Descarte apenas depois de conferir o
+              histórico.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               variant="destructive"
+              disabled={registrada && !cienteDoRegistro}
               onClick={() => {
                 setConfirmandoDescarte(false);
+                setCienteDoRegistro(false);
                 onDescartar();
               }}
             >
               Confirmar descarte
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setConfirmandoDescarte(false)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setConfirmandoDescarte(false);
+                setCienteDoRegistro(false);
+              }}
+            >
               Manter operação pendente
             </Button>
           </div>
         </div>
       ) : (
         <Button size="sm" variant="outline" onClick={() => setConfirmandoDescarte(true)}>
-          Já conferi o histórico — descartar
+          {registrada
+            ? "Descartar a proteção desta operação registrada"
+            : "Já conferi o histórico — descartar"}
         </Button>
       )}
     </div>
@@ -149,6 +236,7 @@ export function CancelamentoDialog({
   salvando,
   avisoOperacao,
   onDescartarOperacaoIncerta,
+  onConcluirOperacaoPendente,
   onConfirmar,
 }: {
   venda: VendaDetalhe;
@@ -159,6 +247,8 @@ export function CancelamentoDialog({
   avisoOperacao: AvisoOperacaoCancelamento | null;
   /** Fase 22.5.1/22.5.2 — o operador conferiu o histórico e descarta a operação pendente (após confirmar). */
   onDescartarOperacaoIncerta: () => void;
+  /** Fase 22.6.3 — repete a operação registrada com efeitos pendentes (mesma chave). */
+  onConcluirOperacaoPendente?: () => void;
   /** O payload sai SEM `idempotencyKey` — a página anexa a chave da operação. */
   onConfirmar: (payload: CancelamentoPayload) => void;
 }) {
@@ -228,6 +318,8 @@ export function CancelamentoDialog({
               aviso={avisoOperacao}
               venda={venda}
               onDescartar={onDescartarOperacaoIncerta}
+              {...(onConcluirOperacaoPendente ? { onConcluir: onConcluirOperacaoPendente } : {})}
+              concluindo={salvando}
             />
           ) : null}
 

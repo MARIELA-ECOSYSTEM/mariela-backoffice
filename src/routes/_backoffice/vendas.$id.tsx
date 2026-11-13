@@ -40,17 +40,18 @@ import { mensagemDeErro } from "@/services/api/client";
 import { formatarData, formatarDataHora, formatarMoeda, pluralizar } from "@/utils/format";
 import { gerarIdempotencyKey } from "@/utils/idempotencia";
 import {
+  avaliarOperacaoPelaChave,
   decidirChave,
   ehResultadoIncerto,
-  eventoComChave,
   lerAssinatura,
   lerOperacaoIncerta,
   marcarIncerta,
   mensagemDeRestauracao,
+  payloadDaOperacaoPendente,
   persistirOperacao,
-  reconciliarPelaChave,
   removerOperacaoIncerta,
   resumoRestauracaoDoEvento,
+  type ConclusaoDaOperacao,
   type EventoCancelamentoLido,
   type LeituraVendaParaReconciliacao,
   type OperacaoCancelamento,
@@ -146,6 +147,7 @@ function avisoIncerta(
   operacao: OperacaoCancelamento,
   persistida: boolean,
   interrompida = false,
+  semIndicador = false,
 ): AvisoOperacaoCancelamento {
   return {
     vendaId: operacao.vendaId,
@@ -154,6 +156,7 @@ function avisoIncerta(
     incertaDesde: operacao.incertaDesde,
     persistida,
     interrompida,
+    semIndicador,
   };
 }
 
@@ -172,26 +175,56 @@ async function lerVendaParaReconciliacao(vendaId: string): Promise<LeituraVendaP
   }
 }
 
+/** Fase 22.6.3 — aviso de operação REGISTRADA com efeitos obrigatórios pendentes (chave mantida). */
+function avisoEfeitosPendentes(
+  operacao: OperacaoCancelamento,
+  persistida: boolean,
+): AvisoOperacaoCancelamento {
+  return {
+    vendaId: operacao.vendaId,
+    estado: "efeitos_pendentes",
+    assinatura: operacao.assinatura,
+    incertaDesde: operacao.incertaDesde,
+    persistida,
+  };
+}
+
+/** Motivo enviado ao repetir a operação pendente — o backend ignora o motivo num replay (fora da assinatura). */
+const MOTIVO_CONCLUSAO_PENDENTE = "Conclusão do processamento pendente da mesma operação";
+
+/** Fase 22.6.3 — texto ao operador quando a operação foi registrada mas o processamento não terminou. */
+function textoEfeitosPendentes(registrado: string, erroOriginal?: string): string {
+  return `${registrado}, mas o processamento ainda não terminou${erroOriginal ? ` (“${erroOriginal}”)` : ""}: há efeitos pendentes no servidor (como o lançamento no caixa). Não registre a devolução de novo — use “Concluir processamento”, que reenvia a mesma operação com a mesma chave, sem duplicar nada.`;
+}
+
 /**
- * Mensagem de operação registrada, com o estoque DESTA operação (nunca o resumo da venda inteira). `via` distingue a
- * confirmação pela resposta normal, a confirmação pelo histórico após uma resposta de erro e a confirmação de uma
- * operação pendente ao carregar/atualizar a venda.
+ * Mensagem de operação ENCERRADA, com o estoque DESTA operação (nunca o resumo da venda inteira). `via` distingue a
+ * confirmação pela resposta normal, a confirmação pelo histórico após uma resposta de erro, a confirmação de uma
+ * operação pendente ao carregar/atualizar a venda e a conclusão de efeitos pendentes (Fase 22.6.3). Um evento
+ * `registrada_sem_rastreio` (anterior ao acompanhamento dos efeitos) nunca vira "sucesso": é aviso.
  */
 function notificarConclusao(
   registrado: string,
-  evento: EventoCancelamentoLido | null,
-  via: "resposta" | "reconciliacao_apos_erro" | "historico",
+  conclusao: { tipo: "concluida" | "registrada_sem_rastreio"; evento: EventoCancelamentoLido },
+  via: "resposta" | "reconciliacao_apos_erro" | "historico" | "conclusao_pendente",
   erroOriginal?: string,
 ) {
-  const restauracao = mensagemDeRestauracao(resumoRestauracaoDoEvento(evento).status);
+  const restauracao = mensagemDeRestauracao(resumoRestauracaoDoEvento(conclusao.evento).status);
   const prefixo =
     via === "resposta"
       ? registrado
       : via === "reconciliacao_apos_erro"
         ? `${registrado}: confirmada pelo histórico da venda, embora a resposta do servidor tenha indicado erro${erroOriginal ? ` (“${erroOriginal}”)` : ""}`
-        : `A operação pendente foi confirmada pelo histórico da venda (${registrado.toLowerCase()})`;
-  const texto = restauracao.texto ? `${prefixo}; ${restauracao.texto}` : `${prefixo}.`;
-  if (restauracao.tom === "sucesso") toast.success(texto);
+        : via === "conclusao_pendente"
+          ? `Processamento concluído: ${registrado.toLowerCase()} com todos os efeitos confirmados pelo servidor`
+          : `A operação pendente foi confirmada pelo histórico da venda (${registrado.toLowerCase()})`;
+  const legado =
+    conclusao.tipo === "registrada_sem_rastreio"
+      ? "este registro é anterior ao acompanhamento do processamento pelo servidor — confira o caixa e o histórico da venda"
+      : null;
+  const complementos = [legado, restauracao.texto].filter(Boolean);
+  const texto = complementos.length ? `${prefixo}; ${complementos.join("; ")}` : `${prefixo}.`;
+  if (restauracao.tom === "sucesso" && !legado) toast.success(texto);
   else toast.warning(texto);
 }
 
@@ -301,16 +334,36 @@ function VendaDetalhePage() {
    * registrada (eventos são append-only) — encerra a pendência e avisa o operador. Não envia nada. Ausência da chave
    * nunca libera a operação. Não roda durante um envio (o próprio envio reconcilia ao terminar).
    */
+  //
+  // Fase 22.6.3 — encontrar o evento NÃO basta: só o indicador `efeitosPosteriores: "concluidos"` (ou um evento
+  // anterior ao acompanhamento, `nao_rastreados`) encerra a pendência. Efeitos pendentes → a proteção continua e o aviso
+  // passa a dizer que a operação foi registrada mas não terminou; evento sem indicador → continua protegida.
   useEffect(() => {
     if (!venda || cancelandoRef.current) return;
     const pendente = operacaoCancelamentoRef.current;
     if (!pendente || pendente.vendaId !== id || !pendente.incerta) return;
-    const evento = eventoComChave(venda, pendente.chave);
-    if (!evento) return;
-    operacaoCancelamentoRef.current = null;
-    removerOperacaoIncerta(id);
-    setAvisoOperacao((atual) => (atual?.vendaId === id ? null : atual));
-    notificarConclusao(rotuloDaOperacao(pendente.assinatura), evento, "historico");
+    const conclusao = avaliarOperacaoPelaChave(id, pendente.chave, { ok: true, venda });
+    if (conclusao.tipo === "concluida" || conclusao.tipo === "registrada_sem_rastreio") {
+      operacaoCancelamentoRef.current = null;
+      removerOperacaoIncerta(id);
+      setAvisoOperacao((atual) => (atual?.vendaId === id ? null : atual));
+      notificarConclusao(rotuloDaOperacao(pendente.assinatura), conclusao, "historico");
+      return;
+    }
+    const persistida = lerOperacaoIncerta(id).estado === "recuperada";
+    if (conclusao.tipo === "efeitos_pendentes") {
+      setAvisoOperacao((atual) =>
+        atual?.vendaId === id && atual.estado === "efeitos_pendentes"
+          ? atual
+          : avisoEfeitosPendentes(pendente, persistida),
+      );
+    } else if (conclusao.tipo === "inconclusiva" && conclusao.motivo === "indicador_ausente") {
+      setAvisoOperacao((atual) =>
+        atual?.vendaId === id && atual.estado === "incerta" && atual.semIndicador
+          ? atual
+          : avisoIncerta(pendente, persistida, false, true),
+      );
+    }
   }, [venda, id, avisoOperacao]);
 
   /** Encerra a operação pendente da venda (registro confirmado): memória, registro DESTA venda e aviso. */
@@ -332,7 +385,74 @@ function VendaDetalhePage() {
     }
   }
 
-  async function confirmarCancelamento(payloadDoDialogo: CancelamentoPayload) {
+  /**
+   * Fase 22.6.3 — a operação continua protegida (chave e assinatura fixadas, registro da venda mantido no
+   * `sessionStorage`, sem reenvio automático). A mensagem distingue: efeitos pendentes (registrada, não terminou),
+   * evento sem indicador, falha da consulta, resultado incerto e erro definitivo sem a chave no histórico.
+   * Devolve `true` se o diálogo deve fechar.
+   */
+  function manterOperacaoProtegida(
+    operacao: OperacaoCancelamento,
+    conclusao: ConclusaoDaOperacao,
+    registrado: string,
+    erro: { valor: unknown } | null,
+  ): boolean {
+    const incerta = marcarIncerta(operacao, new Date());
+    operacaoCancelamentoRef.current = incerta;
+    const persistida = persistirOperacao(incerta, "incerta");
+    const mensagemOriginal = erro ? mensagemDeErro(erro.valor, "") : "";
+    if (conclusao.tipo === "efeitos_pendentes") {
+      setAvisoOperacao(avisoEfeitosPendentes(incerta, persistida));
+      toast.warning(textoEfeitosPendentes(registrado, mensagemOriginal || undefined));
+      return true;
+    }
+    const semIndicador =
+      conclusao.tipo === "inconclusiva" && conclusao.motivo === "indicador_ausente";
+    setAvisoOperacao(avisoIncerta(incerta, persistida, false, semIndicador));
+    if (semIndicador) {
+      toast.warning(
+        "A operação aparece no histórico da venda, mas não foi possível confirmar se o processamento dela terminou. Ela continua protegida (a mesma chave será reutilizada); confira o histórico antes de qualquer nova tentativa.",
+      );
+      return true;
+    }
+    if (conclusao.tipo === "inconclusiva" && conclusao.motivo === "consulta_falhou") {
+      toast.warning(
+        "Não foi possível confirmar se a operação foi registrada: a consulta da venda falhou. Confira o histórico da venda antes de tentar novamente.",
+      );
+      return true;
+    }
+    if (!erro || ehResultadoIncerto(erro.valor) || conclusao.tipo === "inconclusiva") {
+      toast.warning(
+        "Não foi possível confirmar se a operação foi registrada. Confira o histórico da venda antes de tentar novamente.",
+      );
+      return true;
+    }
+    // Erro definitivo e a venda relida não tem a chave: mantém o feedback do backend; o diálogo continua aberto
+    // para reenviar EXATAMENTE a mesma operação (mesma chave — replay seguro).
+    toast.error(
+      `${mensagemDeErro(erro.valor, "Não foi possível concluir a operação.")} A operação não aparece no histórico da venda e continua protegida: reenviar exatamente a mesma operação é seguro.`,
+    );
+    return false;
+  }
+
+  /** Fase 22.6.3 — repete a operação registrada com efeitos pendentes: mesma assinatura ⇒ mesma chave. */
+  function concluirOperacaoPendente() {
+    const pendente = operacaoCancelamentoRef.current;
+    if (!pendente || pendente.vendaId !== id) return;
+    const payload = payloadDaOperacaoPendente(pendente.assinatura, MOTIVO_CONCLUSAO_PENDENTE);
+    if (!payload) {
+      toast.error(
+        "A operação pendente não pôde ser lida para ser reenviada. Confira o histórico da venda.",
+      );
+      return;
+    }
+    void confirmarCancelamento(payload, "conclusao_pendente");
+  }
+
+  async function confirmarCancelamento(
+    payloadDoDialogo: CancelamentoPayload,
+    origem: "dialogo" | "conclusao_pendente" = "dialogo",
+  ) {
     if (cancelandoRef.current) return;
     if (avisoOperacaoDaVenda?.estado === "invalida") {
       toast.error(
@@ -348,6 +468,12 @@ function VendaDetalhePage() {
       gerarChave: gerarIdempotencyKey,
     });
     if (decisao.tipo === "bloqueada") {
+      if (avisoOperacaoDaVenda?.estado === "efeitos_pendentes") {
+        toast.error(
+          "Há uma operação desta venda já registrada cujo processamento ainda não terminou. Conclua-a (“Concluir processamento”) antes de registrar uma operação diferente.",
+        );
+        return;
+      }
       toast.error(
         "Há uma operação anterior desta venda sem confirmação. Reenvie exatamente a mesma operação ou, depois de conferir o histórico, descarte-a antes de registrar uma operação diferente.",
       );
@@ -371,45 +497,45 @@ function VendaDetalhePage() {
     const registrado = rotuloDaOperacao(operacao.assinatura);
     try {
       const resultado = await cancelar.mutateAsync(payload);
-      // Operação confirmada pelo backend (registro novo ou replay): limpa memória e o registro DESTA venda; a próxima
-      // operação recebe chave nova.
-      encerrarOperacao(operacao.vendaId);
-      notificarConclusao(registrado, eventoComChave(resultado, operacao.chave), "resposta");
-      setCancelamentoAberto(false);
+      // Fase 22.6.3 — resposta de sucesso também passa pelo indicador: só `concluidos` (ou evento anterior ao
+      // acompanhamento) encerra; sem indicador (backend antigo) ou pendente, a operação continua protegida.
+      const conclusao = avaliarOperacaoPelaChave(operacao.vendaId, operacao.chave, {
+        ok: true,
+        venda: resultado,
+      });
+      if (conclusao.tipo === "concluida" || conclusao.tipo === "registrada_sem_rastreio") {
+        encerrarOperacao(operacao.vendaId);
+        notificarConclusao(
+          registrado,
+          conclusao,
+          origem === "conclusao_pendente" ? "conclusao_pendente" : "resposta",
+        );
+        setCancelamentoAberto(false);
+        return;
+      }
+      if (manterOperacaoProtegida(operacao, conclusao, registrado, null))
+        setCancelamentoAberto(false);
     } catch (err) {
       // Fase 22.6.1 (A2) — QUALQUER falha: o backend pode ter gravado o evento e respondido erro depois (caixa
       // fechado no meio, agregados, auditoria…). Relê a venda e procura a chave EXATA enviada.
       const leitura = await lerVendaParaReconciliacao(operacao.vendaId);
       void queryClient.invalidateQueries({ queryKey: vendasKeys.todas });
-      const reconciliacao = reconciliarPelaChave(operacao.vendaId, operacao.chave, leitura);
-      if (reconciliacao.tipo === "registrada") {
+      const conclusao = avaliarOperacaoPelaChave(operacao.vendaId, operacao.chave, leitura);
+      if (conclusao.tipo === "concluida" || conclusao.tipo === "registrada_sem_rastreio") {
         encerrarOperacao(operacao.vendaId);
         notificarConclusao(
           registrado,
-          reconciliacao.evento,
+          conclusao,
           "reconciliacao_apos_erro",
           mensagemDeErro(err, ""),
         );
         setCancelamentoAberto(false);
         return;
       }
-      // Não confirmada (consulta inconclusiva OU chave ausente neste momento — que não prova nada): a operação fica
-      // PROTEGIDA — chave e assinatura fixadas e persistidas, sem chave nova e sem reenvio automático.
-      const incerta = marcarIncerta(operacao, new Date());
-      operacaoCancelamentoRef.current = incerta;
-      setAvisoOperacao(avisoIncerta(incerta, persistirOperacao(incerta, "incerta")));
-      if (ehResultadoIncerto(err) || reconciliacao.tipo === "inconclusiva") {
-        toast.warning(
-          "Não foi possível confirmar se a operação foi registrada. Confira o histórico da venda antes de tentar novamente.",
-        );
+      // Não concluída (efeitos pendentes, evento sem indicador, consulta inconclusiva OU chave ausente neste momento —
+      // que não prova nada): a operação fica PROTEGIDA, sem chave nova e sem reenvio automático.
+      if (manterOperacaoProtegida(operacao, conclusao, registrado, { valor: err }))
         setCancelamentoAberto(false);
-      } else {
-        // Erro definitivo e a venda relida não tem a chave: mantém o feedback do backend; o diálogo continua aberto
-        // para reenviar EXATAMENTE a mesma operação (mesma chave — replay seguro).
-        toast.error(
-          `${mensagemDeErro(err, "Não foi possível concluir a operação.")} A operação não aparece no histórico da venda e continua protegida: reenviar exatamente a mesma operação é seguro.`,
-        );
-      }
     } finally {
       cancelandoRef.current = false;
     }
@@ -519,6 +645,8 @@ function VendaDetalhePage() {
               aviso={avisoOperacaoDaVenda}
               venda={venda}
               onDescartar={descartarOperacaoIncerta}
+              onConcluir={concluirOperacaoPendente}
+              concluindo={cancelar.isPending}
             />
           ) : null}
 
@@ -790,6 +918,7 @@ function VendaDetalhePage() {
             salvando={cancelar.isPending}
             avisoOperacao={avisoOperacaoDaVenda}
             onDescartarOperacaoIncerta={descartarOperacaoIncerta}
+            onConcluirOperacaoPendente={concluirOperacaoPendente}
             onConfirmar={(payload) => void confirmarCancelamento(payload)}
           />
 

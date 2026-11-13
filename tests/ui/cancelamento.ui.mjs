@@ -178,14 +178,33 @@ function criarBackend() {
   const leituras = { comFalha: 0, incompletas: 0 };
   /** Fase 22.6.1 — gancho chamado quando um POST de cancelamento CHEGA (antes de processar). */
   const ganchos = { aoReceberPost: null };
+  /**
+   * Fase 22.6.3 — `caixaAberto`: um replay de evento com efeitos pendentes só os conclui com caixa aberto (senão 400,
+   * como o backend real). `semIndicador`: imita um backend ANTERIOR à 22.6.3 (eventos sem `efeitosPosteriores`).
+   * `conclusoes`: quantas vezes efeitos pendentes foram concluídos (deve ser 1 por operação).
+   */
+  const estado = { caixaAberto: true, semIndicador: false, conclusoes: 0 };
 
   /** Aplica a operação como o backend real faria (inclui replay e 409 por idempotência). */
-  function processar(vendaId, corpo, restauracao = "concluida") {
+  function processar(vendaId, corpo, restauracao = "concluida", efeitos = "concluidos") {
     const venda = vendas.get(vendaId);
     const assinatura = assinaturaDe(corpo);
     const existente = chaves.get(corpo.idempotencyKey);
     if (existente) {
       if (existente.vendaId === vendaId && existente.assinatura === assinatura) {
+        // Fase 22.6.3 — replay conclui SÓ o que ficou pendente (uma vez); sem caixa aberto continua pendente (400).
+        const evento = venda.cancelamentos.find((e) => e.idempotencyKey === corpo.idempotencyKey);
+        if (evento?.efeitosPosteriores === "pendentes") {
+          if (!estado.caixaAberto) {
+            return erroJson(
+              400,
+              "VALIDATION_ERROR",
+              "Nenhum caixa aberto. Abra o caixa antes de concluir o cancelamento.",
+            );
+          }
+          evento.efeitosPosteriores = "concluidos";
+          estado.conclusoes += 1;
+        }
         return { status: 201, corpo: { data: comResumo(venda) }, replay: true };
       }
       return erroJson(409, "IDEMPOTENCY_CONFLICT", "Chave reutilizada com conteúdo diferente.");
@@ -204,7 +223,7 @@ function criarBackend() {
         return erroJson(400, "VALIDATION_ERROR", "Quantidade a devolver inválida.");
       }
     }
-    registrar(venda, corpo, itens, restauracao);
+    registrar(venda, corpo, itens, restauracao, efeitos);
     chaves.set(corpo.idempotencyKey, { vendaId, assinatura });
     return { status: 201, corpo: { data: comResumo(venda) }, replay: false };
   }
@@ -216,7 +235,7 @@ function criarBackend() {
     return { restaurado: false, estadoRestauracao: restauracao };
   }
 
-  function registrar(venda, corpo, itens, restauracao = "concluida") {
+  function registrar(venda, corpo, itens, restauracao = "concluida", efeitos = "concluidos") {
     const dataHora = new Date().toISOString();
     let valor = 0;
     const devolvidos = itens.map(({ itemId, quantidade }) => {
@@ -241,6 +260,7 @@ function criarBackend() {
       valorDevolvido: valor,
       itens: devolvidos,
       idempotencyKey: corpo.idempotencyKey,
+      efeitosPosteriores: efeitos,
     });
     venda.historico.push({
       dataHora,
@@ -279,6 +299,10 @@ function criarBackend() {
               : "pendente";
     return {
       ...venda,
+      // Fase 22.6.3 — backend antigo: os eventos chegam SEM o indicador.
+      cancelamentos: estado.semIndicador
+        ? venda.cancelamentos.map(({ efeitosPosteriores, ...resto }) => resto)
+        : venda.cancelamentos,
       restauracaoEstoque: {
         status,
         totalItens: linhas.length,
@@ -295,13 +319,20 @@ function criarBackend() {
   }
 
   /** Acrescenta direto no "banco" um evento de OUTRA operação (outra chave), com o estado de restauração dado. */
-  function adicionarEvento(vendaId, idempotencyKey, itemId = "item-2", restauracao = "concluida") {
+  function adicionarEvento(
+    vendaId,
+    idempotencyKey,
+    itemId = "item-2",
+    restauracao = "concluida",
+    efeitos = "concluidos",
+  ) {
     const venda = vendas.get(vendaId);
     registrar(
       venda,
       { tipo: "parcial", motivo: "operação anterior (fictícia)", idempotencyKey },
       [{ itemId, quantidade: 1 }],
       restauracao,
+      efeitos,
     );
     chaves.set(idempotencyKey, {
       vendaId,
@@ -380,6 +411,9 @@ function criarBackend() {
         case "registrar-e-erro": // Fase 22.6.1 (A2): backend GRAVOU e depois respondeu erro (caixa, agregados…)
           processar(vendaId, corpo, c.restauracao);
           return responder(route, erroJson(c.status, c.code, c.message));
+        case "registrar-pendente-e-erro": // Fase 22.6.3: evento gravado, efeitos PENDENTES (ex.: caixa fechado) → erro
+          processar(vendaId, corpo, c.restauracao, "pendentes");
+          return responder(route, erroJson(c.status, c.code, c.message));
         case "registrar-e-gateway": // backend gravou, mas o gateway devolveu 502/503/504 (corpo HTML)
           processar(vendaId, corpo);
           return responder(route, {
@@ -418,6 +452,7 @@ function criarBackend() {
     comportamentos,
     leituras,
     ganchos,
+    estado,
     adicionarEvento,
     naoPrevistas,
     atender,
@@ -1436,4 +1471,175 @@ describe("7. validação visual local", () => {
       await s.encerrar();
     });
   }
+});
+
+// ─── Fase 22.6.3 — evento registrado ≠ operação concluída ─────────────────────────────────────────────────────────
+
+const MSG_EFEITOS_PENDENTES = "mas o processamento ainda não terminou";
+const MSG_AVISO_EFEITOS_PENDENTES =
+  "A operação foi registrada, mas o processamento ainda não terminou";
+const MSG_PROCESSAMENTO_CONCLUIDO = "Processamento concluído";
+const MSG_SEM_INDICADOR = "não foi possível confirmar se o processamento dela terminou";
+const MSG_LEGADO = "anterior ao acompanhamento do processamento pelo servidor";
+const CAIXA_FECHADO = {
+  tipo: "registrar-pendente-e-erro",
+  status: 400,
+  code: "VALIDATION_ERROR",
+  message: "O caixa está fechado (fictício).",
+};
+const botaoConcluir = (pagina) =>
+  pagina.getByRole("button", { name: "Concluir processamento" }).first();
+
+/** Devolução parcial do item 1 que o backend GRAVA com efeitos pendentes e responde 400. */
+async function devolucaoComEfeitosPendentes(s) {
+  s.backend.comportamentos.push(CAIXA_FECHADO);
+  await s.abrirVenda(VENDA_A);
+  await abrirDialogo(s.pagina);
+  await preencher(s.pagina, OP_PARCIAL_ITEM1);
+  await enviar(s.pagina, OP_PARCIAL_ITEM1);
+  await esperarTexto(s.pagina, MSG_EFEITOS_PENDENTES);
+  await esperarTexto(s.pagina, MSG_AVISO_EFEITOS_PENDENTES);
+  const chave = s.backend.posts[0].corpo.idempotencyKey;
+  const registro = await s.registroJson(VENDA_A);
+  assert.equal(registro?.chave, chave, "a chave da operação pendente não foi preservada");
+  assert.equal(registro?.assinatura, assinaturaDe(OP_PARCIAL_ITEM1));
+  assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
+  return chave;
+}
+
+describe("22.6.3 efeitos posteriores pendentes", () => {
+  test("caixa fechado após a gravação → aviso de pendência; replay com caixa ainda fechado mantém a chave; com caixa aberto conclui e limpa", async () => {
+    const s = await novaSessao();
+    const chave = await devolucaoComEfeitosPendentes(s);
+    assert.equal(
+      await s.pagina.getByText(MSG_CONFIRMADA_APOS_ERRO).count(),
+      0,
+      "pendência apresentada como sucesso",
+    );
+    await semNovasRequisicoes(s.backend, 1);
+
+    // Replay com o caixa ainda fechado: erro, nada muda, mesma chave.
+    s.backend.estado.caixaAberto = false;
+    await botaoConcluir(s.pagina).click();
+    await esperarAte(async () => s.backend.posts.length === 2, "segundo POST");
+    await esperarTexto(s.pagina, MSG_EFEITOS_PENDENTES);
+    assert.equal(s.backend.posts[1].corpo.idempotencyKey, chave);
+    assert.equal(assinaturaDe(s.backend.posts[1].corpo), assinaturaDe(OP_PARCIAL_ITEM1));
+    assert.equal((await s.registroJson(VENDA_A))?.chave, chave);
+    await esperarTexto(s.pagina, MSG_AVISO_EFEITOS_PENDENTES);
+
+    // Caixa aberto: o replay conclui uma única vez e a pendência local é removida.
+    s.backend.estado.caixaAberto = true;
+    await botaoConcluir(s.pagina).click();
+    await esperarTexto(s.pagina, MSG_PROCESSAMENTO_CONCLUIDO);
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    assert.equal(s.backend.posts[2].corpo.idempotencyKey, chave);
+    assert.equal(s.backend.estado.conclusoes, 1);
+    assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1, "devolução duplicada");
+    await esperarAte(
+      async () => (await s.pagina.getByText(MSG_AVISO_EFEITOS_PENDENTES).count()) === 0,
+      "aviso desaparecer",
+    );
+    await semNovasRequisicoes(s.backend, 3);
+    await s.encerrar();
+  });
+
+  test("reload com operação pendente: recupera a MESMA chave, mostra a pendência sem POST automático e o replay conclui", async () => {
+    const s = await novaSessao();
+    const chave = await devolucaoComEfeitosPendentes(s);
+    await s.recarregar();
+    await esperarTexto(s.pagina, MSG_AVISO_EFEITOS_PENDENTES);
+    await semNovasRequisicoes(s.backend, 1);
+    assert.equal((await s.registroJson(VENDA_A))?.chave, chave);
+
+    await botaoConcluir(s.pagina).click();
+    await esperarTexto(s.pagina, MSG_PROCESSAMENTO_CONCLUIDO);
+    assert.equal(s.backend.posts[1].corpo.idempotencyKey, chave);
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    assert.equal(s.backend.estado.conclusoes, 1);
+    await s.encerrar();
+  });
+
+  test("refetch que continua pendente NÃO limpa; refetch que mostra conclusão limpa com aviso", async () => {
+    const s = await novaSessao();
+    await devolucaoComEfeitosPendentes(s);
+    await s.simularFoco();
+    await dormir(1_500);
+    assert.notEqual(await s.registro(VENDA_A), null, "pendência removida sem conclusão");
+    await esperarTexto(s.pagina, MSG_AVISO_EFEITOS_PENDENTES);
+
+    // Outra aba/retentativa concluiu os efeitos no servidor.
+    s.backend.vendas.get(VENDA_A).cancelamentos[0].efeitosPosteriores = "concluidos";
+    await s.simularFoco();
+    await esperarTexto(s.pagina, MSG_CONFIRMADA_PENDENTE);
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    await semNovasRequisicoes(s.backend, 1);
+    await s.encerrar();
+  });
+
+  test("backend sem o indicador (anterior à 22.6.3): sucesso HTTP não encerra — a operação continua protegida", async () => {
+    const s = await novaSessao();
+    s.backend.estado.semIndicador = true;
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, MSG_SEM_INDICADOR);
+    const chave = s.backend.posts[0].corpo.idempotencyKey;
+    assert.equal((await s.registroJson(VENDA_A))?.chave, chave);
+    assert.equal(await s.pagina.getByText("Devolução parcial registrada.").count(), 0);
+    await semNovasRequisicoes(s.backend, 1);
+    await s.encerrar();
+  });
+
+  test("evento legado (`nao_rastreados`) com a chave pendente: compatível — encerra com aviso, sem tratar como falha", async () => {
+    const s = await novaSessao({
+      sessionStorage: { [PREFIXO_REGISTRO + VENDA_A]: registroValido(VENDA_A, OP_PARCIAL_ITEM2) },
+    });
+    s.backend.adicionarEvento(VENDA_A, CHAVE_ORIGINAL, "item-2", "concluida", "nao_rastreados");
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_LEGADO);
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    await semNovasRequisicoes(s.backend, 0);
+    await s.encerrar();
+  });
+
+  test("descarte de operação registrada com efeitos pendentes exige confirmação reforçada e não dispara POST", async () => {
+    const s = await novaSessao();
+    await devolucaoComEfeitosPendentes(s);
+    await s.pagina
+      .getByRole("button", { name: "Descartar a proteção desta operação registrada" })
+      .click();
+    await esperarTexto(s.pagina, "Esta devolução JÁ ESTÁ REGISTRADA.");
+    const confirmar = s.pagina.getByRole("button", { name: "Confirmar descarte" });
+    assert.equal(await confirmar.isDisabled(), true, "descarte sem a confirmação reforçada");
+    await s.pagina
+      .getByRole("checkbox", { name: /Entendo que a devolução já está registrada/ })
+      .click();
+    assert.equal(await confirmar.isDisabled(), false);
+    await confirmar.click();
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    await semNovasRequisicoes(s.backend, 1);
+    assert.equal(
+      s.backend.vendas.get(VENDA_A).cancelamentos.length,
+      1,
+      "o descarte desfez/refez algo",
+    );
+    await s.encerrar();
+  });
+
+  test("pendência da venda A não interfere na venda B", async () => {
+    const s = await novaSessao();
+    const chaveA = await devolucaoComEfeitosPendentes(s);
+    await s.abrirVenda(VENDA_B);
+    assert.equal(await s.pagina.getByText(MSG_AVISO_EFEITOS_PENDENTES).count(), 0);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, "Devolução parcial registrada.");
+    assert.notEqual(s.backend.posts[1].corpo.idempotencyKey, chaveA);
+    assert.equal((await s.registroJson(VENDA_A))?.chave, chaveA);
+    assert.equal(await s.registro(VENDA_B), null);
+    await s.encerrar();
+  });
 });

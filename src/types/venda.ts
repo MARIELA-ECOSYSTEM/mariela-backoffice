@@ -218,7 +218,18 @@ export interface CancelamentoVenda {
    * `null`). Fase 22.6.1 — é por ela, e só por ela, que o Backoffice reconcilia uma operação de resultado incerto.
    */
   idempotencyKey?: string | null;
+  /**
+   * Fase 22.6.3 — situação dos efeitos OBRIGATÓRIOS posteriores à gravação deste evento (caixa, agregados de
+   * vendedor/cliente, auditoria), calculada pelo backend. A devolução de estoque NÃO entra (estado próprio por linha).
+   *   - `pendentes`: o evento existe, mas o processamento não terminou — repetir a MESMA operação (mesma chave) conclui;
+   *   - `concluidos`: todos os efeitos obrigatórios concluídos;
+   *   - `nao_rastreados`: evento anterior ao acompanhamento (ou sem chave) — o backend não afirma conclusão.
+   * Ausente = backend anterior à Fase 22.6.3: NUNCA tratar como concluído.
+   */
+  efeitosPosteriores?: SituacaoEfeitosPosteriores;
 }
+
+export type SituacaoEfeitosPosteriores = "pendentes" | "concluidos" | "nao_rastreados";
 
 export interface VendaDetalhe extends VendaResumo {
   observacao: string;
