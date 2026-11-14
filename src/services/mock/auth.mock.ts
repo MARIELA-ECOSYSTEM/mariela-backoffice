@@ -65,7 +65,12 @@ export function registerAuthMocks(): void {
     ({ body }) => {
       const payload = (body ?? {}) as Partial<{ refreshToken: string }>;
       if (payload.refreshToken !== REFRESH_TOKEN) {
-        throw ApiError.unauthorized("Sessão expirada. Faça login novamente.");
+        // Mesmo código do backend real (`ApiException.refreshTokenInvalid`) — o cliente só encerra a sessão com ele.
+        throw new ApiError({
+          statusCode: 401,
+          code: "REFRESH_TOKEN_INVALID",
+          message: "Sessão expirada. Faça login novamente.",
+        });
       }
       const data: LoginResponse = { ...sessaoMock(), usuario: USUARIO_ADMIN };
       return { data };

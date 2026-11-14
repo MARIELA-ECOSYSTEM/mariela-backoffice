@@ -184,6 +184,11 @@ function criarBackend() {
    * `conclusoes`: quantas vezes efeitos pendentes foram concluídos (deve ser 1 por operação).
    */
   const estado = { caixaAberto: true, semIndicador: false, conclusoes: 0 };
+  /**
+   * Fase 22.8.4 — comportamentos das próximas chamadas de `/auth/me` e `/auth/refresh` (FIFO; vazio ⇒ sucesso) e o
+   * registro de todas as chamadas de autenticação recebidas (`"<MÉTODO> <caminho>"`).
+   */
+  const auth = { me: [], refresh: [], chamadas: [] };
 
   /** Aplica a operação como o backend real faria (inclui replay e 409 por idempotência). */
   function processar(vendaId, corpo, restauracao = "concluida", efeitos = "concluidos") {
@@ -360,7 +365,37 @@ function criarBackend() {
     }
     const caminho = url.pathname.slice(`${PREFIXO_API_FICTICIA}/api/v1`.length);
     const metodo = req.method();
+    if (caminho.startsWith("/auth/")) auth.chamadas.push(`${metodo} ${caminho}`);
 
+    /** Fase 22.8.4 — falha programada de uma rota de autenticação (gateway sem JSON, rede ou erro JSON do backend). */
+    async function falhaDeAutenticacao(c) {
+      if (c.tipo === "gateway") {
+        return responder(route, {
+          status: c.status,
+          html: `<html><body>${c.status}</body></html>`,
+        });
+      }
+      if (c.tipo === "abortar") return route.abort("failed");
+      return responder(route, erroJson(c.status, c.code, c.message ?? "Recusado (fictício)."));
+    }
+
+    if (metodo === "POST" && caminho === "/auth/refresh") {
+      const c = auth.refresh.shift();
+      if (c) return falhaDeAutenticacao(c);
+      return responder(route, {
+        status: 200,
+        corpo: {
+          data: {
+            accessToken: "token-ficticio-renovado",
+            refreshToken: "refresh-ficticio-renovado",
+            expiresIn: 900,
+          },
+        },
+      });
+    }
+    if (metodo === "GET" && caminho === "/auth/me" && auth.me.length > 0) {
+      return falhaDeAutenticacao(auth.me.shift());
+    }
     if (metodo === "GET" && caminho === "/auth/me") {
       return responder(route, {
         status: 200,
@@ -453,6 +488,7 @@ function criarBackend() {
     leituras,
     ganchos,
     estado,
+    auth,
     adicionarEvento,
     naoPrevistas,
     atender,
@@ -539,6 +575,7 @@ async function novaSessao({
   viewport,
   sessionStorage: registros = {},
   armazenamentoQueFalha = false,
+  refreshToken = null,
 } = {}) {
   const backend = criarBackend();
   const contexto = await navegador.newContext({
@@ -577,11 +614,12 @@ async function novaSessao({
   // Prepara a origem: sessão fictícia (token) e, se pedido, registros no sessionStorage — antes de abrir o app.
   await pagina.goto(`${BASE}${PREFIXO_API_FICTICIA}/preparar`);
   await pagina.evaluate(
-    ({ registros }) => {
+    ({ registros, refreshToken }) => {
       localStorage.setItem("mariela.accessToken", "token-ficticio-de-teste");
+      if (refreshToken) localStorage.setItem("mariela.refreshToken", refreshToken);
       for (const [chave, valor] of Object.entries(registros)) sessionStorage.setItem(chave, valor);
     },
-    { registros },
+    { registros, refreshToken },
   );
 
   return {
@@ -615,6 +653,13 @@ async function novaSessao({
     async registroJson(vendaId) {
       const bruto = await this.registro(vendaId);
       return bruto === null ? null : JSON.parse(bruto);
+    },
+    /** Fase 22.8.4 — tokens de sessão atualmente no `localStorage` (valores fictícios). */
+    tokens() {
+      return pagina.evaluate(() => ({
+        access: localStorage.getItem("mariela.accessToken"),
+        refresh: localStorage.getItem("mariela.refreshToken"),
+      }));
     },
     /** Força o refetch da venda como numa volta de foco (React Query `refetchOnWindowFocus`). */
     async simularFoco() {
@@ -1674,6 +1719,108 @@ describe("22.6.3 efeitos posteriores pendentes", () => {
     assert.notEqual(s.backend.posts[1].corpo.idempotencyKey, chaveA);
     assert.equal((await s.registroJson(VENDA_A))?.chave, chaveA);
     assert.equal(await s.registro(VENDA_B), null);
+    await s.encerrar();
+  });
+});
+
+// ─── Fase 22.8.4 — sessão (A1): indisponibilidade na abertura não derruba a sessão nem as pendências ───────────────
+
+const MSG_SESSAO_NAO_VALIDADA = "Não foi possível validar sua sessão";
+const MSG_SERVIDOR_INDISPONIVEL = "O servidor está temporariamente indisponível";
+
+describe("22.8.4 sessão na abertura", () => {
+  test("/auth/me 503 e depois falha de rede: sessão mantida, sem logout; 'Tentar novamente' restaura e a pendência segue intacta", async () => {
+    const reg = registroValido(VENDA_A);
+    const s = await novaSessao({
+      sessionStorage: { [PREFIXO_REGISTRO + VENDA_A]: reg },
+      refreshToken: "refresh-ficticio-de-teste",
+    });
+    s.backend.auth.me.push({ tipo: "gateway", status: 503 }, { tipo: "abortar" });
+    await s.pagina.goto(`${BASE}/vendas/${VENDA_A}`);
+    await esperarTexto(s.pagina, MSG_SESSAO_NAO_VALIDADA, 60_000);
+    await esperarTexto(s.pagina, MSG_SERVIDOR_INDISPONIVEL);
+    assert.deepEqual(await s.tokens(), {
+      access: "token-ficticio-de-teste",
+      refresh: "refresh-ficticio-de-teste",
+    });
+    assert.equal(await s.registro(VENDA_A), reg);
+
+    // 2ª tentativa: falha de rede — continua na mesma tela, nada revogado.
+    await s.pagina.getByRole("button", { name: "Tentar novamente" }).click();
+    await esperarAte(
+      () => s.backend.auth.chamadas.filter((c) => c === "GET /auth/me").length >= 2,
+      "segunda validação",
+    );
+    await esperarTexto(s.pagina, MSG_SERVIDOR_INDISPONIVEL);
+    assert.equal(
+      await s.pagina.getByText("Itens da venda").count(),
+      0,
+      "telas abertas sem validar a sessão",
+    );
+
+    // 3ª tentativa: backend de volta — a venda abre e a pendência continua protegida, sem POST automático.
+    await s.pagina.getByRole("button", { name: "Tentar novamente" }).click();
+    await s.pagina.getByText("Itens da venda").waitFor({ timeout: 60_000 });
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    assert.equal(await s.registro(VENDA_A), reg, "a pendência foi alterada pela sessão");
+    assert.deepEqual(
+      s.backend.auth.chamadas.filter((c) => c !== "GET /auth/me"),
+      [],
+      "a indisponibilidade provocou logout/renovação",
+    );
+    await semNovasRequisicoes(s.backend, 0, 1_000);
+    await s.encerrar();
+  });
+
+  test("rejeição definitiva (401 → refresh REFRESH_TOKEN_INVALID): vai ao login, tokens limpos, sem /auth/logout, pendência preservada", async () => {
+    const reg = registroValido(VENDA_A);
+    const s = await novaSessao({
+      sessionStorage: { [PREFIXO_REGISTRO + VENDA_A]: reg },
+      refreshToken: "refresh-ficticio-de-teste",
+    });
+    s.backend.auth.me.push({ tipo: "erro", status: 401, code: "UNAUTHORIZED" });
+    s.backend.auth.refresh.push({ tipo: "erro", status: 401, code: "REFRESH_TOKEN_INVALID" });
+    await s.pagina.goto(`${BASE}/vendas/${VENDA_A}`);
+    await s.pagina.getByText("Entrar no Backoffice").waitFor({ timeout: 60_000 });
+    assert.deepEqual(await s.tokens(), { access: null, refresh: null });
+    assert.deepEqual(s.backend.auth.chamadas, ["GET /auth/me", "POST /auth/refresh"]);
+    assert.equal(await s.registro(VENDA_A), reg, "o encerramento da sessão apagou a pendência");
+    await semNovasRequisicoes(s.backend, 0, 1_000);
+    await s.encerrar();
+  });
+
+  test("access vencido e renovação com 504 na abertura: sessão mantida (sem logout), mesma tela de indisponibilidade", async () => {
+    const s = await novaSessao({ refreshToken: "refresh-ficticio-de-teste" });
+    s.backend.auth.me.push({ tipo: "erro", status: 401, code: "UNAUTHORIZED" });
+    s.backend.auth.refresh.push({ tipo: "gateway", status: 504 });
+    await s.pagina.goto(`${BASE}/vendas/${VENDA_A}`);
+    await esperarTexto(s.pagina, MSG_SERVIDOR_INDISPONIVEL, 60_000);
+    assert.deepEqual(await s.tokens(), {
+      access: "token-ficticio-de-teste",
+      refresh: "refresh-ficticio-de-teste",
+    });
+    assert.deepEqual(s.backend.auth.chamadas, ["GET /auth/me", "POST /auth/refresh"]);
+    await s.encerrar();
+  });
+
+  test("'Sair' na tela de indisponibilidade: logout local efetivo (login), revogação tentada, pendência preservada", async () => {
+    const reg = registroValido(VENDA_A);
+    const s = await novaSessao({
+      sessionStorage: { [PREFIXO_REGISTRO + VENDA_A]: reg },
+      refreshToken: "refresh-ficticio-de-teste",
+    });
+    s.backend.auth.me.push({ tipo: "abortar" });
+    await s.pagina.goto(`${BASE}/vendas/${VENDA_A}`);
+    await esperarTexto(s.pagina, MSG_SESSAO_NAO_VALIDADA, 60_000);
+    await s.pagina.getByRole("button", { name: "Sair" }).click();
+    await s.pagina.getByText("Entrar no Backoffice").waitFor({ timeout: 30_000 });
+    assert.deepEqual(await s.tokens(), { access: null, refresh: null });
+    await esperarAte(
+      () => s.backend.auth.chamadas.includes("POST /auth/logout"),
+      "revogação do refresh no servidor",
+    );
+    assert.equal(await s.registro(VENDA_A), reg, "o logout apagou a pendência");
+    await semNovasRequisicoes(s.backend, 0, 1_000);
     await s.encerrar();
   });
 });

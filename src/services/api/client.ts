@@ -8,7 +8,7 @@ import {
   tokenStorage,
   TOKEN_STORAGE_KEY,
 } from "@/services/auth/token-storage";
-import { handleUnauthorized } from "@/services/auth/session";
+import { geracaoDaSessao, handleUnauthorized } from "@/services/auth/session";
 
 /**
  * Endereço remoto da API REST (NestJS). Configurado exclusivamente por ambiente
@@ -156,11 +156,64 @@ function tokenProximoOuJaExpirado(): boolean {
   return Date.now() + MARGEM_RENOVACAO_MS >= expiraEm;
 }
 
-interface ResultadoRenovacao {
+interface TokensRenovados {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
 }
+
+// ─── Fase 22.8.4 (A1) — classificação das falhas de autenticação ──────────────────────────────────────────────────
+
+/**
+ * Códigos com que o backend REJEITA DEFINITIVAMENTE um refresh token — sempre com HTTP 401
+ * (`mariela-backend/src/common/exceptions/api.exception.ts`: `refreshTokenInvalid`, `refreshTokenReused`,
+ * `userInactive`). Só estes encerram a sessão automaticamente. Um 401 com qualquer outro código NÃO é tratado como
+ * refresh inválido.
+ */
+export const CODIGOS_REJEICAO_DEFINITIVA: readonly string[] = [
+  "REFRESH_TOKEN_INVALID",
+  "REFRESH_TOKEN_REUSED",
+  "USER_INACTIVE",
+];
+
+/** Status de gateway/proxy que indicam backend temporariamente indisponível (ex.: Render acordando). */
+const STATUS_INDISPONIBILIDADE: readonly number[] = [502, 503, 504];
+
+/**
+ * - `rejeicao_definitiva` (categoria A): o servidor recusou o refresh token — a sessão acabou.
+ * - `temporaria` (categoria B): rede, timeout, 502/503/504 — a sessão é preservada para nova tentativa.
+ * - `desconhecida` (categoria C): qualquer outra resposta (500, 429, 401 com outro código…) — sem evidência de que a
+ *   sessão expirou: também preservada, sem revogação; a requisição atual falha com a mensagem do erro.
+ */
+export type CategoriaFalhaAutenticacao = "rejeicao_definitiva" | "temporaria" | "desconhecida";
+
+export function classificarFalhaDeAutenticacao(erro: unknown): CategoriaFalhaAutenticacao {
+  if (!(erro instanceof ApiError)) return "desconhecida";
+  if (erro.statusCode === 401 && CODIGOS_REJEICAO_DEFINITIVA.includes(erro.code)) {
+    return "rejeicao_definitiva";
+  }
+  if (erro.code === "NETWORK_ERROR" || erro.code === "TIMEOUT") return "temporaria";
+  if (erro.statusCode === 0 || erro.statusCode === 408) return "temporaria";
+  if (STATUS_INDISPONIBILIDADE.includes(erro.statusCode)) return "temporaria";
+  return "desconhecida";
+}
+
+/**
+ * Resultado de UMA renovação:
+ * - `renovada`: tokens novos gravados (a geração ainda era a vigente).
+ * - `sem_refresh`: não havia refresh token local — nada a renovar.
+ * - `rejeitada`: rejeição definitiva; a sessão local já foi limpa.
+ * - `falhou`: falha temporária ou desconhecida; NADA foi alterado localmente — uma nova tentativa é possível.
+ * - `descartada`: a sessão foi encerrada (logout/login) enquanto a renovação estava em andamento; a resposta foi
+ *   ignorada sem gravar nem limpar nada. `refreshTokenEmitido` é o token que o servidor emitiu (se emitiu), para que o
+ *   logout possa revogá-lo — nunca é persistido.
+ */
+export type ResultadoRenovacao =
+  | { tipo: "renovada" }
+  | { tipo: "sem_refresh" }
+  | { tipo: "rejeitada"; erro: ApiError }
+  | { tipo: "falhou"; categoria: "temporaria" | "desconhecida"; erro: unknown }
+  | { tipo: "descartada"; refreshTokenEmitido: string | null };
 
 /**
  * Renovação DEDUPLICADA: múltiplas chamadas concorrentes (ex.: várias queries
@@ -168,19 +221,33 @@ interface ResultadoRenovacao {
  * em vez de cada uma rotacionar o refresh token — o backend só aceita UMA
  * rotação por vez (índice único/CAS); uma segunda tentativa com o token já
  * rotacionado seria tratada como REUSO e derrubaria a sessão inteira.
+ *
+ * Fase 22.8.4 — a promessa compartilhada pertence a UMA geração da sessão: depois de um logout/login, uma requisição
+ * nova não se pendura na renovação da sessão anterior (que será descartada); inicia a própria.
  */
-let renovacaoEmAndamento: Promise<boolean> | null = null;
+let renovacaoEmAndamento: { geracao: number; promessa: Promise<ResultadoRenovacao> } | null = null;
 
-function renovarSessao(): Promise<boolean> {
-  renovacaoEmAndamento ??= executarRenovacao().finally(() => {
-    renovacaoEmAndamento = null;
-  });
-  return renovacaoEmAndamento;
+function renovarSessao(): Promise<ResultadoRenovacao> {
+  const geracao = geracaoDaSessao();
+  if (renovacaoEmAndamento?.geracao === geracao) return renovacaoEmAndamento.promessa;
+  const atual = {
+    geracao,
+    promessa: executarRenovacao(geracao).finally(() => {
+      if (renovacaoEmAndamento === atual) renovacaoEmAndamento = null;
+    }),
+  };
+  renovacaoEmAndamento = atual;
+  return atual.promessa;
 }
 
-async function executarRenovacao(): Promise<boolean> {
+/** Renovação em andamento (da geração vigente ou de uma anterior), para o logout coordenar a revogação. */
+export function renovacaoEmAndamentoDaSessao(): Promise<ResultadoRenovacao> | null {
+  return renovacaoEmAndamento?.promessa ?? null;
+}
+
+async function executarRenovacao(geracao: number): Promise<ResultadoRenovacao> {
   const refreshToken = refreshTokenStorage.get();
-  if (!refreshToken) return false;
+  if (!refreshToken) return { tipo: "sem_refresh" };
 
   const requisicao: ApiRequest = {
     method: "POST",
@@ -190,24 +257,46 @@ async function executarRenovacao(): Promise<boolean> {
     token: null,
   };
   try {
-    const resposta = USE_MOCK_API
-      ? await handleMockRequest<ResultadoRenovacao>(requisicao)
-      : await httpRequest<ResultadoRenovacao>(requisicao);
-    salvarSessao(resposta.data);
-    return true;
-  } catch (error) {
-    // Falha de rede/timeout é transitória — preserva a sessão local para tentar de novo depois.
-    // Uma rejeição EXPLÍCITA do servidor (token inválido/revogado/reutilizado, usuário inativo)
-    // significa que a sessão não é mais válida: limpa para não tentar de novo em vão.
-    if (error instanceof ApiError && error.statusCode !== 0 && error.statusCode !== 408) {
-      limparSessao();
+    const resposta = await executarComTransporte<TokensRenovados>(requisicao);
+    // A2: resposta de uma sessão já encerrada — nunca grava (não ressuscita a sessão, não sobrescreve a de outro usuário).
+    if (geracaoDaSessao() !== geracao) {
+      return { tipo: "descartada", refreshTokenEmitido: resposta.data?.refreshToken ?? null };
     }
-    return false;
+    salvarSessao(resposta.data);
+    return { tipo: "renovada" };
+  } catch (error) {
+    // A2: falha tardia de uma sessão já encerrada — nunca limpa a sessão (possivelmente nova) vigente.
+    if (geracaoDaSessao() !== geracao) return { tipo: "descartada", refreshTokenEmitido: null };
+    const categoria = classificarFalhaDeAutenticacao(error);
+    if (categoria === "rejeicao_definitiva") {
+      // Só uma rejeição DEFINITIVA do servidor limpa a sessão local (a revogação já aconteceu lá).
+      limparSessao();
+      return { tipo: "rejeitada", erro: error as ApiError };
+    }
+    // A1: rede, timeout, 502/503/504 ou erro não classificado — tokens preservados para nova tentativa posterior.
+    return { tipo: "falhou", categoria, erro: error };
   }
 }
 
 async function executarComTransporte<T>(apiRequest: ApiRequest): Promise<ApiResponse<T>> {
   return USE_MOCK_API ? await handleMockRequest<T>(apiRequest) : await httpRequest<T>(apiRequest);
+}
+
+/**
+ * A sessão em que a requisição começou foi encerrada (logout/login) antes do envio: a requisição NÃO é enviada — nunca
+ * com o token de outra sessão. Código local do cliente (como `TIMEOUT`/`NETWORK_ERROR`), não do backend.
+ */
+function erroSessaoEncerrada(): ApiError {
+  return new ApiError({
+    statusCode: 401,
+    code: "SESSAO_ENCERRADA",
+    message: "A sessão foi encerrada antes do envio da requisição. Entre novamente.",
+  });
+}
+
+/** Encerra a sessão somente se ela ainda for a mesma em que a requisição começou (nunca a de um usuário posterior). */
+function encerrarSeAindaVigente(geracao: number): void {
+  if (geracaoDaSessao() === geracao) handleUnauthorized();
 }
 
 async function request<T>(
@@ -216,11 +305,19 @@ async function request<T>(
   options: RequestOptions = {},
 ): Promise<ApiResponse<T>> {
   const renovavel = !ehRotaDeAutenticacao(path);
+  const geracao = geracaoDaSessao();
 
   // Renovação PROATIVA: evita a ida e volta extra de um 401 quando já se sabe
   // que o accessToken está vencido/perto de vencer.
+  let proativa: ResultadoRenovacao | null = null;
   if (renovavel && tokenProximoOuJaExpirado()) {
-    await renovarSessao();
+    proativa = await renovarSessao();
+    if (proativa.tipo === "rejeitada") {
+      encerrarSeAindaVigente(geracao);
+      throw proativa.erro;
+    }
+    if (geracaoDaSessao() !== geracao) throw erroSessaoEncerrada();
+    // `falhou`/`sem_refresh`: segue com o token atual — ainda pode ser válido (margem de 10 s).
   }
 
   const apiRequest: ApiRequest = {
@@ -234,23 +331,41 @@ async function request<T>(
   try {
     return await executarComTransporte<T>(apiRequest);
   } catch (error) {
-    if (error instanceof ApiError && error.statusCode === 401 && renovavel) {
-      // Renovação REATIVA: tenta UMA única vez (a deduplicação acima garante
-      // isso mesmo sob concorrência) e refaz a MESMA requisição original.
-      const renovou = await renovarSessao();
-      if (renovou) {
+    if (!(error instanceof ApiError && error.statusCode === 401 && renovavel)) throw error;
+    // A sessão desta requisição já foi encerrada enquanto ela estava no ar: não renova nem encerra a sessão atual.
+    if (geracaoDaSessao() !== geracao) throw error;
+
+    // Renovação REATIVA: no máximo UMA tentativa por requisição (se a proativa já ocorreu, reaproveita o resultado).
+    const resultado = proativa ?? (await renovarSessao());
+    switch (resultado.tipo) {
+      case "descartada":
+        throw error;
+      case "falhou":
+        // A1: indisponibilidade/erro não classificado — a sessão continua; a requisição falha com o erro real.
+        throw resultado.erro;
+      case "rejeitada":
+        encerrarSeAindaVigente(geracao);
+        throw resultado.erro;
+      case "sem_refresh":
+        // Access token recusado e nada com que renová-lo: a sessão local não tem como continuar.
+        encerrarSeAindaVigente(geracao);
+        throw error;
+      case "renovada":
+        if (proativa) {
+          // A requisição JÁ saiu com o token recém-renovado e ainda assim recebeu 401.
+          encerrarSeAindaVigente(geracao);
+          throw error;
+        }
+        if (geracaoDaSessao() !== geracao) throw erroSessaoEncerrada();
         try {
           return await executarComTransporte<T>({ ...apiRequest, token: getToken() });
         } catch (erroRetentativa) {
+          // Token recém-emitido pelo próprio servidor também recusado: encerrar evita um ciclo de rotações inúteis.
           if (erroRetentativa instanceof ApiError && erroRetentativa.statusCode === 401)
-            handleUnauthorized();
+            encerrarSeAindaVigente(geracao);
           throw erroRetentativa;
         }
-      }
-      // Renovação falhou (sem refresh token, ou rejeitado pelo servidor): a sessão acabou.
-      handleUnauthorized();
     }
-    throw error;
   }
 }
 
