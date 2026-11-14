@@ -188,7 +188,15 @@ function criarBackend() {
    * Fase 22.8.4 — comportamentos das próximas chamadas de `/auth/me` e `/auth/refresh` (FIFO; vazio ⇒ sucesso) e o
    * registro de todas as chamadas de autenticação recebidas (`"<MÉTODO> <caminho>"`).
    */
-  const auth = { me: [], refresh: [], chamadas: [] };
+  const auth = {
+    me: [],
+    refresh: [],
+    chamadas: [],
+    // Fase 22.8.7.3 — `Idempotency-Key` recebida em cada /auth/refresh (ou null) e a rotação "processada com resposta
+    // perdida" que o falso devolve de novo a quem repetir a MESMA chave (como o Backend real da Fase 22.8.7.2).
+    chavesRefresh: [],
+    recuperavel: null,
+  };
 
   /** Aplica a operação como o backend real faria (inclui replay e 409 por idempotência). */
   function processar(vendaId, corpo, restauracao = "concluida", efeitos = "concluidos") {
@@ -380,8 +388,25 @@ function criarBackend() {
     }
 
     if (metodo === "POST" && caminho === "/auth/refresh") {
+      const chave = req.headers()["idempotency-key"] ?? null;
+      auth.chavesRefresh.push(chave);
       const c = auth.refresh.shift();
+      if (c?.tipo === "perder-resposta") {
+        // Rotação PROCESSADA, resposta perdida (o cliente vê falha de rede).
+        auth.recuperavel = {
+          chave,
+          data: {
+            accessToken: "token-ficticio-recuperado",
+            refreshToken: "refresh-ficticio-recuperado",
+            expiresIn: 900,
+          },
+        };
+        return route.abort("failed");
+      }
       if (c) return falhaDeAutenticacao(c);
+      if (auth.recuperavel && chave !== null && chave === auth.recuperavel.chave) {
+        return responder(route, { status: 200, corpo: { data: auth.recuperavel.data } });
+      }
       return responder(route, {
         status: 200,
         corpo: {
@@ -660,6 +685,13 @@ async function novaSessao({
         access: localStorage.getItem("mariela.accessToken"),
         refresh: localStorage.getItem("mariela.refreshToken"),
       }));
+    },
+    /** Fase 22.8.7.3 — registro da renovação pendente (JSON interpretado) ou `null`. */
+    async renovacaoPendente() {
+      const bruto = await pagina.evaluate(() =>
+        localStorage.getItem("mariela.refreshIdempotencia"),
+      );
+      return bruto === null ? null : JSON.parse(bruto);
     },
     /** Força o refetch da venda como numa volta de foco (React Query `refetchOnWindowFocus`). */
     async simularFoco() {
@@ -1821,6 +1853,86 @@ describe("22.8.4 sessão na abertura", () => {
     );
     assert.equal(await s.registro(VENDA_A), reg, "o logout apagou a pendência");
     await semNovasRequisicoes(s.backend, 0, 1_000);
+    await s.encerrar();
+  });
+});
+
+// ─── Fase 22.8.7.3 — renovação com resposta perdida: a MESMA chave sobrevive ao reinício e recupera o par ──────────
+
+describe("22.8.7.3 recuperação idempotente da renovação", () => {
+  test("resposta da renovação perdida → tela de indisponibilidade; após RECARREGAR (reinício), a mesma chave recupera o par; nada sensível na tela", async () => {
+    const reg = registroValido(VENDA_A);
+    const s = await novaSessao({
+      sessionStorage: { [PREFIXO_REGISTRO + VENDA_A]: reg },
+      refreshToken: "refresh-ficticio-de-teste",
+    });
+    // 1ª abertura: access recusado → renovação processada mas sem resposta; 2ª abertura (após reload): idem 401.
+    s.backend.auth.me.push(
+      { tipo: "erro", status: 401, code: "UNAUTHORIZED" },
+      { tipo: "erro", status: 401, code: "UNAUTHORIZED" },
+    );
+    s.backend.auth.refresh.push({ tipo: "perder-resposta" });
+    await s.pagina.goto(`${BASE}/vendas/${VENDA_A}`);
+    await esperarTexto(s.pagina, MSG_SERVIDOR_INDISPONIVEL, 60_000);
+
+    const chave = s.backend.auth.chavesRefresh[0];
+    assert.match(
+      chave,
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    const pendente = await s.renovacaoPendente();
+    assert.equal(pendente?.chave, chave, "a chave não foi persistida antes do envio");
+    assert.equal(pendente?.versao, 1);
+    assert.match(pendente?.vinculo ?? "", /^[0-9a-f]{64}$/);
+    assert.deepEqual(await s.tokens(), {
+      access: "token-ficticio-de-teste",
+      refresh: "refresh-ficticio-de-teste",
+    });
+
+    // "Reinício" do app: recarregar a página (estado em memória perdido; localStorage preservado).
+    await s.pagina.reload();
+    await s.pagina.getByText("Itens da venda").waitFor({ timeout: 60_000 });
+    assert.deepEqual(
+      s.backend.auth.chavesRefresh,
+      [chave, chave],
+      "a nova tentativa não reutilizou a mesma chave",
+    );
+    assert.deepEqual(await s.tokens(), {
+      access: "token-ficticio-recuperado",
+      refresh: "refresh-ficticio-recuperado",
+    });
+    assert.equal(
+      await s.renovacaoPendente(),
+      null,
+      "a pendência não foi descartada após o sucesso",
+    );
+    // A pendência de cancelamento continua intacta e protegida, sem POST automático.
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    assert.equal(await s.registro(VENDA_A), reg);
+    await semNovasRequisicoes(s.backend, 0, 1_000);
+    // Nada sensível na interface.
+    const texto = await s.pagina.evaluate(() => document.body.innerText);
+    for (const segredo of [chave, "refresh-ficticio", "token-ficticio", pendente.vinculo]) {
+      assert.ok(!texto.includes(segredo), "valor sensível exibido na interface");
+    }
+    await s.encerrar();
+  });
+
+  test("'Tentar novamente' após resposta perdida reutiliza a mesma chave (sem reiniciar)", async () => {
+    const s = await novaSessao({ refreshToken: "refresh-ficticio-de-teste" });
+    s.backend.auth.me.push(
+      { tipo: "erro", status: 401, code: "UNAUTHORIZED" },
+      { tipo: "erro", status: 401, code: "UNAUTHORIZED" },
+    );
+    s.backend.auth.refresh.push({ tipo: "perder-resposta" });
+    await s.pagina.goto(`${BASE}/vendas/${VENDA_A}`);
+    await esperarTexto(s.pagina, MSG_SESSAO_NAO_VALIDADA, 60_000);
+    await s.pagina.getByRole("button", { name: "Tentar novamente" }).click();
+    await s.pagina.getByText("Itens da venda").waitFor({ timeout: 60_000 });
+    const [primeira, segunda] = s.backend.auth.chavesRefresh;
+    assert.ok(primeira && primeira === segunda, "a nova tentativa não reutilizou a mesma chave");
+    assert.equal((await s.tokens()).refresh, "refresh-ficticio-recuperado");
+    assert.equal(await s.renovacaoPendente(), null);
     await s.encerrar();
   });
 });

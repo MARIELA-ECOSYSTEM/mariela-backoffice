@@ -9,6 +9,7 @@ import {
   TOKEN_STORAGE_KEY,
 } from "@/services/auth/token-storage";
 import { geracaoDaSessao, handleUnauthorized } from "@/services/auth/session";
+import { chaveParaRenovar, vinculoDoRefreshToken } from "@/services/auth/refresh-idempotencia";
 
 /**
  * Endereço remoto da API REST (NestJS). Configurado exclusivamente por ambiente
@@ -66,6 +67,8 @@ export interface ApiRequest {
   params: QueryParams;
   body: unknown;
   token: string | null;
+  /** Fase 22.8.7.3 — cabeçalhos adicionais (hoje só `Idempotency-Key` da renovação). */
+  headers?: Record<string, string>;
 }
 
 /** Leitura/escrita do token sempre via abstração `TokenStorage`. */
@@ -97,6 +100,7 @@ async function httpRequest<T>(request: ApiRequest): Promise<ApiResponse<T>> {
       headers: {
         "content-type": "application/json",
         ...(request.token ? { authorization: `Bearer ${request.token}` } : {}),
+        ...request.headers,
       },
       ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
       signal: controller.signal,
@@ -245,9 +249,24 @@ export function renovacaoEmAndamentoDaSessao(): Promise<ResultadoRenovacao> | nu
   return renovacaoEmAndamento?.promessa ?? null;
 }
 
+/**
+ * Fase 22.8.7.3 — toda renovação leva a `Idempotency-Key` da OPERAÇÃO de rotação do R1 vigente
+ * (`refresh-idempotencia.ts`): criada e persistida antes do primeiro envio, a MESMA em toda nova tentativa (timeout,
+ * rede, 5xx, erro desconhecido, reload, reinício). Se o Backend já tinha rotacionado e a resposta se perdeu, ele
+ * devolve o MESMO R2 em vez de tratar a repetição como reuso. Descartada só quando R1 deixa de valer localmente:
+ * par novo gravado ou sessão encerrada (`salvarSessao`/`limparSessao`) — nunca por uma falha inconclusiva.
+ * Backend sem a recuperação (antigo ou com o mecanismo desligado) ignora o cabeçalho: comportamento anterior.
+ */
 async function executarRenovacao(geracao: number): Promise<ResultadoRenovacao> {
   const refreshToken = refreshTokenStorage.get();
   if (!refreshToken) return { tipo: "sem_refresh" };
+
+  const vinculo = await vinculoDoRefreshToken(refreshToken);
+  // A sessão pode ter acabado durante o cálculo: não envia nada nem grava pendência de uma sessão encerrada.
+  if (geracaoDaSessao() !== geracao) return { tipo: "descartada", refreshTokenEmitido: null };
+  // Síncrono logo após a verificação acima: nenhum logout/login cabe entre a checagem e a gravação.
+  // `null` = armazenamento indisponível → renova SEM a chave (comportamento anterior à fase, sem prometer recuperação).
+  const idempotencia = chaveParaRenovar(vinculo);
 
   const requisicao: ApiRequest = {
     method: "POST",
@@ -255,6 +274,7 @@ async function executarRenovacao(geracao: number): Promise<ResultadoRenovacao> {
     params: {},
     body: { refreshToken },
     token: null,
+    ...(idempotencia ? { headers: { "Idempotency-Key": idempotencia.chave } } : {}),
   };
   try {
     const resposta = await executarComTransporte<TokensRenovados>(requisicao);
@@ -262,6 +282,7 @@ async function executarRenovacao(geracao: number): Promise<ResultadoRenovacao> {
     if (geracaoDaSessao() !== geracao) {
       return { tipo: "descartada", refreshTokenEmitido: resposta.data?.refreshToken ?? null };
     }
+    // Grava o par novo e, no mesmo passo, descarta a pendência do R1 (a operação está concluída).
     salvarSessao(resposta.data);
     return { tipo: "renovada" };
   } catch (error) {
@@ -274,6 +295,7 @@ async function executarRenovacao(geracao: number): Promise<ResultadoRenovacao> {
       return { tipo: "rejeitada", erro: error as ApiError };
     }
     // A1: rede, timeout, 502/503/504 ou erro não classificado — tokens preservados para nova tentativa posterior.
+    // Fase 22.8.7.3: a pendência (mesma chave) também fica — o Backend pode ter rotacionado antes de a resposta falhar.
     return { tipo: "falhou", categoria, erro: error };
   }
 }

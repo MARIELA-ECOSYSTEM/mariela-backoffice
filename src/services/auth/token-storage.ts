@@ -92,6 +92,41 @@ const expiresAtStorage: TokenStorage =
     ? createMemoryTokenStorage()
     : createWebTokenStorage(TOKEN_EXPIRES_AT_STORAGE_KEY);
 
+/**
+ * Fase 22.8.7.3 — operação de renovação PENDENTE (recuperação idempotente do Backend, Fase 22.8.7.2): guarda só a
+ * `Idempotency-Key` da rotação do refresh token ATUAL e um vínculo não reversível com ele (formato e regras em
+ * `refresh-idempotencia.ts`). Mesmo armazenamento e mesma abstração dos tokens — quando eles migrarem para um
+ * armazenamento seguro, este registro vai junto. Nunca contém R1 nem R2.
+ */
+export const RENOVACAO_PENDENTE_STORAGE_KEY = "mariela.refreshIdempotencia";
+
+let renovacaoPendenteStorage: TokenStorage =
+  typeof window === "undefined"
+    ? createMemoryTokenStorage()
+    : createWebTokenStorage(RENOVACAO_PENDENTE_STORAGE_KEY);
+
+export function setRenovacaoPendenteStorage(next: TokenStorage): void {
+  renovacaoPendenteStorage = next;
+}
+
+export const renovacaoPendenteStorageAtual: TokenStorage = {
+  get: () => renovacaoPendenteStorage.get(),
+  set: (valor) => renovacaoPendenteStorage.set(valor),
+  clear: () => renovacaoPendenteStorage.clear(),
+};
+
+/**
+ * A pendência só vale para o refresh token VIGENTE: um par novo (`salvarSessao`) ou o fim da sessão (`limparSessao`) a
+ * tornam obsoleta. Falha do armazenamento aqui nunca impede gravar/limpar os tokens.
+ */
+function descartarRenovacaoPendente(): void {
+  try {
+    renovacaoPendenteStorage.clear();
+  } catch {
+    // Armazenamento indisponível: o registro (se existir) não casa com o próximo refresh token e é ignorado.
+  }
+}
+
 export interface DadosSessao {
   accessToken: string;
   refreshToken: string;
@@ -104,13 +139,15 @@ export function salvarSessao(dados: DadosSessao): void {
   tokenStorage.set(dados.accessToken);
   refreshTokenStorage.set(dados.refreshToken);
   expiresAtStorage.set(String(Date.now() + dados.expiresIn * 1000));
+  descartarRenovacaoPendente();
 }
 
-/** Limpa toda a sessão local: accessToken, refreshToken e o instante de expiração. */
+/** Limpa toda a sessão local: accessToken, refreshToken, o instante de expiração e a renovação pendente. */
 export function limparSessao(): void {
   tokenStorage.clear();
   refreshTokenStorage.clear();
   expiresAtStorage.clear();
+  descartarRenovacaoPendente();
 }
 
 /** Instante absoluto (epoch ms) em que o accessToken atual expira, ou `null` quando não há sessão. */

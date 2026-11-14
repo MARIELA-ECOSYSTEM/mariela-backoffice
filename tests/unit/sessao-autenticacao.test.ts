@@ -9,6 +9,28 @@
  * Todos os valores são fictícios.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+
+/**
+ * Fase 22.8.7.3 — a renovação calcula SHA-256(R1) com `crypto.subtle.digest` (vínculo da chave de idempotência). No
+ * Bun essa promessa resolve FORA da fila de microtarefas, o que quebraria o controle determinístico destes testes
+ * (`chamada`/`drenar` só avançam microtarefas). Aqui, e só aqui, o digest SHA-256 é servido pelo `node:crypto`
+ * síncrono embrulhado numa promessa já resolvida — mesma saída (provado no teste "stub ≡ subtle real" abaixo).
+ */
+const digestReal = crypto.subtle.digest.bind(crypto.subtle);
+function digestEmMicrotarefa(
+  algoritmo: AlgorithmIdentifier,
+  dados: BufferSource,
+): Promise<ArrayBuffer> {
+  if (algoritmo !== "SHA-256") return digestReal(algoritmo, dados);
+  const view = ArrayBuffer.isView(dados)
+    ? new Uint8Array(dados.buffer, dados.byteOffset, dados.byteLength)
+    : new Uint8Array(dados);
+  const bytes = createHash("sha256").update(view).digest();
+  return Promise.resolve(
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) as ArrayBuffer,
+  );
+}
 
 // O cliente lê o ambiente na carga do módulo: API "real" (falsa) em vez do Mock, ANTES dos imports dinâmicos abaixo.
 process.env.VITE_USE_MOCK_API = "false";
@@ -21,8 +43,17 @@ const { authApi } = await import("@/services/api/auth.api");
 const { restaurarSessao } = await import("@/services/auth/restaurar-sessao");
 const { encerrarSessao, geracaoDaSessao, registerSessionHandlers } =
   await import("@/services/auth/session");
-const { limparSessao, obterExpiraEm, refreshTokenStorage, salvarSessao } =
-  await import("@/services/auth/token-storage");
+const {
+  createMemoryTokenStorage,
+  limparSessao,
+  obterExpiraEm,
+  refreshTokenStorage,
+  renovacaoPendenteStorageAtual,
+  salvarSessao,
+  setRenovacaoPendenteStorage,
+} = await import("@/services/auth/token-storage");
+const { lerRenovacaoPendente, vinculoDoRefreshToken } =
+  await import("@/services/auth/refresh-idempotencia");
 const { ApiError } = await import("@/types/api");
 const { PREFIXO_ARMAZENAMENTO } = await import("@/utils/operacao-cancelamento");
 
@@ -33,6 +64,8 @@ interface Chamada {
   caminho: string;
   corpo: Record<string, unknown> | undefined;
   autorizacao: string | null;
+  /** Fase 22.8.7.3 — cabeçalho `Idempotency-Key` enviado (ou null). */
+  idempotencia: string | null;
   responder: (status: number, corpo?: unknown) => void;
   falharRede: () => void;
   timeout: () => void;
@@ -51,6 +84,7 @@ function fetchFalso(url: string | URL, init?: RequestInit): Promise<Response> {
       caminho: String(url).slice(BASE_API.length),
       corpo: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
       autorizacao: headers.authorization ?? null,
+      idempotencia: headers["Idempotency-Key"] ?? null,
       responder: (status, corpo) => {
         concluir();
         resolve({
@@ -151,6 +185,11 @@ const fetchOriginal = globalThis.fetch;
 const sessionStorageOriginal = (globalThis as { sessionStorage?: Storage }).sessionStorage;
 
 beforeAll(() => {
+  Object.defineProperty(crypto.subtle, "digest", {
+    value: digestEmMicrotarefa,
+    configurable: true,
+    writable: true,
+  });
   globalThis.fetch = fetchFalso as typeof fetch;
   (globalThis as { sessionStorage?: Storage }).sessionStorage = sessionStorageObservado;
   registerSessionHandlers({
@@ -162,6 +201,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
+  delete (crypto.subtle as unknown as Record<string, unknown>)["digest"]; // volta ao do protótipo
   globalThis.fetch = fetchOriginal;
   (globalThis as { sessionStorage?: Storage }).sessionStorage = sessionStorageOriginal;
   registerSessionHandlers(null);
@@ -725,5 +765,323 @@ describe("concorrência da renovação", () => {
     await drenar();
     expect(eventos.limparUsuario).toBe(1);
     expect(eventos.irParaLogin).toBe(1);
+  });
+});
+
+// ─── Fase 22.8.7.3 — chave de idempotência da renovação (recuperação de resposta perdida) ──────────────────────────
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const refreshes = () => chamadas.filter((c) => c.caminho === "/auth/refresh");
+const pendencia = () => lerRenovacaoPendente();
+
+describe("22.8.7.3 idempotência da renovação — chave, persistência e reutilização", () => {
+  test("stub ≡ subtle real: o SHA-256 servido nos testes é idêntico ao do crypto.subtle", async () => {
+    for (const valor of ["", "refresh-ficticio", "acentuação € emoji 😀", "x".repeat(10_000)]) {
+      const dados = new TextEncoder().encode(valor);
+      const real = Buffer.from(await digestReal("SHA-256", dados)).toString("hex");
+      const stub = Buffer.from(await digestEmMicrotarefa("SHA-256", dados)).toString("hex");
+      expect(stub).toBe(real);
+    }
+  });
+
+  test("a chave é um UUID novo, enviada SÓ no cabeçalho e PERSISTIDA antes do POST, vinculada ao SHA-256 de R1", async () => {
+    salvarSessao(tokens("1"));
+    const req = getCom401();
+    const refresh = await chamada(1);
+    // No instante do envio, a pendência já está gravada com a mesma chave do cabeçalho.
+    const registro = pendencia();
+    expect(refresh.idempotencia).toMatch(UUID);
+    expect(registro?.chave).toBe(refresh.idempotencia!);
+    expect(registro?.vinculo).toBe(await vinculoDoRefreshToken("refresh-1"));
+    expect(refresh.corpo).toEqual({ refreshToken: "refresh-1" }); // nunca no corpo
+    // O registro persistido não contém o refresh token.
+    expect(renovacaoPendenteStorageAtual.get()).not.toContain("refresh-1");
+    refresh.responder(200, { data: tokens("2") });
+    (await chamada(2)).responder(200, { data: [] });
+    await req;
+  });
+
+  const inconclusivas: [string, (c: Chamada) => void][] = [
+    ["timeout", (c) => c.timeout()],
+    ["falha de rede", (c) => c.falharRede()],
+    ["HTTP 502", (c) => c.responder(502)],
+    ["HTTP 503", (c) => c.responder(503)],
+    ["HTTP 504", (c) => c.responder(504)],
+    ["HTTP 500 (desconhecido)", (c) => c.responder(500, erro(500, "INTERNAL_ERROR"))],
+    ["HTTP 429 (desconhecido)", (c) => c.responder(429, erro(429, "TOO_MANY_REQUESTS"))],
+  ];
+  for (const [nome, falhar] of inconclusivas) {
+    test(`${nome}: R1 e a MESMA chave são preservados; a nova tentativa reutiliza a chave e, no sucesso, ela é descartada`, async () => {
+      salvarSessao(tokens("1"));
+      const req1 = getCom401();
+      const primeira = await chamada(1);
+      const chave = primeira.idempotencia;
+      falhar(primeira);
+      await req1.catch(() => {});
+      expect(estadoDosTokens().refresh).toBe("refresh-1");
+      expect(pendencia()?.chave).toBe(chave!);
+
+      const req2 = getCom401(2);
+      const segunda = await chamada(3);
+      expect(segunda.caminho).toBe("/auth/refresh");
+      expect(segunda.corpo).toEqual({ refreshToken: "refresh-1" });
+      expect(segunda.idempotencia).toBe(chave); // nunca uma chave nova por causa da falha
+      segunda.responder(200, { data: tokens("2") }); // o Backend devolve o par (rotação ou recuperação)
+      (await chamada(4)).responder(200, { data: [] });
+      await req2;
+      expect(estadoDosTokens().refresh).toBe("refresh-2");
+      expect(pendencia()).toBeNull();
+    });
+  }
+
+  test("depois do sucesso, a PRÓXIMA rotação (de R2) usa outra chave", async () => {
+    salvarSessao(tokens("1"));
+    const req1 = getCom401();
+    const r1 = await chamada(1);
+    r1.responder(200, { data: tokens("2") });
+    (await chamada(2)).responder(200, { data: [] });
+    await req1;
+    const req2 = getCom401(3);
+    const r2 = await chamada(4);
+    expect(r2.corpo).toEqual({ refreshToken: "refresh-2" });
+    expect(r2.idempotencia).toMatch(UUID);
+    expect(r2.idempotencia).not.toBe(r1.idempotencia);
+    r2.responder(200, { data: tokens("3") });
+    (await chamada(5)).responder(200, { data: [] });
+    await req2;
+  });
+
+  for (const codigo of ["REFRESH_TOKEN_INVALID", "REFRESH_TOKEN_REUSED", "USER_INACTIVE"]) {
+    test(`rejeição definitiva (${codigo}): sessão encerrada e pendência descartada (nunca uma chave nova para o mesmo R1)`, async () => {
+      salvarSessao(tokens("1"));
+      const req = getCom401();
+      (await chamada(1)).responder(401, erro(401, codigo));
+      await req.catch(() => {});
+      expect(estadoDosTokens().refresh).toBeNull();
+      expect(pendencia()).toBeNull();
+      expect(refreshes()).toHaveLength(1);
+    });
+  }
+
+  const CHAVE_FIXA = "6f1c8a2e-0b5d-4c3e-9a7f-2d4e6b8c0a1f";
+  const registroCom = (campos: Record<string, unknown>) =>
+    JSON.stringify({
+      versao: 1,
+      vinculo: "a".repeat(64),
+      chave: CHAVE_FIXA,
+      criadaEm: new Date().toISOString(),
+      estado: "pendente",
+      ...campos,
+    });
+  for (const [nome, bruto] of [
+    ["JSON inválido", "{não é json"],
+    ["versão desconhecida", registroCom({ versao: 2 })],
+    ["chave malformada", registroCom({ chave: "abc" })],
+    ["vínculo malformado", registroCom({ vinculo: "xyz" })],
+    ["estado desconhecido", registroCom({ estado: "concluida" })],
+  ] as const) {
+    test(`registro persistido malformado (${nome}) é rejeitado e substituído por uma chave válida`, async () => {
+      salvarSessao(tokens("1"));
+      renovacaoPendenteStorageAtual.set(bruto);
+      const req = getCom401();
+      const refresh = await chamada(1);
+      expect(refresh.idempotencia).toMatch(UUID);
+      expect(refresh.idempotencia).not.toBe(CHAVE_FIXA);
+      expect(pendencia()?.chave).toBe(refresh.idempotencia!);
+      refresh.responder(200, { data: tokens("2") });
+      (await chamada(2)).responder(200, { data: [] });
+      await req;
+    });
+  }
+
+  test("isolamento por R1: a pendência de OUTRO refresh token nunca é reutilizada", async () => {
+    salvarSessao(tokens("antigo"));
+    const reqA = getCom401();
+    const ra = await chamada(1);
+    ra.falharRede();
+    await reqA.catch(() => {});
+    const chaveDoAntigo = pendencia()!.chave;
+    // Um par novo (outro R1) gravado por outro caminho (ex.: novo login) descarta a pendência anterior.
+    salvarSessao(tokens("novo"));
+    expect(pendencia()).toBeNull();
+    // Mesmo se um registro do R1 antigo reaparecesse, ele não casaria com o R1 novo.
+    renovacaoPendenteStorageAtual.set(
+      JSON.stringify({
+        versao: 1,
+        vinculo: await vinculoDoRefreshToken("refresh-antigo"),
+        chave: chaveDoAntigo,
+        criadaEm: new Date().toISOString(),
+        estado: "pendente",
+      }),
+    );
+    const reqB = getCom401(2);
+    const rb = await chamada(3);
+    expect(rb.corpo).toEqual({ refreshToken: "refresh-novo" });
+    expect(rb.idempotencia).not.toBe(chaveDoAntigo);
+    rb.responder(200, { data: tokens("novo2") });
+    (await chamada(4)).responder(200, { data: [] });
+    await reqB;
+  });
+
+  test("sessão antiga sem registro (migração): a primeira renovação cria a pendência, sem exigir novo login", async () => {
+    salvarSessao(tokens("legado"));
+    renovacaoPendenteStorageAtual.clear();
+    const req = getCom401();
+    const refresh = await chamada(1);
+    expect(refresh.idempotencia).toMatch(UUID);
+    refresh.responder(200, { data: tokens("legado2") });
+    (await chamada(2)).responder(200, { data: [] });
+    await req;
+    expect(estadoDosTokens().refresh).toBe("refresh-legado2");
+  });
+
+  test("armazenamento da pendência indisponível: renova SEM a chave (comportamento anterior), sem perder tokens", async () => {
+    salvarSessao(tokens("1"));
+    setRenovacaoPendenteStorage({
+      get: () => {
+        throw new DOMException("bloqueado (teste)", "SecurityError");
+      },
+      set: () => {
+        throw new DOMException("cota (teste)", "QuotaExceededError");
+      },
+      clear: () => {
+        throw new DOMException("bloqueado (teste)", "SecurityError");
+      },
+    });
+    try {
+      const req = getCom401();
+      const refresh = await chamada(1);
+      expect(refresh.idempotencia).toBeNull();
+      expect(estadoDosTokens().refresh).toBe("refresh-1");
+      refresh.responder(200, { data: tokens("2") });
+      (await chamada(2)).responder(200, { data: [] });
+      await req;
+      expect(estadoDosTokens().refresh).toBe("refresh-2"); // salvarSessao não falha por causa da pendência
+    } finally {
+      setRenovacaoPendenteStorage(createMemoryTokenStorage());
+    }
+  });
+
+  test("armazenamento que aceita mas não devolve o valor (gravação não verificável): renova SEM a chave", async () => {
+    salvarSessao(tokens("1"));
+    setRenovacaoPendenteStorage({ get: () => null, set: () => {}, clear: () => {} });
+    try {
+      const req = getCom401();
+      const refresh = await chamada(1);
+      expect(refresh.idempotencia).toBeNull();
+      refresh.responder(200, { data: tokens("2") });
+      (await chamada(2)).responder(200, { data: [] });
+      await req;
+    } finally {
+      setRenovacaoPendenteStorage(createMemoryTokenStorage());
+    }
+  });
+});
+
+describe("22.8.7.3 idempotência da renovação — concorrência e geração", () => {
+  test("dois 401 simultâneos: UMA renovação, UMA chave; após falha, as novas tentativas compartilham a mesma chave", async () => {
+    salvarSessao(tokens("1"));
+    const r1 = acompanhar(apiClient.get("/vendas"));
+    const r2 = acompanhar(apiClient.get("/produtos"));
+    (await chamada(0)).responder(401, erro(401, "UNAUTHORIZED"));
+    (await chamada(1)).responder(401, erro(401, "UNAUTHORIZED"));
+    const refresh = await chamada(2);
+    await drenar();
+    expect(refreshes()).toHaveLength(1);
+    const chave = refresh.idempotencia;
+    refresh.timeout();
+    await Promise.allSettled([r1, r2]);
+
+    const r3 = acompanhar(apiClient.get("/vendas"));
+    const r4 = acompanhar(apiClient.get("/produtos"));
+    (await chamada(3)).responder(401, erro(401, "UNAUTHORIZED"));
+    (await chamada(4)).responder(401, erro(401, "UNAUTHORIZED"));
+    const nova = await chamada(5);
+    await drenar();
+    expect(refreshes()).toHaveLength(2);
+    expect(nova.idempotencia).toBe(chave);
+    nova.responder(200, { data: tokens("2") });
+    (await chamada(6)).responder(200, { data: 1 });
+    (await chamada(7)).responder(200, { data: 2 });
+    await Promise.all([r3, r4]);
+  });
+
+  test("logout com a renovação no ar: pendência descartada; a resposta tardia não grava tokens nem recria a pendência", async () => {
+    salvarSessao(tokens("A1"));
+    const req = getCom401();
+    const refresh = await chamada(1);
+    const logout = authApi.logout();
+    expect(pendencia()).toBeNull();
+    refresh.responder(200, { data: tokens("A2") });
+    (await chamada(2)).responder(200, { data: null });
+    (await chamada(3)).responder(200, { data: null });
+    await logout;
+    await req.catch(() => {});
+    expect(estadoDosTokens().refresh).toBeNull();
+    expect(pendencia()).toBeNull();
+  });
+
+  test("logout durante o cálculo do vínculo: o refresh NÃO é enviado e nenhuma pendência é gravada", async () => {
+    salvarSessao(tokens("A1", 0)); // vencido → renovação proativa
+    const req = acompanhar(apiClient.get("/vendas"));
+    const logout = authApi.logout(); // síncrono até o primeiro await: geração invalidada antes do envio
+    (await chamada(0)).responder(200, { data: null }); // a única chamada é a revogação do logout
+    await logout;
+    await req.catch(() => {});
+    await drenar();
+    expect(refreshes()).toHaveLength(0);
+    expect(pendencia()).toBeNull();
+  });
+
+  test("novo login durante a renovação de A: a resposta antiga não grava, não apaga a pendência de B e B usa chave própria", async () => {
+    salvarSessao(tokens("A1"));
+    const reqA = getCom401();
+    const refreshA = await chamada(1);
+    const chaveA = refreshA.idempotencia;
+    const logout = authApi.logout();
+    const login = authApi.login({ usuario: "b@ficticio.test", senha: "ficticia" });
+    (await chamada(2)).responder(200, { data: { ...tokens("B1"), usuario: { id: "usr-b" } } });
+    await login;
+
+    // B começa a própria renovação (chave nova, pendência de B gravada).
+    const reqB = acompanhar(apiClient.get("/vendas"));
+    (await chamada(3)).responder(401, erro(401, "UNAUTHORIZED"));
+    const refreshB = await chamada(4);
+    expect(refreshB.corpo).toEqual({ refreshToken: "refresh-B1" });
+    expect(refreshB.idempotencia).toMatch(UUID);
+    expect(refreshB.idempotencia).not.toBe(chaveA);
+    const pendenciaDeB = pendencia();
+    expect(pendenciaDeB?.chave).toBe(refreshB.idempotencia!);
+
+    // Resposta tardia de A (sucesso) e revogações do logout: nada de A toca a pendência de B.
+    refreshA.responder(200, { data: tokens("A2") });
+    (await chamada(5)).responder(200, { data: null });
+    (await chamada(6)).responder(200, { data: null });
+    await logout;
+    await reqA.catch(() => {});
+    expect(pendencia()).toEqual(pendenciaDeB);
+    expect(estadoDosTokens().refresh).toBe("refresh-B1");
+
+    refreshB.falharRede();
+    await reqB.catch(() => {});
+    expect(pendencia()).toEqual(pendenciaDeB);
+  });
+
+  test("duas sessões independentes (A, depois B) mantêm chaves distintas", async () => {
+    salvarSessao(tokens("A1"));
+    const reqA = getCom401();
+    const ra = await chamada(1);
+    ra.falharRede();
+    await reqA.catch(() => {});
+    const logout = authApi.logout();
+    (await chamada(2)).responder(200, { data: null });
+    await logout;
+    salvarSessao(tokens("B1"));
+    const reqB = getCom401(3);
+    const rb = await chamada(4);
+    expect(rb.idempotencia).not.toBe(ra.idempotencia);
+    rb.responder(200, { data: tokens("B2") });
+    (await chamada(5)).responder(200, { data: [] });
+    await reqB;
   });
 });
