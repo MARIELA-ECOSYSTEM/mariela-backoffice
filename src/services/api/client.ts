@@ -71,14 +71,13 @@ export interface ApiRequest {
   headers?: Record<string, string>;
 }
 
-/** Leitura/escrita do token sempre via abstração `TokenStorage`. */
+/**
+ * Leitura do access token via abstração `TokenStorage`. Gravação e limpeza só por `salvarSessao`/`limparSessao`
+ * (`token-storage.ts`), que mantêm o conjunto da sessão e a renovação pendente coerentes — Fase 22.8.7.5 (F8) removeu
+ * o `setToken` sem uso que gravava o access token isoladamente.
+ */
 export function getToken(): string | null {
   return tokenStorage.get();
-}
-
-export function setToken(token: string | null): void {
-  if (token) tokenStorage.set(token);
-  else tokenStorage.clear();
 }
 
 function buildQueryString(params: QueryParams): string {
