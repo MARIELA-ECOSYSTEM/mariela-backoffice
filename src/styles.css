@@ -1,6 +1,8 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+/* Fase 22.8.2 — fontes locais (antes Google Fonts em tempo de execução); permite `font-src 'self'` na CSP. */
+@import "./assets/fonts/fonts.css";
 
 @custom-variant dark (&:is(.dark *));
 

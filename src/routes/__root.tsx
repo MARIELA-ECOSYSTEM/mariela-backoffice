@@ -92,14 +92,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
+      // Fase 22.8.2 — as fontes (Cormorant Garamond, Jost, Inter) agora são locais, importadas por `styles.css`
+      // (`src/assets/fonts/`). Nenhuma requisição ao Google Fonts: a CSP restringe `font-src`/`style-src` à origem do app.
       { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Jost:wght@300;400;500;600&family=Inter:wght@400;500;600&display=swap",
-      },
-
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
