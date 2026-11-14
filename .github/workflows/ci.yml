@@ -1,0 +1,106 @@
+name: CI do MARIELA Backoffice
+
+# Fase 22.7 — verificações de qualidade em todo push para `main` e em todo pull request para `main`.
+# Independente da publicação: não compila instaladores, não cria tags nem releases e não tem permissão de escrita.
+# A publicação continua exclusivamente em `release.yml` (tags `vX.Y.Z`).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Somente leitura do repositório — nenhum job escreve nada.
+permissions:
+  contents: read
+
+# Um push novo no mesmo PR cancela a execução anterior (já obsoleta). Em `main`, cada commit é verificado até o fim.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Versões fixas, as mesmas com que a suíte foi validada localmente (o projeto não declara `packageManager`/`engines`).
+env:
+  BUN_VERSION: "1.4.2"
+  NODE_VERSION: "24.19.0"
+
+jobs:
+  validacao:
+    name: TypeScript, testes unitários e build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Mesmas variáveis PÚBLICAS do `release.yml` (não são segredo). Exigidas pelo plugin de validação do
+    # `vite.config.ts` e por `src/services/api/client.ts`, que recusam Mock API em modo produção. O build apenas
+    # embute a URL no bundle — nenhuma etapa deste job faz requisição a ela.
+    env:
+      VITE_USE_MOCK_API: "false"
+      VITE_API_URL: https://mariela-backend.onrender.com/api/v1
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar Bun ${{ env.BUN_VERSION }}
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Instalar Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Instalar dependências (lockfile congelado)
+        run: bun install --frozen-lockfile
+
+      - name: TypeScript
+        run: bunx tsc --noEmit
+
+      - name: Testes unitários (idempotência, reconciliação, efeitos posteriores)
+        run: bun test tests/unit
+
+      - name: Build de produção do frontend
+        run: bun run build
+
+  interface:
+    name: Testes de interface (Playwright + Chrome, backend falso)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    # Sem VITE_* aqui de propósito: `tests/ui/cancelamento.ui.mjs` sobe o Vite com `VITE_USE_MOCK_API=false` e
+    # `VITE_API_URL` apontando para um caminho FICTÍCIO na própria origem, atende toda a API com um backend falso em
+    # memória e ABORTA qualquer requisição do navegador para fora de `localhost` (o teste falha se houver chamada de
+    # API externa). Nenhum `.env` existe no checkout (só `.env.example` é versionado). O próprio teste sobe o Vite com
+    # `--force` e faz um aquecimento antes dos casos (pré-otimização de dependências do zero), por isso este job não
+    # usa cache de `node_modules/.vite` — de propósito.
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar Bun ${{ env.BUN_VERSION }}
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Instalar Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Instalar dependências (lockfile congelado)
+        run: bun install --frozen-lockfile
+
+      # O teste usa `chromium.launch({ channel: "chrome" })`: o Google Chrome do sistema, em /opt/google/chrome (já
+      # presente na imagem ubuntu-24.04 dos runners do GitHub). Falha cedo e com mensagem clara se ele não existir, e
+      # registra a versão usada nesta execução.
+      - name: Conferir Google Chrome do runner
+        run: |
+          if [ ! -x /opt/google/chrome/chrome ]; then
+            echo "::error::Google Chrome não encontrado em /opt/google/chrome — exigido pelo channel \"chrome\" do teste."
+            exit 1
+          fi
+          google-chrome --version
+
+      - name: Testes de interface (cancelamento/devolução)
+        run: node --test --test-concurrency=1 tests/ui/cancelamento.ui.mjs

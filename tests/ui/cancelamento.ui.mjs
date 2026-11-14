@@ -468,7 +468,12 @@ let saidaServidor = "";
 before(async () => {
   servidor = spawn(
     process.execPath,
-    ["node_modules/vite/bin/vite.js", "dev", "--port", String(PORTA), "--strictPort"],
+    // Fase 22.7 — `--force`: refaz a pré-otimização de dependências a cada execução. Um cache de `node_modules/.vite`
+    // gerado sem o shim CJS `use-sync-external-store/shim/with-selector` (importado por `@tanstack/react-store`) faz o
+    // Vite servi-lo cru e o app quebra de vez (`SyntaxError ... useSyncExternalStoreWithSelector`); o preset usa
+    // `optimizeDeps.ignoreOutdatedRequests: true` e não se corrige sozinho. Com `--force`, toda execução local parte do
+    // mesmo estado de um runner de CI novo (sem cache), e `aquecerServidor` absorve a recarga da descoberta.
+    ["node_modules/vite/bin/vite.js", "dev", "--port", String(PORTA), "--strictPort", "--force"],
     {
       env: {
         ...process.env,
@@ -493,7 +498,36 @@ before(async () => {
     120_000,
   );
   navegador = await chromium.launch({ channel: "chrome", headless: true });
+  await aquecerServidor();
 });
+
+/**
+ * Fase 22.7 — aquecimento do Vite antes dos testes. Com o cache de pré-otimização de dependências frio
+ * (`node_modules/.vite` ausente ou de outra configuração — SEMPRE o caso num runner de CI novo, e localmente após
+ * `bun install` ou mudança de porta), o primeiro carregamento dispara a re-otimização e recargas da página, e os
+ * testes falhavam esperando "Itens da venda" (reproduzido: cache frio → falha; cache quente → passa). Aqui a página da
+ * venda é aberta, com o MESMO backend falso e a mesma trava de rede, até renderizar em duas cargas seguidas; só então
+ * os testes começam. Não envia nenhum cancelamento. Se não estabilizar, falha mostrando a saída do Vite.
+ */
+async function aquecerServidor() {
+  const limite = Date.now() + 240_000;
+  let seguidas = 0;
+  while (seguidas < 2) {
+    if (Date.now() > limite) {
+      throw new Error(`O Vite não estabilizou para os testes de interface.\n${saidaServidor}`);
+    }
+    const s = await novaSessao();
+    try {
+      await s.abrirVenda(VENDA_A);
+      seguidas += 1;
+    } catch {
+      seguidas = 0;
+    } finally {
+      assert.equal(s.backend.posts.length, 0, "o aquecimento não pode enviar cancelamentos");
+      await s.contexto.close();
+    }
+  }
+}
 
 after(async () => {
   await navegador?.close();
