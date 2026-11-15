@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "sessao-nativa",
+  "description": "Fase 22.8.8.2 (M2): somente a janela principal pode carregar, gravar e apagar a sessão no Windows Credential Manager. O alvo da credencial é fixo no Rust.",
+  "windows": ["main"],
+  "permissions": ["allow-sessao-carregar", "allow-sessao-gravar", "allow-sessao-apagar"]
+}

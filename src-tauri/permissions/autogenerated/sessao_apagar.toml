@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sessao-apagar"
+description = "Enables the sessao_apagar command without any pre-configured scope."
+commands.allow = ["sessao_apagar"]
+
+[[permission]]
+identifier = "deny-sessao-apagar"
+description = "Denies the sessao_apagar command without any pre-configured scope."
+commands.deny = ["sessao_apagar"]

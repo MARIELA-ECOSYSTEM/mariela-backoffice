@@ -15,6 +15,15 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+# Fase 22.8.8.2 (M2) — validação do formato da sessão. Já presentes no Cargo.lock (dependências do próprio Tauri):
+# nenhuma crate nova.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Fase 22.8.8.2 (M2) — Windows Credential Manager (CredReadW/CredWriteW/CredDeleteW). Mesma versão que o Tauri já usa
+# (0.61.2, no Cargo.lock); só habilita as features das APIs de credencial.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
 
 [features]
 default = []

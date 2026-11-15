@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sessao-carregar"
+description = "Enables the sessao_carregar command without any pre-configured scope."
+commands.allow = ["sessao_carregar"]
+
+[[permission]]
+identifier = "deny-sessao-carregar"
+description = "Denies the sessao_carregar command without any pre-configured scope."
+commands.deny = ["sessao_carregar"]
