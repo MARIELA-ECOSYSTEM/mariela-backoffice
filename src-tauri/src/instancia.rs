@@ -162,6 +162,115 @@ mod testes {
         assert_eq!(adquirir(&nome).err(), Some(ErroInstancia::Indisponivel));
     }
 
+    // ── Fase 22.8.8.5 (M5): entre PROCESSOS e sem vazamento de handles ──
+
+    /// Variável que transforma o executável de testes num processo filho que segura o mutex.
+    const VAR_FILHO: &str = "MARIELA_M5_MUTEX_FILHO";
+    const TESTE_AUXILIAR: &str = "instancia::testes::auxiliar_processo_que_segura_o_mutex";
+
+    #[test]
+    #[ignore = "auxiliar: executado só como processo filho por `outro_processo_bloqueia_e_o_fim_do_processo_libera`"]
+    fn auxiliar_processo_que_segura_o_mutex() {
+        use std::io::Write;
+        let Ok(nome) = std::env::var(VAR_FILHO) else {
+            return; // fora do papel de filho, não faz nada
+        };
+        let _guarda = adquirir(&nome).expect("o filho adquire o mutex");
+        println!("MUTEX_ADQUIRIDO");
+        std::io::stdout().flush().unwrap();
+        // Segura o mutex até o pai fechar o stdin (saída normal) ou matar o processo (saída anormal). Prazo máximo de
+        // 60 s: um teste com defeito nunca deixa um processo pendurado.
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut linha = String::new();
+            let _ = std::io::stdin().read_line(&mut linha);
+            let _ = tx.send(());
+        });
+        let _ = rx.recv_timeout(std::time::Duration::from_secs(60));
+    }
+
+    /// Inicia o filho (o próprio executável de testes) e espera ele confirmar que segura o mutex `nome`.
+    fn filho_com_mutex(nome: &str) -> std::process::Child {
+        use std::io::BufRead;
+        use std::process::{Command, Stdio};
+        let mut filho = Command::new(std::env::current_exe().unwrap())
+            .args([
+                TESTE_AUXILIAR,
+                "--exact",
+                "--ignored",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env(VAR_FILHO, nome)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("processo filho");
+        // O libtest imprime "test <nome> ... " sem quebra de linha antes da saída do teste: procurar por `contains`.
+        let mut linhas = std::io::BufReader::new(filho.stdout.take().unwrap()).lines();
+        let confirmou = linhas
+            .by_ref()
+            .map_while(Result::ok)
+            .any(|l| l.contains("MUTEX_ADQUIRIDO"));
+        assert!(confirmou, "o processo filho não adquiriu o mutex");
+        // Continua lendo o restante (resumo do libtest) para o filho não falhar escrevendo num pipe fechado.
+        std::thread::spawn(move || linhas.for_each(drop));
+        filho
+    }
+
+    #[test]
+    fn outro_processo_bloqueia_e_o_fim_do_processo_libera() {
+        // 1) Encerramento ANORMAL (TerminateProcess: nenhum `Drop` executa) — o Windows fecha o handle.
+        let nome = nome_sintetico("processo-morto");
+        let mut filho = filho_com_mutex(&nome);
+        assert_eq!(adquirir(&nome).err(), Some(ErroInstancia::JaEmExecucao));
+        filho.kill().unwrap();
+        filho.wait().unwrap();
+        let depois = adquirir(&nome).expect("após o fim do processo, uma nova instância adquire");
+        drop(depois);
+
+        // 2) Encerramento NORMAL (o filho sai e a guarda é liberada).
+        let nome = nome_sintetico("processo-encerrado");
+        let mut filho = filho_com_mutex(&nome);
+        assert_eq!(adquirir(&nome).err(), Some(ErroInstancia::JaEmExecucao));
+        drop(filho.stdin.take()); // EOF → o filho retorna
+        assert!(filho.wait().unwrap().success());
+        let depois = adquirir(&nome).expect("após o encerramento, uma nova instância adquire");
+        drop(depois);
+    }
+
+    #[test]
+    fn nenhum_caminho_vaza_handles() {
+        use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
+        fn handles() -> u32 {
+            let mut n = 0u32;
+            // SAFETY: pseudo-handle do processo atual e ponteiro de saída válido.
+            assert_ne!(
+                unsafe { GetProcessHandleCount(GetCurrentProcess(), &mut n) },
+                0
+            );
+            n
+        }
+        const RODADAS: u32 = 500;
+        let nome = nome_sintetico("handles");
+        let invalido = format!("NamespaceInexistente\\{}", nome_sintetico("handles"));
+        let antes = handles();
+        for _ in 0..RODADAS {
+            let guarda = adquirir(&nome).expect("aquisição"); // caminho Ok
+            assert_eq!(adquirir(&nome).err(), Some(ErroInstancia::JaEmExecucao)); // caminho duplicado
+            drop(guarda);
+            // caminho de falha
+            assert_eq!(adquirir(&invalido).err(), Some(ErroInstancia::Indisponivel));
+        }
+        let depois = handles();
+        // Um vazamento somaria ≥ RODADAS handles. A folga cobre outros testes rodando em paralelo no mesmo processo.
+        assert!(
+            depois.saturating_sub(antes) < 100,
+            "handles antes={antes} depois={depois}"
+        );
+    }
+
     #[test]
     fn mensagens_nao_expoem_detalhes_internos() {
         for erro in [ErroInstancia::JaEmExecucao, ErroInstancia::Indisponivel] {

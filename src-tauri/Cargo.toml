@@ -31,5 +31,10 @@ windows-sys = { version = "0.61.2", features = [
   "Win32_UI_WindowsAndMessaging",
 ] }
 
+# Fase 22.8.8.5 (M5) — runtime de testes do Tauri (`tauri::test`) para validar a ACL dos comandos de sessão. Feature
+# sem dependências (`test = []` no próprio tauri) e só de desenvolvimento: o binário de produção não muda.
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }
+
 [features]
 default = []
