@@ -9,6 +9,7 @@
 import { authApi } from "@/services/api/auth.api";
 import { classificarFalhaDeAutenticacao, getToken } from "@/services/api/client";
 import { geracaoDaSessao } from "@/services/auth/session";
+import { aguardarSessaoPreparada } from "@/services/auth/sessao-nativa";
 import type { Usuario } from "@/types/auth";
 
 export type ResultadoRestauracao =
@@ -25,6 +26,9 @@ export type ResultadoRestauracao =
   | { tipo: "nao_validada"; motivo: "indisponivel" | "desconhecido"; erro: unknown };
 
 export async function restaurarSessao(): Promise<ResultadoRestauracao> {
+  // Fase 22.8.8.4 (M4): no desktop, a reconciliação com o Credential Manager pode restaurar o espelho legado — nenhum
+  // token é lido antes dela terminar (na web resolve na hora).
+  await aguardarSessaoPreparada();
   if (!getToken()) return { tipo: "sem_sessao" };
   const geracao = geracaoDaSessao();
   try {

@@ -4,12 +4,15 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { getToken } from "@/services/api/client";
+import { aguardarSessaoPreparada } from "@/services/auth/sessao-nativa";
 
 export const Route = createFileRoute("/_backoffice")({
   ssr: false,
   // Proteção da área administrativa no roteador: qualquer rota nova sob
   // /_backoffice herda o gate, sem depender de verificação visual nas telas.
-  beforeLoad: ({ location }) => {
+  beforeLoad: async ({ location }) => {
+    // Fase 22.8.8.4 (M4): no desktop, espera a reconciliação da sessão com o Credential Manager (na web é imediato).
+    await aguardarSessaoPreparada();
     if (!getToken()) {
       throw redirect({ to: "/login", search: { redirect: location.href }, replace: true });
     }

@@ -150,6 +150,47 @@ export function limparSessao(): void {
   descartarRenovacaoPendente();
 }
 
+/**
+ * Fase 22.8.8.4 (M4) — regrava o espelho legado (localStorage) a partir de uma sessão já validada lida do Windows
+ * Credential Manager: tokens, instante ABSOLUTO de expiração (sem recalcular) e a pendência idempotente já no formato
+ * de `refresh-idempotencia.ts` (ou `null`). Usado só pela reconciliação de `sessao-nativa.ts` na abertura do app.
+ */
+export function restaurarSessaoPersistida(sessao: {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+  pendenciaSerializada: string | null;
+}): void {
+  tokenStorage.set(sessao.accessToken);
+  refreshTokenStorage.set(sessao.refreshToken);
+  expiresAtStorage.set(String(sessao.expiresAt));
+  if (sessao.pendenciaSerializada === null) descartarRenovacaoPendente();
+  else renovacaoPendenteStorage.set(sessao.pendenciaSerializada);
+}
+
+/**
+ * Fase 22.8.8.4 (M4) — MARCADOR da sessão nativa (Credential Manager), sem segredo nenhum:
+ *   `{ "v": 1, "estado": "migrada", "vinculo": "<SHA-256 do refresh token da última gravação CONFIRMADA no cofre>" }`
+ *   `{ "v": 1, "estado": "encerrada" }` — a sessão foi encerrada (logout/rejeição); o cofre não pode ressuscitá-la.
+ * Formato e regras em `sessao-nativa.ts`. Mesmo armazenamento dos tokens legados.
+ */
+export const MARCADOR_SESSAO_NATIVA_STORAGE_KEY = "mariela.sessaoNativa";
+
+let marcadorSessaoNativaStorage: TokenStorage =
+  typeof window === "undefined"
+    ? createMemoryTokenStorage()
+    : createWebTokenStorage(MARCADOR_SESSAO_NATIVA_STORAGE_KEY);
+
+export function setMarcadorSessaoNativaStorage(next: TokenStorage): void {
+  marcadorSessaoNativaStorage = next;
+}
+
+export const marcadorSessaoNativaStorageAtual: TokenStorage = {
+  get: () => marcadorSessaoNativaStorage.get(),
+  set: (valor) => marcadorSessaoNativaStorage.set(valor),
+  clear: () => marcadorSessaoNativaStorage.clear(),
+};
+
 /** Instante absoluto (epoch ms) em que o accessToken atual expira, ou `null` quando não há sessão. */
 export function obterExpiraEm(): number | null {
   const valor = expiresAtStorage.get();

@@ -10,6 +10,11 @@ import {
 } from "@/services/auth/token-storage";
 import { geracaoDaSessao, handleUnauthorized } from "@/services/auth/session";
 import { chaveParaRenovar, vinculoDoRefreshToken } from "@/services/auth/refresh-idempotencia";
+import {
+  aguardarSessaoPreparada,
+  registrarEncerramentoNativo,
+  sincronizarSessaoNativa,
+} from "@/services/auth/sessao-nativa";
 
 /**
  * Endereço remoto da API REST (NestJS). Configurado exclusivamente por ambiente
@@ -266,6 +271,11 @@ async function executarRenovacao(geracao: number): Promise<ResultadoRenovacao> {
   // Síncrono logo após a verificação acima: nenhum logout/login cabe entre a checagem e a gravação.
   // `null` = armazenamento indisponível → renova SEM a chave (comportamento anterior à fase, sem prometer recuperação).
   const idempotencia = chaveParaRenovar(vinculo);
+  // Fase 22.8.8.4 (M4) — no desktop, espelha a pendência (já gravada no legado) no Credential Manager ANTES do POST.
+  // Se não confirmar, segue: a pendência continua durável no legado e a próxima abertura a reconcilia. Depois da
+  // espera, a sessão pode ter acabado: nada é enviado.
+  await sincronizarSessaoNativa();
+  if (geracaoDaSessao() !== geracao) return { tipo: "descartada", refreshTokenEmitido: null };
 
   const requisicao: ApiRequest = {
     method: "POST",
@@ -283,6 +293,9 @@ async function executarRenovacao(geracao: number): Promise<ResultadoRenovacao> {
     }
     // Grava o par novo e, no mesmo passo, descarta a pendência do R1 (a operação está concluída).
     salvarSessao(resposta.data);
+    // M4: espelha o par novo no cofre (fila; sem esperar). Se o app fechar antes, o cofre ainda tem R1 + a chave e a
+    // abertura seguinte recupera o MESMO R2; e o legado (mais novo) prevalece na reconciliação.
+    void sincronizarSessaoNativa();
     return { tipo: "renovada" };
   } catch (error) {
     // A2: falha tardia de uma sessão já encerrada — nunca limpa a sessão (possivelmente nova) vigente.
@@ -291,6 +304,7 @@ async function executarRenovacao(geracao: number): Promise<ResultadoRenovacao> {
     if (categoria === "rejeicao_definitiva") {
       // Só uma rejeição DEFINITIVA do servidor limpa a sessão local (a revogação já aconteceu lá).
       limparSessao();
+      void registrarEncerramentoNativo(); // M4: marca "encerrada" na hora e apaga o cofre
       return { tipo: "rejeitada", erro: error as ApiError };
     }
     // A1: rede, timeout, 502/503/504 ou erro não classificado — tokens preservados para nova tentativa posterior.
@@ -327,6 +341,13 @@ async function request<T>(
 ): Promise<ApiResponse<T>> {
   const renovavel = !ehRotaDeAutenticacao(path);
   const geracao = geracaoDaSessao();
+  // Fase 22.8.8.4 (M4) — no desktop, a sessão pode estar sendo reconciliada com o Credential Manager na abertura;
+  // nenhum token é lido antes disso (na web resolve na hora). A geração é capturada ANTES da espera: se a sessão
+  // acabar durante ela, a requisição não sai (nunca com o token de outra sessão, nem sem token).
+  // Rotas de autenticação também esperam (o login não pode correr junto com a reconciliação), mas NÃO dependem da
+  // geração: carregam as próprias credenciais — a revogação do logout precisa sair justamente depois do encerramento.
+  await aguardarSessaoPreparada();
+  if (renovavel && geracaoDaSessao() !== geracao) throw erroSessaoEncerrada();
 
   // Renovação PROATIVA: evita a ida e volta extra de um 401 quando já se sabe
   // que o accessToken está vencido/perto de vencer.

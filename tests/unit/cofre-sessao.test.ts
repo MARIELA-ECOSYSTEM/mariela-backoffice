@@ -561,7 +561,7 @@ describe("segurança e isolamento", () => {
     ]);
   });
 
-  test("nenhum código do fluxo atual de autenticação importa o módulo novo (isolamento até a M4)", async () => {
+  test("Fase 22.8.8.4 (M4): o ÚNICO importador do cliente do cofre é o serviço central `sessao-nativa.ts`", async () => {
     const { readdirSync, readFileSync, statSync } = await import("node:fs");
     const { join } = await import("node:path");
     const raiz = join(import.meta.dir, "..", "..", "src");
@@ -576,6 +576,8 @@ describe("segurança e isolamento", () => {
       }
     };
     visitar(raiz);
-    expect(importadores).toEqual([]);
+    expect(importadores.map((c) => c.split(/[\\/]/).slice(-3).join("/"))).toEqual([
+      "services/auth/sessao-nativa.ts",
+    ]);
   });
 });

@@ -13,6 +13,24 @@ import { authApi } from "@/services/api/auth.api";
 import { mensagemDeErro } from "@/services/api/client";
 import { encerrarSessao, registerSessionHandlers } from "@/services/auth/session";
 import { restaurarSessao } from "@/services/auth/restaurar-sessao";
+import { estadoArmazenamento } from "@/services/auth/sessao-nativa";
+import { toast } from "sonner";
+
+/**
+ * Fase 22.8.8.4 (M4) — avisa UMA vez por execução quando o app desktop está usando o armazenamento anterior em vez do
+ * Windows Credential Manager. Sem detalhes técnicos e sem nenhum dado da sessão.
+ */
+let avisoModoLegadoExibido = false;
+function sinalizarModoLegado(): void {
+  const atual = estadoArmazenamento();
+  if (atual?.modo !== "legado" || avisoModoLegadoExibido) return;
+  avisoModoLegadoExibido = true;
+  toast.warning(
+    atual.motivo === "sessoes_divergentes"
+      ? "Foram encontradas duas sessões salvas diferentes. Por segurança, nenhuma foi alterada; a sessão anterior continua em uso."
+      : "O Gerenciador de Credenciais do Windows não está disponível agora. A sessão continua no armazenamento anterior.",
+  );
+}
 import {
   AuthContext,
   type AuthContextValue,
@@ -60,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCarregando(true);
     setFalhaValidacao(null);
     const resultado = await restaurarSessao();
+    sinalizarModoLegado();
     if (id !== validacaoAtual.current) return;
     if (resultado.tipo === "autenticada") {
       setUsuario(resultado.usuario);
@@ -84,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (payload: LoginRequest) => {
     const resultado = await authApi.login(payload);
+    sinalizarModoLegado();
     validacaoAtual.current += 1; // uma validação antiga ainda no ar não altera a sessão recém-aberta.
     setFalhaValidacao(null);
     setCarregando(false);

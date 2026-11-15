@@ -6,6 +6,7 @@
  * redirecionar) são registrados uma vez na raiz da aplicação.
  */
 import { limparSessao } from "./token-storage";
+import { registrarEncerramentoNativo } from "./sessao-nativa";
 
 export interface SessionHandlers {
   /** Remove o usuário do contexto de autenticação. */
@@ -50,6 +51,7 @@ export async function encerrarSessao({ redirecionar }: { redirecionar: boolean }
   encerrando = true;
   try {
     limparSessao();
+    void registrarEncerramentoNativo(); // Fase 22.8.8.4 (M4): marca "encerrada" e apaga o Credential Manager
     handlers?.limparUsuario();
     await handlers?.limparCache();
     if (redirecionar && handlers && !handlers.rotaAtual().startsWith("/login")) {

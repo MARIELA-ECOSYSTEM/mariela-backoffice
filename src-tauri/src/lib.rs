@@ -4,11 +4,22 @@
 //
 // Fase 22.8.8.2 (M2) — única exceção: o armazenamento da sessão administrativa no Windows Credential Manager
 // (`cofre.rs` + `sessao.rs`), exposto por três comandos restritos à janela `main` (`capabilities/sessao.json`).
-// Nesta fase o frontend ainda não os usa.
+// Fase 22.8.8.4 (M4) — o frontend passa a usá-los (`src/services/auth/sessao-nativa.ts`), e o app só inicia como
+// INSTÂNCIA ÚNICA (`instancia.rs`): duas instâncias nunca concorrem pela mesma sessão.
 mod cofre;
+mod instancia;
 mod sessao;
 
 pub fn run() {
+    // Antes de qualquer janela ou comando de sessão. A guarda vive até o fim de `run` (o processo).
+    let _instancia = match instancia::adquirir(instancia::NOME_MUTEX) {
+        Ok(guarda) => guarda,
+        Err(erro) => {
+            instancia::avisar(erro);
+            return;
+        }
+    };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(sessao::ServicoSessao::nativo())

@@ -23,7 +23,13 @@ serde_json = "1"
 # Fase 22.8.8.2 (M2) — Windows Credential Manager (CredReadW/CredWriteW/CredDeleteW). Mesma versão que o Tauri já usa
 # (0.61.2, no Cargo.lock); só habilita as features das APIs de credencial.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
+# Fase 22.8.8.4 (M4) — + mutex nomeado de instância única (CreateMutexW) e aviso nativo (MessageBoxW).
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security_Credentials",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 [features]
 default = []
