@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { USE_MOCK_API } from "@/services/api/client";
 
-export type EstadoUpdater = "verificando" | "atualizado" | "disponivel" | "erro";
+/**
+ * `desativado` — Fase 22.8.8.7 (M7): com a Mock API (obrigatória no ambiente isolado de desenvolvimento e proibida
+ * em builds de produção por `client.ts` e pelo `vite.config.ts`), não há versão oficial a verificar: nenhuma
+ * consulta ao GitHub e nenhum link de instalador. Em produção o comportamento não muda.
+ */
+export type EstadoUpdater = "verificando" | "atualizado" | "disponivel" | "erro" | "desativado";
 
 export interface UpdaterStatus {
   estado: EstadoUpdater;
@@ -63,7 +69,7 @@ function versaoMaisNova(a: Semver, b: Semver): boolean {
  * nunca lança para fora do hook.
  */
 export function useUpdaterStatus(): UpdaterStatus {
-  const [estado, setEstado] = useState<EstadoUpdater>("verificando");
+  const [estado, setEstado] = useState<EstadoUpdater>(USE_MOCK_API ? "desativado" : "verificando");
   const [versaoAtual, setVersaoAtual] = useState<string | null>(null);
   const [versaoDisponivel, setVersaoDisponivel] = useState<string | null>(null);
   const [notas, setNotas] = useState<string | null>(null);
@@ -73,6 +79,7 @@ export function useUpdaterStatus(): UpdaterStatus {
   const verificacaoEmAndamento = useRef(false);
 
   const verificar = useCallback(() => {
+    if (USE_MOCK_API) return; // M7: sem verificação de atualização fora da API real (ver `desativado`)
     if (verificacaoEmAndamento.current) return;
     verificacaoEmAndamento.current = true;
     setEstado("verificando");

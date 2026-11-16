@@ -1,0 +1,20 @@
+{
+  "identifier": "com.mariela.backoffice.isolado",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "[ISOLADO – TESTE] MARIELA Backoffice",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1120,
+        "minHeight": 720,
+        "resizable": true,
+        "center": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": false
+  }
+}

@@ -13,6 +13,7 @@
     "format": "prettier --write .",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
+    "tauri:isolado": "bun scripts/tauri-isolado.mjs",
     "tauri:build": "tauri build"
   },
   "overrides": {

@@ -212,6 +212,7 @@ function AtualizacaoStatus({ updater }: { updater: UpdaterStatus }) {
         </div>
       );
 
+    case "desativado": // Fase 22.8.8.7 (M7): Mock API (ambiente isolado) — nada a verificar nem a baixar
     default:
       return null;
   }

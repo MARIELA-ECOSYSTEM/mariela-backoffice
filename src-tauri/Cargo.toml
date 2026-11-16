@@ -11,6 +11,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+# Fase 22.8.8.7 (M7) — o `build.rs` recalcula a configuração efetiva do Tauri (travas de ambiente). Mesma crate e
+# versão já presentes no Cargo.lock (dependência do próprio Tauri e deste crate): nenhuma crate nova.
+serde_json = "1"
 
 [dependencies]
 tauri = { version = "2", features = [] }
@@ -38,3 +41,7 @@ tauri = { version = "2", features = ["test"] }
 
 [features]
 default = []
+# Fase 22.8.8.7 (M7) — ambiente de DESENVOLVIMENTO isolado (identidade, credencial e mutex próprios). Nunca ativada
+# por padrão nem pelo build oficial; não compila em perfil release (`ambiente.rs`) e exige a configuração isolada
+# (`build.rs`). Uso: `bun run tauri:isolado`.
+ambiente-isolado = []

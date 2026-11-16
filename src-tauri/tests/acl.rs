@@ -17,9 +17,16 @@
 //! produção `sessao.rs` e `cofre.rs` são incluídos pelo CAMINHO — o código testado é exatamente o dos comandos reais,
 //! sem tornar nada público na lib.
 
+// Fase 22.8.8.7 (M7) — `cofre.rs` usa a identidade do binário (`ambiente.rs` → `identidades.rs`).
+#[allow(dead_code)]
+#[path = "../src/ambiente.rs"]
+mod ambiente;
 #[allow(dead_code)]
 #[path = "../src/cofre.rs"]
 mod cofre;
+#[allow(dead_code)]
+#[path = "../src/identidades.rs"]
+mod identidades;
 #[allow(dead_code)]
 #[path = "../src/sessao.rs"]
 mod sessao;
@@ -60,8 +67,24 @@ impl Cofre for CofreMemoria {
     }
 }
 
-/// Mesmo registro de `lib.rs::run` (estado + os três comandos), com o contexto real e o cofre em memória.
+/// Configuração REAL compilada (tauri.conf.json + TAURI_CONFIG), intocada — para as asserções de configuração.
+fn contexto_real() -> tauri::Context<MockRuntime> {
+    tauri::generate_context!()
+}
+
+/// Diretório de dados do WebView dos testes: dentro de `target` (Fase 22.8.8.7, M7). Ao criar uma janela sem
+/// `data_directory`, o Tauri cria `%LOCALAPPDATA%\<identifier>` (`manager/webview.rs`) — o diretório REAL do app
+/// instalado (ou do isolado). Os testes nunca devem tocá-lo.
+fn diretorio_de_dados_de_teste() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("acl-webview")
+}
+
+/// Mesmo registro de `lib.rs::run` (estado + os três comandos), com a ACL real e o cofre em memória. As janelas da
+/// configuração NÃO são criadas automaticamente (criariam o diretório de dados real); `janela` as cria com o
+/// diretório de teste. A ACL resolvida (capabilities da janela `main`) é a mesma do contexto real.
 fn app() -> App<MockRuntime> {
+    let mut contexto = contexto_real();
+    contexto.config_mut().app.windows.clear();
     mock_builder()
         .manage(ServicoSessao::com_cofre(Box::new(CofreMemoria(
             Mutex::new(None),
@@ -71,13 +94,14 @@ fn app() -> App<MockRuntime> {
             sessao::sessao_gravar,
             sessao::sessao_apagar
         ])
-        .build(tauri::generate_context!())
+        .build(contexto)
         .expect("app de teste")
 }
 
 fn janela(app: &App<MockRuntime>, rotulo: &str) -> WebviewWindow<MockRuntime> {
     app.get_webview_window(rotulo).unwrap_or_else(|| {
         WebviewWindowBuilder::new(app, rotulo, WebviewUrl::default())
+            .data_directory(diretorio_de_dados_de_teste())
             .build()
             .expect("janela de teste")
     })
@@ -239,4 +263,68 @@ fn manifesto_do_app_nao_tem_permissao_padrao_e_mapeia_um_comando_por_permissao()
         assert_eq!(p["allow"], json!([comando]), "{permissao}");
         assert_eq!(p["deny"], json!([]), "{permissao}");
     }
+}
+
+// ─── Fase 22.8.8.7 (M7): identidade da configuração REALMENTE compilada ──────────────────────────────────────────
+
+#[test]
+fn configuracao_compilada_corresponde_a_identidade_do_binario() {
+    // `generate_context!` = tauri.conf.json + TAURI_CONFIG (o mesmo cálculo do `build.rs`). Sem criar app/janelas.
+    let contexto = contexto_real();
+    let config = contexto.config();
+    assert_eq!(config.identifier, ambiente::ATUAL.identifier);
+    assert!(config.app.app_directories_override.is_none());
+    assert!(config
+        .app
+        .windows
+        .iter()
+        .all(|j| j.data_directory.is_none()));
+    assert!(config.app.windows.iter().any(|j| j.label == "main"));
+    let resultado = ambiente::validar(config);
+    if ambiente::ISOLADO_ATIVO {
+        assert_eq!(resultado, Ok(()));
+        assert!(!config.bundle.active, "ambiente isolado sem empacotamento");
+        assert!(config.app.windows[0].title.starts_with("[ISOLADO – TESTE]"));
+    } else {
+        // Executáveis de teste têm debug_assertions: oficial + debug é exatamente o `tauri dev` comum, bloqueado.
+        assert_eq!(
+            resultado,
+            Err(ambiente::ErroAmbiente::DesenvolvimentoComIdentidadeOficial)
+        );
+        assert!(config.bundle.active);
+    }
+}
+
+#[test]
+fn diretorio_de_dados_do_webview2_deriva_do_identifier_do_ambiente() {
+    // O Tauri 2.12.5 força, no Windows, `data_directory = app_local_data_dir()` (`manager/webview.rs`), que é
+    // `%LOCALAPPDATA%\<identifier>` (`path/desktop.rs`) quando não há `appDirectoriesOverride`. Só RESOLVE o caminho:
+    // nada é criado, lido ou listado.
+    let app = app();
+    let dir = app
+        .path()
+        .app_local_data_dir()
+        .expect("diretório de dados local");
+    assert_eq!(
+        dir.file_name().and_then(|n| n.to_str()),
+        Some(ambiente::ATUAL.identifier)
+    );
+    if ambiente::ISOLADO_ATIVO {
+        assert_ne!(
+            dir.file_name().and_then(|n| n.to_str()),
+            Some(ambiente::OFICIAL.identifier)
+        );
+    }
+}
+
+#[test]
+fn harness_nao_cria_janelas_automaticas_com_o_diretorio_de_dados_real() {
+    // As janelas do harness são criadas só por `janela`, sempre com o diretório de teste (dentro de `target`).
+    let app = app();
+    assert!(
+        app.webview_windows().is_empty(),
+        "nenhuma janela automática"
+    );
+    janela(&app, "main");
+    assert!(diretorio_de_dados_de_teste().exists());
 }

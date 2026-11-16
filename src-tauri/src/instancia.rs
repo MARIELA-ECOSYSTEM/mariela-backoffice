@@ -12,8 +12,9 @@
 //! se o processo terminar sem executar o `Drop` (ex.: `std::process::exit` do runtime), o Windows fecha o handle e o
 //! mutex deixa de existir quando o último handle é fechado.
 
-/// Nome estável e específico do MARIELA Backoffice.
-pub const NOME_MUTEX: &str = "Local\\com.mariela.backoffice.instancia-unica";
+/// Nome estável e específico do MARIELA Backoffice. Fase 22.8.8.7 (M7): vem da identidade do binário
+/// (`ambiente.rs`) — o oficial sem a feature, o isolado com ela; os dois nunca se bloqueiam mutuamente.
+pub const NOME_MUTEX: &str = crate::ambiente::ATUAL.mutex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErroInstancia {
@@ -38,7 +39,7 @@ impl ErroInstancia {
 }
 
 #[cfg(windows)]
-pub use windows_nativo::{adquirir, avisar};
+pub use windows_nativo::{adquirir, avisar, avisar_texto};
 
 #[cfg(windows)]
 mod windows_nativo {
@@ -94,7 +95,12 @@ mod windows_nativo {
 
     /// Caixa de mensagem nativa (antes de existir qualquer janela do app).
     pub fn avisar(erro: ErroInstancia) {
-        let texto = utf16_com_nul(erro.mensagem());
+        avisar_texto(erro.mensagem());
+    }
+
+    /// Caixa de mensagem nativa com um texto fixo do app (também usada pela validação de ambiente, M7).
+    pub fn avisar_texto(mensagem: &str) {
+        let texto = utf16_com_nul(mensagem);
         let titulo = utf16_com_nul("MARIELA Backoffice");
         // SAFETY: sem janela-mãe (nula); textos UTF-16 terminados em NUL que vivem durante a chamada.
         unsafe {
@@ -119,6 +125,9 @@ pub fn adquirir(_nome: &str) -> Result<GuardaInstancia, ErroInstancia> {
 
 #[cfg(not(windows))]
 pub fn avisar(_erro: ErroInstancia) {}
+
+#[cfg(not(windows))]
+pub fn avisar_texto(_mensagem: &str) {}
 
 /// Testes REAIS do mutex (objetos de kernel temporários, com nomes sintéticos exclusivos; nada persiste e nenhuma
 /// credencial é tocada — seguros na máquina de uso diário).
@@ -269,6 +278,31 @@ mod testes {
             depois.saturating_sub(antes) < 100,
             "handles antes={antes} depois={depois}"
         );
+    }
+
+    // ── Fase 22.8.8.7 (M7): mutex por ambiente ──
+
+    #[test]
+    fn mutex_segue_a_identidade_do_binario_e_os_ambientes_nao_se_bloqueiam() {
+        use crate::ambiente::{ATUAL, ISOLADO, OFICIAL};
+        assert_eq!(NOME_MUTEX, ATUAL.mutex);
+        if !cfg!(feature = "ambiente-isolado") {
+            assert_eq!(NOME_MUTEX, "Local\\com.mariela.backoffice.instancia-unica");
+        }
+        // Nomes de objetos do kernel não diferenciam maiúsculas: precisam diferir de verdade.
+        assert!(!ISOLADO.mutex.eq_ignore_ascii_case(OFICIAL.mutex));
+
+        // Real (kernel), com nomes SINTÉTICOS no mesmo formato dos dois ambientes — o mutex oficial nunca é tocado
+        // por testes: segurar um "oficial" não impede o "isolado", e vice-versa.
+        let base = nome_sintetico("ambientes");
+        let oficial = format!("{base}.instancia-unica");
+        let isolado = format!("{base}.isolado.instancia-unica");
+        let guarda_oficial = adquirir(&oficial).expect("oficial sintético");
+        let guarda_isolado = adquirir(&isolado).expect("isolado coexiste com o oficial");
+        assert_eq!(adquirir(&isolado).err(), Some(ErroInstancia::JaEmExecucao));
+        assert_eq!(adquirir(&oficial).err(), Some(ErroInstancia::JaEmExecucao));
+        drop(guarda_oficial);
+        drop(guarda_isolado);
     }
 
     #[test]

@@ -13,10 +13,17 @@
 //! operacional ou do conteúdo: há uma única falha genérica, [`FalhaCofre::Indisponivel`].
 
 /// Alvo (`TargetName`) da credencial da sessão administrativa. Versionado: um formato futuro usa outro alvo.
-pub const ALVO_SESSAO: &str = "com.mariela.backoffice:sessao:v1";
+/// Fase 22.8.8.7 (M7): vem da identidade do binário (`ambiente.rs`) — o oficial sem a feature, o isolado com ela.
+pub const ALVO_SESSAO: &str = crate::ambiente::ATUAL.alvo_credencial;
 
 /// Campo `UserName` da credencial: fixo e sem dado pessoal (nunca o e-mail ou o nome do usuário do app).
-pub const USUARIO_CREDENCIAL: &str = "mariela-backoffice";
+pub const USUARIO_CREDENCIAL: &str = crate::ambiente::ATUAL.usuario_credencial;
+
+/// Fase 22.8.8.7 (M7) — um cofre do ambiente ISOLADO nunca pode apontar para o alvo OFICIAL (nem por diferença de
+/// maiúsculas, que o Credential Manager ignora). Sem a feature, qualquer alvo é aceito (comportamento da M2).
+pub fn alvo_permitido(isolado: bool, alvo: &str) -> bool {
+    !(isolado && alvo.eq_ignore_ascii_case(crate::ambiente::OFICIAL.alvo_credencial))
+}
 
 /// Limite do Credential Manager para o conteúdo de uma credencial (`CRED_MAX_CREDENTIAL_BLOB_SIZE` = 5 × 512).
 pub const TAMANHO_MAXIMO_CONTEUDO: usize = 2560;
@@ -76,7 +83,14 @@ mod windows_nativo {
 
         /// Alvo arbitrário — usado APENAS pelo teste real `#[ignore]`, com um alvo sintético próprio, para nunca
         /// tocar a credencial de sessão de quem roda o teste.
+        ///
+        /// Fase 22.8.8.7 (M7): no ambiente isolado, o alvo oficial é RECUSADO aqui — o único ponto de construção do
+        /// cofre real; os campos são privados, então nenhuma operação isolada chega ao alvo oficial.
         pub(crate) fn com_alvo(alvo: &str) -> Self {
+            assert!(
+                super::alvo_permitido(crate::ambiente::ISOLADO_ATIVO, alvo),
+                "ambiente isolado: o alvo oficial da sessão é proibido"
+            );
             Self {
                 alvo: utf16_com_nul(alvo),
                 usuario: utf16_com_nul(USUARIO_CREDENCIAL),
@@ -179,6 +193,81 @@ mod windows_nativo {
                 Err(FalhaCofre::Indisponivel)
             }
         }
+    }
+
+    /// Fase 22.8.8.7 (M7) — identidade do cofre real. Nenhum destes testes chama a API do Windows: só constroem o
+    /// cofre (conversão de strings) e inspecionam o alvo; a recusa do alvo oficial acontece ANTES de qualquer FFI.
+    #[cfg(test)]
+    mod testes_identidade {
+        use super::{utf16_com_nul, CofreWindows};
+        use crate::ambiente::{ATUAL, ISOLADO, OFICIAL};
+
+        #[test]
+        fn cofre_da_sessao_usa_o_alvo_e_o_usuario_da_identidade_do_binario() {
+            let cofre = CofreWindows::sessao();
+            assert_eq!(cofre.alvo, utf16_com_nul(ATUAL.alvo_credencial));
+            assert_eq!(cofre.usuario, utf16_com_nul(ATUAL.usuario_credencial));
+            if cfg!(feature = "ambiente-isolado") {
+                assert_eq!(cofre.alvo, utf16_com_nul(ISOLADO.alvo_credencial));
+                assert_ne!(cofre.alvo, utf16_com_nul(OFICIAL.alvo_credencial));
+            } else {
+                assert_eq!(cofre.alvo, utf16_com_nul(OFICIAL.alvo_credencial));
+                assert_eq!(cofre.usuario, utf16_com_nul(OFICIAL.usuario_credencial));
+            }
+        }
+
+        #[cfg(feature = "ambiente-isolado")]
+        #[test]
+        #[should_panic(expected = "alvo oficial da sessão é proibido")]
+        fn cofre_isolado_recusa_o_alvo_oficial() {
+            let _ = CofreWindows::com_alvo(OFICIAL.alvo_credencial);
+        }
+
+        #[cfg(feature = "ambiente-isolado")]
+        #[test]
+        #[should_panic(expected = "alvo oficial da sessão é proibido")]
+        fn cofre_isolado_recusa_o_alvo_oficial_com_outras_maiusculas() {
+            let _ = CofreWindows::com_alvo("COM.MARIELA.BACKOFFICE:SESSAO:V1");
+        }
+    }
+}
+
+/// Fase 22.8.8.7 (M7) — regra pura do alvo permitido, válida nas duas configurações.
+#[cfg(test)]
+mod testes_alvo {
+    use super::{alvo_permitido, ALVO_SESSAO, USUARIO_CREDENCIAL};
+    use crate::ambiente::{ATUAL, ISOLADO, OFICIAL};
+
+    #[test]
+    fn constantes_do_cofre_seguem_a_identidade_do_binario() {
+        assert_eq!(ALVO_SESSAO, ATUAL.alvo_credencial);
+        assert_eq!(USUARIO_CREDENCIAL, ATUAL.usuario_credencial);
+        if !cfg!(feature = "ambiente-isolado") {
+            assert_eq!(ALVO_SESSAO, "com.mariela.backoffice:sessao:v1");
+            assert_eq!(USUARIO_CREDENCIAL, "mariela-backoffice");
+        }
+    }
+
+    #[test]
+    fn isolado_recusa_o_alvo_oficial_em_qualquer_grafia() {
+        for alvo in [
+            OFICIAL.alvo_credencial,
+            "COM.MARIELA.BACKOFFICE:SESSAO:V1",
+            "Com.Mariela.Backoffice:Sessao:V1",
+        ] {
+            assert!(!alvo_permitido(true, alvo), "{alvo}");
+        }
+        assert!(alvo_permitido(true, ISOLADO.alvo_credencial));
+        assert!(alvo_permitido(
+            true,
+            "com.mariela.backoffice:sessao:teste-m2-1-2"
+        ));
+    }
+
+    #[test]
+    fn sem_a_feature_o_comportamento_da_m2_nao_muda() {
+        assert!(alvo_permitido(false, OFICIAL.alvo_credencial));
+        assert!(alvo_permitido(false, ISOLADO.alvo_credencial));
     }
 }
 

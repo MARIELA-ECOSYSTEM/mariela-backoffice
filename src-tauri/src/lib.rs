@@ -6,12 +6,31 @@
 // (`cofre.rs` + `sessao.rs`), exposto por três comandos restritos à janela `main` (`capabilities/sessao.json`).
 // Fase 22.8.8.4 (M4) — o frontend passa a usá-los (`src/services/auth/sessao-nativa.ts`), e o app só inicia como
 // INSTÂNCIA ÚNICA (`instancia.rs`): duas instâncias nunca concorrem pela mesma sessão.
+// Fase 22.8.8.7 (M7) — identidade por ambiente (`ambiente.rs`): oficial por padrão; ISOLADA só com a feature
+// `ambiente-isolado` (desenvolvimento), validada antes de qualquer outra coisa.
+mod ambiente;
 mod cofre;
+mod identidades;
 mod instancia;
 mod sessao;
 
+// Fase 22.8.8.7 (M7) — testes das travas de build (o mesmo código que o `build.rs` executa).
+#[cfg(test)]
+#[path = "../build_ambiente.rs"]
+mod build_ambiente;
+#[cfg(test)]
+mod testes_build_ambiente;
+
 pub fn run() {
-    // Antes de qualquer janela ou comando de sessão. A guarda vive até o fim de `run` (o processo).
+    // 1º — a identidade compilada (configuração efetiva do Tauri) precisa corresponder à deste binário, ANTES do
+    // mutex, de janelas, estados e comandos. Inclui o bloqueio do `tauri dev` comum (debug com identidade oficial).
+    let contexto = tauri::generate_context!();
+    if let Err(erro) = ambiente::validar(contexto.config()) {
+        instancia::avisar_texto(erro.mensagem());
+        return;
+    }
+
+    // 2º — instância única. A guarda vive até o fim de `run` (o processo).
     let _instancia = match instancia::adquirir(instancia::NOME_MUTEX) {
         Ok(guarda) => guarda,
         Err(erro) => {
@@ -28,6 +47,6 @@ pub fn run() {
             sessao::sessao_gravar,
             sessao::sessao_apagar
         ])
-        .run(tauri::generate_context!())
+        .run(contexto)
         .expect("erro ao iniciar a aplicação MARIELA Backoffice");
 }
