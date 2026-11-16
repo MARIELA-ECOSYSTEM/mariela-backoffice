@@ -1,4 +1,5 @@
 import { registerMock } from "./mock-transport";
+import { armazenamentoPadraoMock, criarSessoesMock } from "./auth-sessoes.mock";
 import { ApiError } from "@/types/api";
 import type { ApiFieldError } from "@/types/api";
 import type { LoginRequest, LoginResponse, Usuario } from "@/types/auth";
@@ -21,17 +22,10 @@ const USUARIO_ADMIN: Usuario = {
   tipo: "ADMIN",
   ativo: true,
 };
-const TOKEN = "mock-token";
-/** Só precisa ser reconhecível pelo mock de refresh — nunca validado criptograficamente aqui. */
-const REFRESH_TOKEN = "mock-refresh-token";
-/** 15 min, mesmo padrão do backend real (`JWT_ACCESS_EXPIRES_IN`). */
-const EXPIRES_IN_SEGUNDOS = 15 * 60;
-
-function sessaoMock(): Pick<LoginResponse, "accessToken" | "refreshToken" | "expiresIn"> {
-  return { accessToken: TOKEN, refreshToken: REFRESH_TOKEN, expiresIn: EXPIRES_IN_SEGUNDOS };
-}
-
 export function registerAuthMocks(): void {
+  // Fase 22.8.8.8.2 (M8.2): rotação e recuperação idempotente com o contrato do backend real (`auth-sessoes.mock.ts`).
+  const sessoes = criarSessoesMock(armazenamentoPadraoMock());
+
   registerMock(
     "POST",
     "/auth/login",
@@ -50,7 +44,7 @@ export function registerAuthMocks(): void {
         throw ApiError.unauthorized("Usuário ou senha inválidos.");
       }
 
-      const data: LoginResponse = { ...sessaoMock(), usuario: USUARIO_ADMIN };
+      const data: LoginResponse = { ...sessoes.login(), usuario: USUARIO_ADMIN };
       return { data };
     },
     { requiresAuth: false },
@@ -58,26 +52,29 @@ export function registerAuthMocks(): void {
 
   registerMock("GET", "/auth/me", () => ({ data: USUARIO_ADMIN }));
 
-  /** Sempre "renova" com sucesso enquanto o refresh token for o reconhecido pelo mock — sem rotação real, sem revogação. */
+  /** Rotação do refresh token; repetição da MESMA operação (`Idempotency-Key`) recupera o mesmo sucessor. */
   registerMock(
     "POST",
     "/auth/refresh",
-    ({ body }) => {
-      const payload = (body ?? {}) as Partial<{ refreshToken: string }>;
-      if (payload.refreshToken !== REFRESH_TOKEN) {
-        // Mesmo código do backend real (`ApiException.refreshTokenInvalid`) — o cliente só encerra a sessão com ele.
-        throw new ApiError({
-          statusCode: 401,
-          code: "REFRESH_TOKEN_INVALID",
-          message: "Sessão expirada. Faça login novamente.",
-        });
-      }
-      const data: LoginResponse = { ...sessaoMock(), usuario: USUARIO_ADMIN };
+    ({ body, headers }) => {
+      const payload = (body ?? {}) as Partial<{ refreshToken: unknown }>;
+      const data: LoginResponse = {
+        ...sessoes.refresh(payload.refreshToken, headers),
+        usuario: USUARIO_ADMIN,
+      };
       return { data };
     },
     { requiresAuth: false },
   );
 
   /** Idempotente, como o backend real — nunca falha por token ausente/desconhecido. */
-  registerMock("POST", "/auth/logout", () => ({ data: { ok: true } }), { requiresAuth: false });
+  registerMock(
+    "POST",
+    "/auth/logout",
+    ({ body }) => {
+      sessoes.logout(((body ?? {}) as Partial<{ refreshToken: unknown }>).refreshToken);
+      return { data: { ok: true } };
+    },
+    { requiresAuth: false },
+  );
 }

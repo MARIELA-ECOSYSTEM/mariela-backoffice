@@ -27,6 +27,11 @@ mod cofre;
 #[allow(dead_code)]
 #[path = "../src/identidades.rs"]
 mod identidades;
+// Fase 22.8.8.8.2 (M8.2) — `sessao.rs` usa o injetor no ambiente isolado.
+#[cfg(feature = "ambiente-isolado")]
+#[allow(dead_code)]
+#[path = "../src/injetor_falhas.rs"]
+mod injetor_falhas;
 #[allow(dead_code)]
 #[path = "../src/sessao.rs"]
 mod sessao;

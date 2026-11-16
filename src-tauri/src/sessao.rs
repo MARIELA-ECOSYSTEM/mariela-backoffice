@@ -221,6 +221,13 @@ impl ServicoSessao {
     pub fn nativo() -> Self {
         #[cfg(windows)]
         let cofre: Box<dyn Cofre> = Box::new(crate::cofre::CofreWindows::sessao());
+        // Fase 22.8.8.8.2 (M8.2): SÓ no ambiente isolado, o cofre passa pelo injetor de falhas (controle no diretório
+        // isolado). No build oficial esta linha não existe.
+        #[cfg(all(windows, feature = "ambiente-isolado"))]
+        let cofre: Box<dyn Cofre> = Box::new(crate::injetor_falhas::CofreComFalhas::novo(
+            cofre,
+            crate::injetor_falhas::caminho_controle(),
+        ));
         #[cfg(not(windows))]
         let cofre: Box<dyn Cofre> = Box::new(crate::cofre::CofreIndisponivel);
         Self::com_cofre(cofre)

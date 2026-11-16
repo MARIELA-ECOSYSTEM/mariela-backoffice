@@ -11,6 +11,9 @@
 mod ambiente;
 mod cofre;
 mod identidades;
+// Fase 22.8.8.8.2 (M8.2) — injetor de falhas do cofre: SOMENTE no ambiente isolado (inexistente no build oficial).
+#[cfg(feature = "ambiente-isolado")]
+mod injetor_falhas;
 mod instancia;
 mod sessao;
 

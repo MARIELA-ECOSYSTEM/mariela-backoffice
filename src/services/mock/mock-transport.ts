@@ -6,6 +6,8 @@ export interface MockContext {
   query: QueryParams;
   body: unknown;
   token: string | null;
+  /** Fase 22.8.8.8.2 (M8.2) — cabeçalhos adicionais da requisição (ex.: `Idempotency-Key` da renovação). */
+  headers: Record<string, string>;
 }
 
 export type MockHandler = (
@@ -86,6 +88,7 @@ export async function handleMockRequest<T>(request: ApiRequest): Promise<ApiResp
       query: request.params,
       body: request.body,
       token: request.token,
+      headers: request.headers ?? {},
     });
     return response as ApiResponse<T>;
   }
