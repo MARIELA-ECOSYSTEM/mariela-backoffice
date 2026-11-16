@@ -15,21 +15,17 @@ import { encerrarSessao, registerSessionHandlers } from "@/services/auth/session
 import { restaurarSessao } from "@/services/auth/restaurar-sessao";
 import { estadoArmazenamento } from "@/services/auth/sessao-nativa";
 import { toast } from "sonner";
+import { criarAvisoModoLegado } from "@/hooks/aviso-modo-legado";
 
 /**
- * Fase 22.8.8.4 (M4) — avisa UMA vez por execução quando o app desktop está usando o armazenamento anterior em vez do
- * Windows Credential Manager. Sem detalhes técnicos e sem nenhum dado da sessão.
+ * Fase 22.8.8.4 (M4) — avisa quando o app desktop está usando o armazenamento anterior em vez do Windows Credential
+ * Manager. Sem detalhes técnicos e sem nenhum dado da sessão.
+ * Fase 22.8.8.8.2.2 (M8.2.2) — o aviso considera o MOTIVO (`aviso-modo-legado.ts`): um motivo novo ou um novo ingresso
+ * no modo legado avisa de novo; o mesmo motivo persistente não repete.
  */
-let avisoModoLegadoExibido = false;
+const avisoModoLegado = criarAvisoModoLegado((mensagem, id) => toast.warning(mensagem, { id }));
 function sinalizarModoLegado(): void {
-  const atual = estadoArmazenamento();
-  if (atual?.modo !== "legado" || avisoModoLegadoExibido) return;
-  avisoModoLegadoExibido = true;
-  toast.warning(
-    atual.motivo === "sessoes_divergentes"
-      ? "Foram encontradas duas sessões salvas diferentes. Por segurança, nenhuma foi alterada; a sessão anterior continua em uso."
-      : "O Gerenciador de Credenciais do Windows não está disponível agora. A sessão continua no armazenamento anterior.",
-  );
+  avisoModoLegado.avaliar(estadoArmazenamento());
 }
 import {
   AuthContext,
