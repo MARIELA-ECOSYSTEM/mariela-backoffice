@@ -1,4 +1,4 @@
-import { registerMock } from "./mock-transport";
+import { registerMock, type MockContext } from "./mock-transport";
 import {
   agora,
   clonar,
@@ -320,7 +320,11 @@ export function registerVendasMocks(): void {
    * `integral` cancela a venda inteira; `parcial` devolve apenas os itens
    * informados e mantém a venda ativa.
    */
-  registerMock("POST", "/vendas/:id/cancelamento", ({ params, body }) => {
+  registerMock("POST", "/vendas/:id/cancelamento", (ctx) =>
+    comFalhaSimuladaDeCancelamento(() => cancelarNoMock(ctx)),
+  );
+
+  function cancelarNoMock({ params, body }: MockContext) {
     const venda = encontrar(params["id"]!);
     const payload = (body ?? {}) as Partial<CancelamentoPayload>;
 
@@ -423,6 +427,9 @@ export function registerVendasMocks(): void {
       valorDevolvido,
       itens: devolvidos,
       ...(idempotencyKey ? { idempotencyKey } : {}),
+      // Fase 22.8.9.6 — mesmo contrato do backend desde a Fase 22.6.3: o mock conclui todos os efeitos na mesma
+      // chamada; sem chave, o backend não afirma conclusão.
+      efeitosPosteriores: idempotencyKey ? "concluidos" : "nao_rastreados",
     });
     venda.historico.push({
       id: gerarId("ev"),
@@ -453,5 +460,46 @@ export function registerVendasMocks(): void {
 
     sincronizarResumo(venda);
     return { data: clonar(venda) };
+  }
+}
+
+/**
+ * Fase 22.8.9.6 — simulação de falhas do POST de cancelamento/devolução, SÓ na Mock API (desenvolvimento e ambiente
+ * isolado; o build de produção recusa a Mock API). Vale para UMA requisição e é consumida ao ser usada:
+ *   `localStorage["mariela.mock.proximoCancelamento"]` =
+ *     - `falha-503`             — nada é registrado; responde 503 (resultado incerto, como um gateway);
+ *     - `registrar-e-falha-503` — registra o evento e responde 503 (o histórico confirma depois);
+ *     - `travar`                — nada é registrado; a requisição nunca responde;
+ *     - `registrar-e-travar`    — registra o evento; a requisição nunca responde.
+ * Qualquer outro valor é ignorado (e removido).
+ */
+export const CHAVE_PROXIMO_CANCELAMENTO = "mariela.mock.proximoCancelamento";
+
+function lerFalhaSimulada(): string | null {
+  try {
+    if (typeof window === "undefined") return null;
+    const valor = window.localStorage.getItem(CHAVE_PROXIMO_CANCELAMENTO);
+    if (valor !== null) window.localStorage.removeItem(CHAVE_PROXIMO_CANCELAMENTO);
+    return valor;
+  } catch {
+    return null;
+  }
+}
+
+const erro503 = () =>
+  new ApiError({
+    statusCode: 503,
+    code: "HTTP_ERROR",
+    message: "Serviço temporariamente indisponível (simulado).",
   });
+const nuncaResponde = () => new Promise<never>(() => undefined);
+
+async function comFalhaSimuladaDeCancelamento<T>(executar: () => T): Promise<T> {
+  const falha = lerFalhaSimulada();
+  if (falha === "falha-503") throw erro503();
+  if (falha === "travar") return nuncaResponde();
+  const resultado = executar();
+  if (falha === "registrar-e-falha-503") throw erro503();
+  if (falha === "registrar-e-travar") return nuncaResponde();
+  return resultado;
 }

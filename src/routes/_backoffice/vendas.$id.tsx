@@ -152,6 +152,10 @@ function ResumoLinha({
 const MENSAGEM_SESSAO_ENCERRADA =
   "A sessão foi encerrada antes do envio: a operação não foi enviada. Entre novamente e confira o histórico da venda antes de continuar.";
 
+/** Fase 22.8.9.6 — fail-closed: o registro durável não foi confirmado, então a operação não foi enviada. */
+const MENSAGEM_FALHA_PERSISTENCIA =
+  "Não foi possível guardar a proteção desta operação neste computador. Por segurança, ela NÃO foi enviada. Tente novamente; se o problema continuar, confira o histórico da venda antes de qualquer outra tentativa.";
+
 function avisoIncerta(
   operacao: OperacaoCancelamento,
   persistida: boolean,
@@ -565,7 +569,7 @@ function VendaDetalhePage() {
     }
     // Fase 22.6.1 (A3) — a operação é gravada ANTES do envio (`em_andamento`; uma já incerta continua `incerta`):
     // um reload, fechamento ou queda do aplicativo durante a requisição não perde a chave. Fase 22.8.9.5 — a gravação
-    // é durável e conferida; se não der para gravar, a proteção fica só em memória e o operador é avisado.
+    // é durável e conferida. Fase 22.8.9.6 — se ela não for confirmada, a operação NÃO é enviada (fail-closed).
     const operacao: OperacaoCancelamento = {
       ...decisao.operacao,
       incertaDesde: decisao.operacao.incertaDesde ?? new Date().toISOString(),
@@ -581,13 +585,15 @@ function VendaDetalhePage() {
       );
       return;
     }
-    operacaoCancelamentoRef.current = operacao;
-    persistidaRef.current = gravacao.ok;
     if (!gravacao.ok) {
-      toast.warning(
-        "Não foi possível guardar a proteção desta operação neste computador: se a página for recarregada ou o aplicativo for fechado durante o envio, a identificação da operação se perde.",
-      );
+      // Fase 22.8.9.6 — FAIL-CLOSED: sem o registro durável confirmado (gravado e relido), nada é enviado. A memória
+      // e qualquer registro anterior ficam como estavam (uma operação incerta continua com a MESMA chave); o diálogo
+      // continua aberto para uma nova tentativa, que tenta gravar de novo.
+      toast.error(MENSAGEM_FALHA_PERSISTENCIA);
+      return;
     }
+    operacaoCancelamentoRef.current = operacao;
+    persistidaRef.current = true;
     if (!sessaoVigente()) {
       // A sessão terminou enquanto o registro era gravado: nada é enviado; a operação continua guardada como
       // pendente (pode ser conferida e reenviada, ou descartada, depois de entrar de novo).

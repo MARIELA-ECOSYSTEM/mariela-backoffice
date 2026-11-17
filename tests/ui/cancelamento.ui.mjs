@@ -58,8 +58,9 @@ const MSG_PROTEGIDA_APOS_ERRO =
   "A operação não aparece no histórico da venda e continua protegida: reenviar exatamente a mesma operação é seguro.";
 const MSG_AVISO_INTERROMPIDA =
   "A página foi recarregada ou o aplicativo foi fechado enquanto ela era enviada";
-const MSG_SEM_PERSISTENCIA_ENVIO =
-  "Não foi possível guardar a proteção desta operação neste computador";
+// Fase 22.8.9.6 — fail-closed: sem registro durável confirmado, nada é enviado.
+const MSG_FALHA_PERSISTENCIA =
+  "Não foi possível guardar a proteção desta operação neste computador. Por segurança, ela NÃO foi enviada.";
 // Fase 22.8.9.5
 const MSG_SESSAO_ENCERRADA = "A sessão foi encerrada antes do envio: a operação não foi enviada.";
 const MSG_CONFLITO_DURAVEL = "Há outra operação desta venda registrada neste computador";
@@ -1271,57 +1272,98 @@ describe("6.9 descarte em duas etapas", () => {
 
 // ─── 6.10 ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-describe("6.10 armazenamento indisponível", () => {
-  test(
-    "tela íntegra; aviso de limitação; proteção em memória ativa; não promete sobreviver a reload",
-    { timeout: 120_000 },
-    async () => {
-      const s = await novaSessao({ armazenamentoQueFalha: true });
-      await s.abrirVenda(VENDA_A);
-      assert.equal(await s.pagina.getByText(MSG_AVISO_INCERTA).count(), 0);
+describe("6.10 armazenamento indisponível — fail-closed (Fase 22.8.9.6)", () => {
+  test("armazenamento durável inacessível: tela íntegra; NADA é enviado; mensagem clara; nova tentativa também não envia", async () => {
+    const s = await novaSessao({ armazenamentoQueFalha: true });
+    await s.abrirVenda(VENDA_A);
+    assert.equal(await s.pagina.getByText(MSG_AVISO_INCERTA).count(), 0);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, MSG_FALHA_PERSISTENCIA);
+    await semNovasRequisicoes(s.backend, 0, 1_000);
+    // O diálogo continua aberto, sem afirmar envio nem conclusão; a nova tentativa grava de novo (e falha de novo).
+    await dialogo(s.pagina).waitFor();
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await semNovasRequisicoes(s.backend, 0, 1_000);
+    assert.equal(await s.pagina.getByText("Devolução parcial registrada.").count(), 0);
+    assert.equal(await s.pagina.getByText(MSG_AVISO_INCERTA).count(), 0);
+    assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 0);
+    await s.encerrar();
+  });
 
-      await abrirDialogo(s.pagina);
-      await preencher(s.pagina, OP_PARCIAL_ITEM1);
-      s.backend.comportamentos.push({ tipo: "gateway", status: 503 });
-      await enviar(s.pagina, OP_PARCIAL_ITEM1);
-      // Fase 22.6.1 — já ANTES do envio o operador é avisado de que a proteção não sobrevive a reload.
-      await esperarTexto(s.pagina, MSG_SEM_PERSISTENCIA_ENVIO);
-      await esperarTexto(s.pagina, MSG_INCERTA);
-      await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
-      await esperarTexto(
-        s.pagina,
-        `${MSG_SEM_PERSISTENCIA}: ela se perde se você recarregar a página ou fechar o aplicativo.`,
-      );
-      const chave = s.backend.posts[0].corpo.idempotencyKey;
+  test("falha de gravação com operação incerta anterior: não envia, preserva o registro; nova tentativa (armazenamento de volta) usa a MESMA chave", async () => {
+    const reg = registroDuravel(VENDA_A, OP_PARCIAL_ITEM1);
+    const s = await novaSessao({ duravel: { [PREFIXO_DURAVEL + VENDA_A]: reg } });
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    // Gravações no armazenamento durável passam a falhar (leitura continua normal).
+    await s.pagina.evaluate((prefixo) => {
+      const original = Storage.prototype.setItem;
+      window.__restaurarSetItem = () => (Storage.prototype.setItem = original);
+      Storage.prototype.setItem = function (chave, valor) {
+        if (this === window.localStorage && String(chave).startsWith(prefixo)) {
+          throw new DOMException("cheio (teste)", "QuotaExceededError");
+        }
+        return original.call(this, chave, valor);
+      };
+    }, PREFIXO_BASE_DURAVEL);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, MSG_FALHA_PERSISTENCIA);
+    await semNovasRequisicoes(s.backend, 0, 1_000);
+    assert.equal(
+      (await s.armazenamentos(VENDA_A)).duravel,
+      reg,
+      "o registro anterior foi alterado",
+    );
 
-      // Proteção em memória: operação diferente bloqueada; a mesma reusa a chave (registra uma única vez).
-      await abrirDialogo(s.pagina);
-      await preencher(s.pagina, OP_PARCIAL_ITEM2);
-      await enviar(s.pagina, OP_PARCIAL_ITEM2);
-      await esperarTexto(s.pagina, MSG_BLOQUEIO);
-      await s.pagina.keyboard.press("Escape");
-      await dialogo(s.pagina).waitFor({ state: "detached" });
-      await abrirDialogo(s.pagina);
-      await preencher(s.pagina, OP_PARCIAL_ITEM1);
-      await enviar(s.pagina, OP_PARCIAL_ITEM1);
-      await esperarTexto(s.pagina, "Devolução parcial registrada.");
-      assert.equal(s.backend.posts.length, 2);
-      assert.equal(s.backend.posts[1].corpo.idempotencyKey, chave);
-      assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
+    // Armazenamento de volta: a nova tentativa grava, envia com a chave ORIGINAL e conclui uma única vez.
+    await s.pagina.evaluate(() => window.__restaurarSetItem());
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, "Devolução parcial registrada.");
+    assert.equal(s.backend.posts.length, 1);
+    assert.equal(s.backend.posts[0].corpo.idempotencyKey, CHAVE_ORIGINAL);
+    assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    await s.encerrar();
+  });
 
-      // Nova incerteza + reload: a proteção NÃO sobrevive (limitação declarada) e a tela não afirma o contrário.
-      await abrirDialogo(s.pagina);
-      await preencher(s.pagina, OP_PARCIAL_ITEM2);
-      s.backend.comportamentos.push({ tipo: "abortar" });
-      await enviar(s.pagina, OP_PARCIAL_ITEM2);
-      await esperarTexto(s.pagina, MSG_SEM_PERSISTENCIA);
-      await s.recarregar();
-      await semNovasRequisicoes(s.backend, 3, 1_000);
-      assert.equal(await s.pagina.getByText(MSG_AVISO_INCERTA).count(), 0);
-      assert.equal(await s.pagina.getByText(MSG_AVISO_INVALIDA).count(), 0);
-      await s.encerrar();
-    },
-  );
+  test("falha só DEPOIS do envio (ao marcar como incerta): aviso de não guardada; o registro 'em_andamento' (mesma chave) sobrevive ao reload", async () => {
+    const s = await novaSessao();
+    await s.abrirVenda(VENDA_A);
+    // Só a gravação do estado `incerta` falha; a de `em_andamento` (antes do envio) funciona.
+    await s.pagina.evaluate((prefixo) => {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (chave, valor) {
+        if (
+          this === window.localStorage &&
+          String(chave).startsWith(prefixo) &&
+          String(valor).includes('"estado":"incerta"')
+        ) {
+          throw new DOMException("cheio (teste)", "QuotaExceededError");
+        }
+        return original.call(this, chave, valor);
+      };
+    }, PREFIXO_BASE_DURAVEL);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    s.backend.comportamentos.push({ tipo: "gateway", status: 503 });
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, MSG_INCERTA);
+    await esperarTexto(
+      s.pagina,
+      `${MSG_SEM_PERSISTENCIA}: ela se perde se você recarregar a página ou fechar o aplicativo.`,
+    );
+    const chave = s.backend.posts[0].corpo.idempotencyKey;
+    assert.equal((await s.registroJson(VENDA_A)).estado, "em_andamento");
+    await s.recarregar();
+    await esperarTexto(s.pagina, MSG_AVISO_INTERROMPIDA);
+    assert.equal((await s.registroJson(VENDA_A)).chave, chave);
+    await semNovasRequisicoes(s.backend, 1, 1_000);
+    await s.encerrar();
+  });
 });
 
 // ─── Fase 22.6.1 — reconciliação pela chave, persistência antes do envio, restauração da operação ─────────────────
