@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-operacao-gravar"
+description = "Enables the operacao_gravar command without any pre-configured scope."
+commands.allow = ["operacao_gravar"]
+
+[[permission]]
+identifier = "deny-operacao-gravar"
+description = "Denies the operacao_gravar command without any pre-configured scope."
+commands.deny = ["operacao_gravar"]

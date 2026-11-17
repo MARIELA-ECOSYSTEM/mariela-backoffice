@@ -9,6 +9,10 @@ import type { CancelamentoPayload } from "@/types/venda";
  * fica FIXADA e é persistida em `sessionStorage` (por venda), para sobreviver a reload na mesma aba. Ela só sai desse
  * estado por sucesso confirmado (inclusive replay) ou por descarte explícito do operador.
  *
+ * Fase 22.8.9.5 — o registro DURÁVEL (desktop: arquivo gravado pelo Rust; navegador: `localStorage`) fica em
+ * `services/operacoes/registro-operacoes.ts`. A persistência em `sessionStorage` abaixo (v2/v1) passou a ser LEGADO:
+ * só é lida para migrar registros antigos para o armazenamento durável (e removida depois de migrada e conferida).
+ *
  * Fase 22.6.1 — (i) a operação é gravada como `em_andamento` ANTES do envio (reload durante a requisição não perde a
  * chave); (ii) após QUALQUER falha, a venda relida é reconciliada pela chave EXATA (`reconciliarPelaChave`): o
  * backend pode gravar o evento e ainda responder erro; (iii) o estado do estoque mostrado é o da OPERAÇÃO
@@ -161,7 +165,7 @@ export function marcarIncerta(operacao: OperacaoCancelamento, agora: Date): Oper
   };
 }
 
-// ─── Persistência (sessionStorage) ─────────────────────────────────────────────────────────────────────────────────
+// ─── Persistência LEGADA (sessionStorage; Fase 22.8.9.5: só leitura para migração e remoção) ─────────────────────────────────────────────────────────────────────────────────
 
 /**
  * Namespace + versão do formato. Mudar o formato ⇒ subir a versão.

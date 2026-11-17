@@ -15,7 +15,12 @@ mod identidades;
 #[cfg(feature = "ambiente-isolado")]
 mod injetor_falhas;
 mod instancia;
+// Fase 22.8.9.5 — registro DURÁVEL das operações incertas de cancelamento/devolução (dados operacionais, separados da
+// sessão; `capabilities/operacoes.json`).
+mod operacoes;
 mod sessao;
+
+use tauri::Manager;
 
 // Fase 22.8.8.7 (M7) — testes das travas de build (o mesmo código que o `build.rs` executa).
 #[cfg(test)]
@@ -45,10 +50,23 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(sessao::ServicoSessao::nativo())
+        // Fase 22.8.9.5 — o diretório vem do `identifier` da configuração compilada; só vale se for o da identidade
+        // deste binário (`operacoes::diretorio_para`). Sem ele, os comandos respondem `INDISPONIVEL`.
+        .setup(|app| {
+            let dados = app.path().app_local_data_dir().ok();
+            app.manage(operacoes::ServicoOperacoes::novo(
+                dados,
+                ambiente::ATUAL.identifier,
+            ));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             sessao::sessao_carregar,
             sessao::sessao_gravar,
-            sessao::sessao_apagar
+            sessao::sessao_apagar,
+            operacoes::operacao_ler,
+            operacoes::operacao_gravar,
+            operacoes::operacao_remover
         ])
         .run(contexto)
         .expect("erro ao iniciar a aplicação MARIELA Backoffice");

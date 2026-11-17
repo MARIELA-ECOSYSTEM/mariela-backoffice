@@ -30,9 +30,9 @@ export type AvisoOperacaoCancelamento =
       estado: "incerta";
       assinatura: string;
       incertaDesde: string | null;
-      /** `false` se o registro não pôde ser gravado no `sessionStorage` (proteção só até sair/recarregar). */
+      /** Fase 22.8.9.5 — `false` se o registro não está no armazenamento DURÁVEL (proteção só até recarregar/fechar). */
       persistida: boolean;
-      /** Fase 22.6.1 — recuperada de um envio interrompido (reload/fechamento durante a requisição). */
+      /** Fase 22.6.1 — recuperada de um envio interrompido (reload, fechamento ou queda do app durante a requisição). */
       interrompida?: boolean;
       /** Fase 22.6.3 — o evento com a chave foi encontrado, mas sem o indicador de conclusão dos efeitos. */
       semIndicador?: boolean;
@@ -114,8 +114,8 @@ export function AvisoOperacaoIncerta({
           ) : null}
           {aviso.persistida ? null : (
             <p className="text-warning">
-              Não foi possível guardar esta proteção no navegador: ela se perde se você recarregar
-              ou sair desta página.
+              Não foi possível guardar esta proteção neste computador: ela se perde se você
+              recarregar a página ou fechar o aplicativo.
             </p>
           )}
         </>
@@ -125,7 +125,7 @@ export function AvisoOperacaoIncerta({
             <strong>Há uma operação anterior cuja confirmação não foi obtida</strong>
             {aviso.incertaDesde ? ` (tentativa de ${formatarDataHora(aviso.incertaDesde)})` : ""}.
             {aviso.interrompida
-              ? " A página foi recarregada ou fechada enquanto ela era enviada — ela pode ter sido registrada."
+              ? " A página foi recarregada ou o aplicativo foi fechado enquanto ela era enviada — ela pode ter sido registrada."
               : ""}
             {aviso.semIndicador
               ? " Ela aparece no histórico da venda, mas não foi possível confirmar se o processamento dela terminou."
@@ -141,8 +141,8 @@ export function AvisoOperacaoIncerta({
           </p>
           {aviso.persistida ? null : (
             <p className="text-warning">
-              Não foi possível guardar esta proteção no navegador: ela se perde se você recarregar
-              ou sair desta página.
+              Não foi possível guardar esta proteção neste computador: ela se perde se você
+              recarregar a página ou fechar o aplicativo.
             </p>
           )}
         </>

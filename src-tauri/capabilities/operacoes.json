@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "operacoes-pendentes",
+  "description": "Fase 22.8.9.5: somente a janela principal pode ler, gravar e remover o registro durável das operações incertas de cancelamento/devolução. O diretório é fixo no Rust (dados do app da identidade vigente).",
+  "windows": ["main"],
+  "permissions": ["allow-operacao-ler", "allow-operacao-gravar", "allow-operacao-remover"]
+}

@@ -35,8 +35,13 @@ mod injetor_falhas;
 #[allow(dead_code)]
 #[path = "../src/sessao.rs"]
 mod sessao;
+// Fase 22.8.9.5 — registro durável das operações incertas (mesmo código dos comandos reais, pelo caminho).
+#[allow(dead_code)]
+#[path = "../src/operacoes.rs"]
+mod operacoes;
 
 use cofre::{Cofre, FalhaCofre};
+use operacoes::ServicoOperacoes;
 use serde_json::{json, Value};
 use sessao::{testes_comuns::conteudo_valido, ServicoSessao};
 use std::sync::Mutex;
@@ -51,6 +56,25 @@ const PERMISSOES: [&str; 3] = [
     "allow-sessao-gravar",
     "allow-sessao-apagar",
 ];
+
+/// Fase 22.8.9.5 — comandos e permissões do registro durável das operações incertas.
+const COMANDOS_OPERACOES: [&str; 3] = ["operacao_ler", "operacao_gravar", "operacao_remover"];
+const PERMISSOES_OPERACOES: [&str; 3] = [
+    "allow-operacao-ler",
+    "allow-operacao-gravar",
+    "allow-operacao-remover",
+];
+const VENDA_TESTE: &str = "venda-acl-teste";
+const CHAVE_TESTE: &str = "33333333-3333-4333-8333-333333333333";
+
+fn registro_teste() -> String {
+    json!({
+        "versao": 3, "vendaId": VENDA_TESTE, "chave": CHAVE_TESTE,
+        "assinatura": "{\"tipo\":\"integral\",\"itens\":[]}",
+        "iniciadaEm": "2026-11-16T12:00:00.000Z", "gravadaEm": "2026-11-16T12:00:00.000Z", "estado": "incerta",
+    })
+    .to_string()
+}
 
 /// Origem do conteúdo local empacotado no Windows (a mesma que o Tauri usa para `'self'`).
 const URL_LOCAL: &str = "http://tauri.localhost/";
@@ -90,14 +114,34 @@ fn diretorio_de_dados_de_teste() -> std::path::PathBuf {
 fn app() -> App<MockRuntime> {
     let mut contexto = contexto_real();
     contexto.config_mut().app.windows.clear();
+    // Fase 22.8.9.5 — diretório de dados de TESTE, único por app (dentro de `target`), com o nome da identidade
+    // vigente: o serviço exige que o diretório termine no `identifier`. Nunca o `%LOCALAPPDATA%` real.
+    let unico = format!(
+        "acl-operacoes-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    );
+    let dados = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(unico)
+        .join(ambiente::ATUAL.identifier);
     mock_builder()
         .manage(ServicoSessao::com_cofre(Box::new(CofreMemoria(
             Mutex::new(None),
         ))))
+        .manage(ServicoOperacoes::novo(
+            Some(dados),
+            ambiente::ATUAL.identifier,
+        ))
         .invoke_handler(tauri::generate_handler![
             sessao::sessao_carregar,
             sessao::sessao_gravar,
-            sessao::sessao_apagar
+            sessao::sessao_apagar,
+            operacoes::operacao_ler,
+            operacoes::operacao_gravar,
+            operacoes::operacao_remover
         ])
         .build(contexto)
         .expect("app de teste")
@@ -137,6 +181,9 @@ fn corpo(comando: &str, seq: u64) -> Value {
     match comando {
         "sessao_gravar" => json!({ "conteudo": conteudo_valido(), "seq": seq }),
         "sessao_apagar" => json!({ "seq": seq }),
+        "operacao_ler" => json!({ "vendaId": VENDA_TESTE }),
+        "operacao_gravar" => json!({ "vendaId": VENDA_TESTE, "conteudo": registro_teste() }),
+        "operacao_remover" => json!({ "vendaId": VENDA_TESTE, "chave": CHAVE_TESTE }),
         _ => json!({}),
     }
 }
@@ -154,6 +201,8 @@ fn assert_recusado_pela_acl(resultado: Result<Value, Value>, contexto: &str) {
         "FORMATO_INVALIDO",
         "GRAVACAO_OBSOLETA",
         "TAMANHO_EXCEDIDO",
+        "INDISPONIVEL",
+        "CONFLITO",
     ] {
         assert!(!texto.contains(codigo), "{contexto}: o comando executou");
     }
@@ -205,6 +254,54 @@ fn conteudo_remoto_na_janela_main_nao_executa_nenhum_comando_de_sessao() {
     assert_eq!(estado, json!({ "conteudo": null, "seq": 0 }));
 }
 
+// Fase 22.8.9.5 — os três comandos do registro durável: só a janela `main`, só conteúdo local.
+#[test]
+fn janela_main_com_conteudo_local_executa_os_comandos_de_operacoes() {
+    let app = app();
+    let main = janela(&app, "main");
+    let vazio = invocar(&main, "operacao_ler", URL_LOCAL, corpo("operacao_ler", 0)).expect("ler");
+    assert_eq!(vazio, Value::Null);
+    invocar(
+        &main,
+        "operacao_gravar",
+        URL_LOCAL,
+        corpo("operacao_gravar", 0),
+    )
+    .expect("gravar");
+    let lido = invocar(&main, "operacao_ler", URL_LOCAL, corpo("operacao_ler", 0)).expect("ler");
+    assert_eq!(lido, json!(registro_teste()));
+    invocar(
+        &main,
+        "operacao_remover",
+        URL_LOCAL,
+        corpo("operacao_remover", 0),
+    )
+    .expect("remover");
+    let removido =
+        invocar(&main, "operacao_ler", URL_LOCAL, corpo("operacao_ler", 0)).expect("ler");
+    assert_eq!(removido, Value::Null);
+}
+
+#[test]
+fn outra_janela_e_conteudo_remoto_nao_executam_comandos_de_operacoes() {
+    let app = app();
+    let main = janela(&app, "main");
+    let intrusa = janela(&app, "intrusa");
+    for comando in COMANDOS_OPERACOES {
+        assert_recusado_pela_acl(
+            invocar(&intrusa, comando, URL_LOCAL, corpo(comando, 0)),
+            &format!("janela 'intrusa' → {comando}"),
+        );
+        assert_recusado_pela_acl(
+            invocar(&main, comando, URL_REMOTA, corpo(comando, 0)),
+            &format!("origem remota → {comando}"),
+        );
+    }
+    // Nada foi gravado.
+    let estado = invocar(&main, "operacao_ler", URL_LOCAL, corpo("operacao_ler", 0)).expect("ler");
+    assert_eq!(estado, Value::Null);
+}
+
 // ─── Configuração ────────────────────────────────────────────────────────────────────────────────────────────────
 
 fn json_do_projeto(caminho: &str) -> Value {
@@ -229,7 +326,13 @@ fn identificadores(capability: &Value) -> Vec<String> {
 #[test]
 fn capabilities_concedem_a_sessao_so_a_janela_main_e_so_localmente() {
     let mut com_sessao = Vec::new();
-    for arquivo in ["default.json", "desktop.json", "sessao.json"] {
+    let mut com_operacoes = Vec::new();
+    for arquivo in [
+        "default.json",
+        "desktop.json",
+        "sessao.json",
+        "operacoes.json",
+    ] {
         let cap = json_do_projeto(&format!("capabilities/{arquivo}"));
         // Nenhuma capability usa curinga de janela/webview nem libera conteúdo remoto.
         assert_eq!(cap["windows"], json!(["main"]), "{arquivo}: janelas");
@@ -240,19 +343,31 @@ fn capabilities_concedem_a_sessao_so_a_janela_main_e_so_localmente() {
             com_sessao.push(arquivo);
             assert_eq!(ids, PERMISSOES, "{arquivo}: exatamente as três permissões");
         }
+        if ids.iter().any(|id| id.contains("operacao")) {
+            com_operacoes.push(arquivo);
+            assert_eq!(
+                ids, PERMISSOES_OPERACOES,
+                "{arquivo}: exatamente as três permissões"
+            );
+        }
     }
     assert_eq!(com_sessao, ["sessao.json"]);
+    assert_eq!(com_operacoes, ["operacoes.json"]);
 
     // O que o build embute (capabilities resolvidas pelo tauri-build) é o mesmo conjunto.
     let geradas = json_do_projeto("gen/schemas/capabilities.json");
     let geradas = geradas.as_object().unwrap();
-    assert_eq!(geradas.len(), 3);
+    assert_eq!(geradas.len(), 4);
     for (id, cap) in geradas {
         assert_eq!(cap["windows"], json!(["main"]), "{id}");
         assert_eq!(cap["local"], json!(true), "{id}");
         assert!(cap.get("remote").is_none(), "{id}");
     }
     assert_eq!(identificadores(&geradas["sessao-nativa"]), PERMISSOES);
+    assert_eq!(
+        identificadores(&geradas["operacoes-pendentes"]),
+        PERMISSOES_OPERACOES
+    );
 }
 
 #[test]
@@ -263,7 +378,11 @@ fn manifesto_do_app_nao_tem_permissao_padrao_e_mapeia_um_comando_por_permissao()
         app["default_permission"].is_null(),
         "nenhuma concessão implícita"
     );
-    for (permissao, comando) in PERMISSOES.iter().zip(COMANDOS) {
+    for (permissao, comando) in PERMISSOES
+        .iter()
+        .chain(PERMISSOES_OPERACOES.iter())
+        .zip(COMANDOS.iter().chain(COMANDOS_OPERACOES.iter()))
+    {
         let p = &app["permissions"][*permissao]["commands"];
         assert_eq!(p["allow"], json!([comando]), "{permissao}");
         assert_eq!(p["deny"], json!([]), "{permissao}");

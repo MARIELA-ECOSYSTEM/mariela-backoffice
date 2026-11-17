@@ -33,6 +33,12 @@ const API = `${BASE}${PREFIXO_API_FICTICIA}/api/v1`;
 const PREFIXO_BASE_REGISTRO = "mariela.backoffice.cancelamento-incerto.";
 const PREFIXO_REGISTRO = `${PREFIXO_BASE_REGISTRO}v1.`;
 const PREFIXO_REGISTRO_V2 = `${PREFIXO_BASE_REGISTRO}v2.`;
+/**
+ * Fase 22.8.9.5 — registro DURÁVEL (v3). No navegador fica no `localStorage` (no desktop, num arquivo gravado pelo Rust).
+ * Os registros do `sessionStorage` acima passaram a ser LEGADO: são migrados para o durável ao abrir a venda.
+ */
+const PREFIXO_BASE_DURAVEL = "mariela.backoffice.operacoes-pendentes.";
+const PREFIXO_DURAVEL = `${PREFIXO_BASE_DURAVEL}v3.`;
 const SHOT_DIR = process.env.SHOT_DIR ?? null;
 
 const VENDA_A = "venda-ficticia-a";
@@ -43,16 +49,20 @@ const MSG_INCERTA = "Não foi possível confirmar se a operação foi registrada
 const MSG_AVISO_INCERTA = "Há uma operação anterior cuja confirmação não foi obtida";
 const MSG_AVISO_INVALIDA = "Foi encontrado um registro de operação anterior sem confirmação";
 const MSG_BLOQUEIO = "Há uma operação anterior desta venda sem confirmação";
-const MSG_SEM_PERSISTENCIA = "Não foi possível guardar esta proteção no navegador";
+const MSG_SEM_PERSISTENCIA = "Não foi possível guardar esta proteção neste computador";
 // Fase 22.6.1
 const MSG_CONFIRMADA_APOS_ERRO =
   "confirmada pelo histórico da venda, embora a resposta do servidor tenha indicado erro";
 const MSG_CONFIRMADA_PENDENTE = "A operação pendente foi confirmada pelo histórico da venda";
 const MSG_PROTEGIDA_APOS_ERRO =
   "A operação não aparece no histórico da venda e continua protegida: reenviar exatamente a mesma operação é seguro.";
-const MSG_AVISO_INTERROMPIDA = "A página foi recarregada ou fechada enquanto ela era enviada";
+const MSG_AVISO_INTERROMPIDA =
+  "A página foi recarregada ou o aplicativo foi fechado enquanto ela era enviada";
 const MSG_SEM_PERSISTENCIA_ENVIO =
-  "Não foi possível guardar a proteção desta operação no navegador";
+  "Não foi possível guardar a proteção desta operação neste computador";
+// Fase 22.8.9.5
+const MSG_SESSAO_ENCERRADA = "A sessão foi encerrada antes do envio: a operação não foi enviada.";
+const MSG_CONFLITO_DURAVEL = "Há outra operação desta venda registrada neste computador";
 
 // ─── Utilitários ───────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -82,6 +92,45 @@ const OP_PARCIAL_ITEM1 = { tipo: "parcial", itens: [{ itemId: "item-1", quantida
 const OP_PARCIAL_ITEM2 = { tipo: "parcial", itens: [{ itemId: "item-2", quantidade: 1 }] };
 const OP_PARCIAL_ITEM1_Q2 = { tipo: "parcial", itens: [{ itemId: "item-1", quantidade: 2 }] };
 const OP_INTEGRAL = { tipo: "integral" };
+
+/**
+ * Fase 22.8.9.5 — a ESSÊNCIA de um registro (venda, chave e assinatura), igual para o legado (v1/v2) e o durável (v3):
+ * a migração muda o formato, nunca a operação. Registro ilegível ⇒ o próprio texto bruto.
+ */
+function essencia(bruto) {
+  if (bruto === null || bruto === undefined) return bruto ?? null;
+  try {
+    const { vendaId, chave, assinatura } = JSON.parse(bruto);
+    if (
+      typeof vendaId === "string" &&
+      typeof chave === "string" &&
+      typeof assinatura === "string"
+    ) {
+      return JSON.stringify({ vendaId, chave, assinatura });
+    }
+  } catch {
+    // ilegível
+  }
+  return bruto;
+}
+
+/** Registro durável v3 válido (para semear o `localStorage`, como se gravado numa abertura anterior do app). */
+function registroDuravel(
+  vendaId,
+  operacao = OP_PARCIAL_ITEM1,
+  chave = CHAVE_ORIGINAL,
+  estado = "incerta",
+) {
+  return JSON.stringify({
+    versao: 3,
+    vendaId,
+    chave,
+    assinatura: assinaturaDe(operacao),
+    iniciadaEm: "2026-11-12T15:30:00.000Z",
+    gravadaEm: "2026-11-12T15:30:00.000Z",
+    estado,
+  });
+}
 
 function registroValido(vendaId, operacao = OP_PARCIAL_ITEM1, chave = CHAVE_ORIGINAL) {
   return JSON.stringify({
@@ -599,6 +648,7 @@ after(async () => {
 async function novaSessao({
   viewport,
   sessionStorage: registros = {},
+  duravel: registrosDuraveis = {},
   armazenamentoQueFalha = false,
   refreshToken = null,
 } = {}) {
@@ -619,38 +669,50 @@ async function novaSessao({
     (route) => backend.atender(route),
   );
   if (armazenamentoQueFalha) {
-    // sessionStorage inacessível SOMENTE para os registros de operação incerta (o resto do app segue normal).
-    await contexto.addInitScript((prefixo) => {
-      for (const metodo of ["getItem", "setItem", "removeItem"]) {
-        const original = Storage.prototype[metodo];
-        Storage.prototype[metodo] = function (chave, ...resto) {
-          if (this === window.sessionStorage && String(chave).startsWith(prefixo)) {
-            throw new DOMException("bloqueado (teste)", "SecurityError");
-          }
-          return original.call(this, chave, ...resto);
-        };
-      }
-    }, PREFIXO_BASE_REGISTRO);
+    // Armazenamento inacessível SOMENTE para os registros de operação incerta — o legado (sessionStorage) e, desde a
+    // Fase 22.8.9.5, o durável (localStorage no navegador). O resto do app (inclusive a sessão) segue normal.
+    await contexto.addInitScript(
+      ([legado, duravel]) => {
+        for (const metodo of ["getItem", "setItem", "removeItem"]) {
+          const original = Storage.prototype[metodo];
+          Storage.prototype[metodo] = function (chave, ...resto) {
+            const k = String(chave);
+            if (
+              (this === window.sessionStorage && k.startsWith(legado)) ||
+              (this === window.localStorage && k.startsWith(duravel))
+            ) {
+              throw new DOMException("bloqueado (teste)", "SecurityError");
+            }
+            return original.call(this, chave, ...resto);
+          };
+        }
+      },
+      [PREFIXO_BASE_REGISTRO, PREFIXO_BASE_DURAVEL],
+    );
   }
-  const pagina = await contexto.newPage();
+  let pagina = await contexto.newPage();
   const errosDePagina = [];
   pagina.on("pageerror", (e) => errosDePagina.push(String(e)));
 
   // Prepara a origem: sessão fictícia (token) e, se pedido, registros no sessionStorage — antes de abrir o app.
   await pagina.goto(`${BASE}${PREFIXO_API_FICTICIA}/preparar`);
   await pagina.evaluate(
-    ({ registros, refreshToken }) => {
+    ({ registros, registrosDuraveis, refreshToken }) => {
       localStorage.setItem("mariela.accessToken", "token-ficticio-de-teste");
       if (refreshToken) localStorage.setItem("mariela.refreshToken", refreshToken);
       for (const [chave, valor] of Object.entries(registros)) sessionStorage.setItem(chave, valor);
+      for (const [chave, valor] of Object.entries(registrosDuraveis))
+        localStorage.setItem(chave, valor);
     },
-    { registros, refreshToken },
+    { registros, registrosDuraveis, refreshToken },
   );
 
   return {
     backend,
     contexto,
-    pagina,
+    get pagina() {
+      return pagina;
+    },
     externas,
     errosDePagina,
     async abrirVenda(vendaId) {
@@ -661,23 +723,52 @@ async function novaSessao({
       await pagina.reload();
       await pagina.getByText("Itens da venda").waitFor({ timeout: 60_000 });
     },
-    /** Registro EFETIVO da venda (v2 tem precedência sobre o legado v1), como texto bruto; `null` se não houver. */
-    registro(vendaId) {
+    /**
+     * Registro EFETIVO da venda, como texto bruto (`null` se não houver): o durável (v3) tem precedência; senão o
+     * legado do `sessionStorage` (v2, depois v1).
+     */
+    registroBruto(vendaId) {
       return pagina.evaluate(
-        ([v2, v1]) => {
+        ([d, v2, v1]) => {
           try {
-            return sessionStorage.getItem(v2) ?? sessionStorage.getItem(v1);
+            return (
+              localStorage.getItem(d) ?? sessionStorage.getItem(v2) ?? sessionStorage.getItem(v1)
+            );
           } catch {
             return "<<inacessível>>";
           }
         },
-        [PREFIXO_REGISTRO_V2 + vendaId, PREFIXO_REGISTRO + vendaId],
+        [PREFIXO_DURAVEL + vendaId, PREFIXO_REGISTRO_V2 + vendaId, PREFIXO_REGISTRO + vendaId],
       );
+    },
+    /** Essência do registro efetivo (venda/chave/assinatura; ver `essencia`), comparável entre formatos. */
+    async registro(vendaId) {
+      return essencia(await this.registroBruto(vendaId));
     },
     /** Registro efetivo já interpretado (`null` se não houver). */
     async registroJson(vendaId) {
-      const bruto = await this.registro(vendaId);
+      const bruto = await this.registroBruto(vendaId);
       return bruto === null ? null : JSON.parse(bruto);
+    },
+    /** Fase 22.8.9.5 — o que está em cada armazenamento (durável e legado), em texto bruto. */
+    armazenamentos(vendaId) {
+      return pagina.evaluate(
+        ([d, v2, v1]) => ({
+          duravel: localStorage.getItem(d),
+          legado: sessionStorage.getItem(v2) ?? sessionStorage.getItem(v1),
+        }),
+        [PREFIXO_DURAVEL + vendaId, PREFIXO_REGISTRO_V2 + vendaId, PREFIXO_REGISTRO + vendaId],
+      );
+    },
+    /**
+     * Fase 22.8.9.5 — "fecha e reabre o aplicativo": a página é fechada (o `sessionStorage` dela morre junto) e uma
+     * NOVA página é aberta no mesmo perfil (o `localStorage` — e, no desktop, o diretório de dados — continua).
+     * `abrupto` = sem `beforeunload` (encerramento inesperado). Nenhum código da página anterior roda depois.
+     */
+    async reabrirAplicativo({ abrupto = false } = {}) {
+      await pagina.close({ runBeforeUnload: !abrupto });
+      pagina = await contexto.newPage();
+      pagina.on("pageerror", (e) => errosDePagina.push(String(e)));
     },
     /** Fase 22.8.4 — tokens de sessão atualmente no `localStorage` (valores fictícios). */
     tokens() {
@@ -790,7 +881,11 @@ describe("6.2 recuperação após reload", () => {
     await s.abrirVenda(VENDA_A);
     await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
     await semNovasRequisicoes(s.backend, 0, 1_000);
-    assert.equal(await s.registro(VENDA_A), reg, "o registro foi alterado só por abrir a página");
+    assert.equal(
+      await s.registro(VENDA_A),
+      essencia(reg),
+      "o registro foi alterado só por abrir a página",
+    );
 
     // A chave recuperada é a usada no reenvio da mesma operação.
     await abrirDialogo(s.pagina);
@@ -821,7 +916,7 @@ describe("6.3 isolamento entre vendas", () => {
     assert.equal(s.backend.posts.length, 1);
     assert.equal(s.backend.posts[0].vendaId, VENDA_B);
     assert.notEqual(s.backend.posts[0].corpo.idempotencyKey, CHAVE_ORIGINAL);
-    assert.equal(await s.registro(VENDA_A), reg);
+    assert.equal(await s.registro(VENDA_A), essencia(reg));
     assert.equal(await s.registro(VENDA_B), null);
     await s.encerrar();
   });
@@ -894,7 +989,7 @@ describe("6.5 mudança de tipo, itens ou quantidades", () => {
       await dialogo(s.pagina).waitFor({ state: "detached" });
     }
     await semNovasRequisicoes(s.backend, 0, 500);
-    assert.equal(await s.registro(VENDA_A), reg);
+    assert.equal(await s.registro(VENDA_A), essencia(reg));
 
     // A chave original continua sendo a da operação pendente.
     await abrirDialogo(s.pagina);
@@ -982,10 +1077,12 @@ describe("6.6 erros incertos", () => {
           "assinatura",
           "chave",
           "estado",
+          "gravadaEm",
           "iniciadaEm",
           "vendaId",
           "versao",
         ]);
+        assert.equal(reg.versao, 3, "o registro não foi gravado no armazenamento durável");
         await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
         await esperarAte(
           async () => (s.backend.getsVenda.get(VENDA_A) ?? 0) > getsAntes,
@@ -1116,7 +1213,7 @@ describe("6.8 registro inválido", () => {
         true,
         "envio deveria estar bloqueado",
       );
-      assert.equal(await s.registro(VENDA_A), valor);
+      assert.equal(await s.registro(VENDA_A), essencia(valor));
 
       // Resolução explícita (descarte em duas etapas, dentro do diálogo).
       await dialogo(s.pagina)
@@ -1148,14 +1245,14 @@ describe("6.9 descarte em duas etapas", () => {
     await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
 
     await s.pagina.getByRole("button", { name: "Já conferi o histórico — descartar" }).click();
-    assert.equal(await s.registro(VENDA_A), regA, "1ª etapa apagou o registro");
+    assert.equal(await s.registro(VENDA_A), essencia(regA), "1ª etapa apagou o registro");
     await esperarTexto(s.pagina, "uma nova igual será uma segunda devolução");
     await esperarTexto(s.pagina, "Descarte apenas depois de conferir o histórico");
     // Fase 22.6.1 — o texto deixa claro que descartar NÃO desfaz nada no backend.
     await esperarTexto(s.pagina, "não desfaz nem cancela");
 
     await s.pagina.getByRole("button", { name: "Manter operação pendente" }).click();
-    assert.equal(await s.registro(VENDA_A), regA);
+    assert.equal(await s.registro(VENDA_A), essencia(regA));
     await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
     assert.equal(await s.pagina.getByRole("button", { name: "Confirmar descarte" }).count(), 0);
 
@@ -1166,7 +1263,7 @@ describe("6.9 descarte em duas etapas", () => {
       "aviso sumir",
     );
     assert.equal(await s.registro(VENDA_A), null);
-    assert.equal(await s.registro(VENDA_B), regB, "registro de outra venda foi removido");
+    assert.equal(await s.registro(VENDA_B), essencia(regB), "registro de outra venda foi removido");
     await semNovasRequisicoes(s.backend, 0, 1_000);
     await s.encerrar();
   });
@@ -1193,7 +1290,7 @@ describe("6.10 armazenamento indisponível", () => {
       await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
       await esperarTexto(
         s.pagina,
-        `${MSG_SEM_PERSISTENCIA}: ela se perde se você recarregar ou sair desta página.`,
+        `${MSG_SEM_PERSISTENCIA}: ela se perde se você recarregar a página ou fechar o aplicativo.`,
       );
       const chave = s.backend.posts[0].corpo.idempotencyKey;
 
@@ -1250,7 +1347,11 @@ describe("22.6.1 reconciliação pela chave após erro", () => {
       assert.equal(await s.pagina.getByText(MSG_INCERTA).count(), 0);
       await dialogo(s.pagina).waitFor({ state: "detached" });
       assert.equal(await s.registro(VENDA_A), null);
-      assert.equal(await s.registro(VENDA_B), regB, "registro de outra venda foi removido");
+      assert.equal(
+        await s.registro(VENDA_B),
+        essencia(regB),
+        "registro de outra venda foi removido",
+      );
       assert.equal(await s.pagina.getByText(MSG_AVISO_INCERTA).count(), 0);
       await semNovasRequisicoes(s.backend, 1);
       assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
@@ -1365,10 +1466,16 @@ describe("22.6.1 persistência antes do envio e reload durante a requisição", 
       "assinatura",
       "chave",
       "estado",
+      "gravadaEm",
       "iniciadaEm",
       "vendaId",
       "versao",
     ]);
+    assert.equal(
+      noMomentoDoPost.versao,
+      3,
+      "o registro não estava no armazenamento durável antes do POST",
+    );
     assert.ok(!JSON.stringify(noMomentoDoPost).includes("motivo que não deve"));
     assert.equal(await s.registro(VENDA_A), null, "sucesso deveria limpar o registro");
     await s.encerrar();
@@ -1512,7 +1619,7 @@ describe("22.6.1 refetch com o diálogo aberto (23)", () => {
     await esperarAte(async () => (s.backend.getsVenda.get(VENDA_A) ?? 0) > gets, "refetch");
     await dormir(500);
     await esperarTexto(dialogo(s.pagina), MSG_AVISO_INCERTA);
-    assert.equal(await s.registro(VENDA_A), reg);
+    assert.equal(await s.registro(VENDA_A), essencia(reg));
     await semNovasRequisicoes(s.backend, 0, 200);
 
     // Agora o histórico passa a ter a chave pendente: encerra COM aviso ao operador.
@@ -1567,9 +1674,10 @@ describe("7. validação visual local", () => {
       await s.pagina.keyboard.press("Escape");
       await dialogo(s.pagina).waitFor({ state: "detached" });
 
+      // Fase 22.8.9.5 — o registro efetivo (já migrado) está no armazenamento durável: é ele que é corrompido.
       await s.pagina.evaluate(
-        (k) => sessionStorage.setItem(k, "{corrompido"),
-        PREFIXO_REGISTRO + VENDA_A,
+        (k) => localStorage.setItem(k, "{corrompido"),
+        PREFIXO_DURAVEL + VENDA_A,
       );
       await s.recarregar();
       await esperarTexto(s.pagina, MSG_AVISO_INVALIDA);
@@ -1775,7 +1883,7 @@ describe("22.8.4 sessão na abertura", () => {
       access: "token-ficticio-de-teste",
       refresh: "refresh-ficticio-de-teste",
     });
-    assert.equal(await s.registro(VENDA_A), reg);
+    assert.equal(await s.registro(VENDA_A), essencia(reg));
 
     // 2ª tentativa: falha de rede — continua na mesma tela, nada revogado.
     await s.pagina.getByRole("button", { name: "Tentar novamente" }).click();
@@ -1794,7 +1902,7 @@ describe("22.8.4 sessão na abertura", () => {
     await s.pagina.getByRole("button", { name: "Tentar novamente" }).click();
     await s.pagina.getByText("Itens da venda").waitFor({ timeout: 60_000 });
     await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
-    assert.equal(await s.registro(VENDA_A), reg, "a pendência foi alterada pela sessão");
+    assert.equal(await s.registro(VENDA_A), essencia(reg), "a pendência foi alterada pela sessão");
     assert.deepEqual(
       s.backend.auth.chamadas.filter((c) => c !== "GET /auth/me"),
       [],
@@ -1816,7 +1924,11 @@ describe("22.8.4 sessão na abertura", () => {
     await s.pagina.getByText("Entrar no Backoffice").waitFor({ timeout: 60_000 });
     assert.deepEqual(await s.tokens(), { access: null, refresh: null });
     assert.deepEqual(s.backend.auth.chamadas, ["GET /auth/me", "POST /auth/refresh"]);
-    assert.equal(await s.registro(VENDA_A), reg, "o encerramento da sessão apagou a pendência");
+    assert.equal(
+      await s.registro(VENDA_A),
+      essencia(reg),
+      "o encerramento da sessão apagou a pendência",
+    );
     await semNovasRequisicoes(s.backend, 0, 1_000);
     await s.encerrar();
   });
@@ -1851,7 +1963,7 @@ describe("22.8.4 sessão na abertura", () => {
       () => s.backend.auth.chamadas.includes("POST /auth/logout"),
       "revogação do refresh no servidor",
     );
-    assert.equal(await s.registro(VENDA_A), reg, "o logout apagou a pendência");
+    assert.equal(await s.registro(VENDA_A), essencia(reg), "o logout apagou a pendência");
     await semNovasRequisicoes(s.backend, 0, 1_000);
     await s.encerrar();
   });
@@ -1908,7 +2020,7 @@ describe("22.8.7.3 recuperação idempotente da renovação", () => {
     );
     // A pendência de cancelamento continua intacta e protegida, sem POST automático.
     await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
-    assert.equal(await s.registro(VENDA_A), reg);
+    assert.equal(await s.registro(VENDA_A), essencia(reg));
     await semNovasRequisicoes(s.backend, 0, 1_000);
     // Nada sensível na interface.
     const texto = await s.pagina.evaluate(() => document.body.innerText);
@@ -1933,6 +2045,210 @@ describe("22.8.7.3 recuperação idempotente da renovação", () => {
     assert.ok(primeira && primeira === segunda, "a nova tentativa não reutilizou a mesma chave");
     assert.equal((await s.tokens()).refresh, "refresh-ficticio-recuperado");
     assert.equal(await s.renovacaoPendente(), null);
+    await s.encerrar();
+  });
+});
+
+// ─── Fase 22.8.9.5 — persistência DURÁVEL das operações incertas ─────────────────────────────────────────────────
+//
+// No navegador o armazenamento durável é o `localStorage` (no desktop, um arquivo gravado pelo Rust com fsync — testado
+// com `cargo test`). "Fechar e reabrir o aplicativo" = fechar a página (o `sessionStorage` morre junto) e abrir outra
+// no mesmo perfil. Backend falso; nenhuma requisição sai de `localhost`.
+
+describe("22.8.9.5 persistência durável", () => {
+  test("2, 3, 5, 6. operação incerta sobrevive a fechar e reabrir o app: aviso, MESMA chave e assinatura, nada enviado sozinho", async () => {
+    const s = await novaSessao();
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    s.backend.comportamentos.push({ tipo: "gateway", status: 503 });
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, MSG_INCERTA);
+    const chave = s.backend.posts[0].corpo.idempotencyKey;
+
+    await s.reabrirAplicativo();
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    await esperarTexto(s.pagina, "Operação pendente: Devolução parcial: 1× Blusa Fictícia.");
+    await semNovasRequisicoes(s.backend, 1);
+    const reg = await s.registroJson(VENDA_A);
+    assert.equal(reg.versao, 3);
+    assert.equal(reg.chave, chave);
+    assert.equal(reg.assinatura, assinaturaDe(OP_PARCIAL_ITEM1));
+    assert.equal(reg.estado, "incerta");
+
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, "Devolução parcial registrada.");
+    assert.equal(s.backend.posts.length, 2);
+    assert.equal(s.backend.posts[1].corpo.idempotencyKey, chave, "chave nova depois de reabrir");
+    assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1, "devolução duplicada");
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    await s.encerrar();
+  });
+
+  test("4. encerramento inesperado DURANTE o envio (nada gravado): reabre com aviso de envio interrompido e a mesma chave", async () => {
+    const s = await novaSessao();
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    s.backend.comportamentos.push({ tipo: "travar" });
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarAte(async () => s.backend.posts.length === 1, "POST chegar");
+    const chave = s.backend.posts[0].corpo.idempotencyKey;
+
+    await s.reabrirAplicativo({ abrupto: true });
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_AVISO_INTERROMPIDA);
+    const reg = await s.registroJson(VENDA_A);
+    assert.equal(reg.chave, chave);
+    assert.equal(reg.estado, "em_andamento");
+    await semNovasRequisicoes(s.backend, 1);
+
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, "Devolução parcial registrada.");
+    assert.equal(s.backend.posts[1].corpo.idempotencyKey, chave);
+    assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
+    await s.encerrar();
+  });
+
+  test("4. encerramento inesperado DURANTE o envio (backend gravou): ao reabrir, o histórico confirma e encerra, sem POST", async () => {
+    const s = await novaSessao();
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    s.backend.comportamentos.push({ tipo: "registrar-e-travar" });
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarAte(async () => s.backend.posts.length === 1, "POST chegar");
+
+    await s.reabrirAplicativo({ abrupto: true });
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_CONFIRMADA_PENDENTE);
+    await esperarAte(async () => (await s.registro(VENDA_A)) === null, "registro removido");
+    await semNovasRequisicoes(s.backend, 1);
+    assert.equal(s.backend.vendas.get(VENDA_A).cancelamentos.length, 1);
+    await s.encerrar();
+  });
+
+  test("14. 'Sair' NÃO apaga a operação pendente; ela continua guardada depois do logout e de reabrir o app", async () => {
+    const reg = registroDuravel(VENDA_A);
+    const s = await novaSessao({ duravel: { [PREFIXO_DURAVEL + VENDA_A]: reg } });
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    await s.pagina.getByRole("button", { name: "Menu do usuário" }).click();
+    await s.pagina.getByRole("menuitem", { name: "Sair" }).click();
+    await s.pagina.getByText("Entrar no Backoffice").waitFor({ timeout: 30_000 });
+    assert.deepEqual(await s.tokens(), { access: null, refresh: null });
+    assert.equal((await s.armazenamentos(VENDA_A)).duravel, reg, "o logout apagou a pendência");
+    await s.reabrirAplicativo();
+    await s.pagina.goto(`${BASE}${PREFIXO_API_FICTICIA}/preparar`);
+    assert.equal((await s.armazenamentos(VENDA_A)).duravel, reg);
+    await semNovasRequisicoes(s.backend, 0, 500);
+    await s.encerrar();
+  });
+
+  test("15. sessão encerrada antes do envio: nada é enviado e a pendência existente continua intacta", async () => {
+    const reg = registroDuravel(VENDA_A);
+    const s = await novaSessao({ duravel: { [PREFIXO_DURAVEL + VENDA_A]: reg } });
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    // A sessão termina (ex.: em outra janela/rotina) com o diálogo aberto.
+    await s.pagina.evaluate(() => localStorage.removeItem("mariela.accessToken"));
+    await enviar(s.pagina, OP_PARCIAL_ITEM1);
+    await esperarTexto(s.pagina, MSG_SESSAO_ENCERRADA);
+    await semNovasRequisicoes(s.backend, 0);
+    assert.equal((await s.armazenamentos(VENDA_A)).duravel, reg);
+    await s.encerrar();
+  });
+
+  test("16. registro legado do sessionStorage é migrado para o durável (mesma operação) e só então sai do legado", async () => {
+    const reg = registroValido(VENDA_A);
+    const s = await novaSessao({ sessionStorage: { [PREFIXO_REGISTRO + VENDA_A]: reg } });
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    await esperarAte(
+      async () => (await s.armazenamentos(VENDA_A)).legado === null,
+      "legado removido",
+    );
+    const { duravel } = await s.armazenamentos(VENDA_A);
+    assert.equal(essencia(duravel), essencia(reg), "a migração mudou a operação");
+    assert.equal(JSON.parse(duravel).versao, 3);
+    assert.equal(JSON.parse(duravel).estado, "incerta");
+    await semNovasRequisicoes(s.backend, 0, 500);
+    // Depois de fechar e reabrir (o sessionStorage morre), a operação continua lá.
+    await s.reabrirAplicativo();
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    assert.equal(await s.registro(VENDA_A), essencia(reg));
+    await s.encerrar();
+  });
+
+  test("17. registro durável corrompido: tela íntegra, envio bloqueado; descartar remove só ele; o de outra venda fica", async () => {
+    const regB = registroDuravel(VENDA_B, OP_INTEGRAL, "chave-da-venda-b-0001");
+    const s = await novaSessao({
+      duravel: { [PREFIXO_DURAVEL + VENDA_A]: "{corrompido", [PREFIXO_DURAVEL + VENDA_B]: regB },
+    });
+    await s.abrirVenda(VENDA_A);
+    await esperarTexto(s.pagina, MSG_AVISO_INVALIDA);
+    await esperarTexto(s.pagina, "Venda criada (dados fictícios)");
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM1);
+    assert.equal(await botaoEnviar(s.pagina, OP_PARCIAL_ITEM1).isDisabled(), true);
+    await dialogo(s.pagina)
+      .getByRole("button", { name: "Já conferi o histórico — descartar" })
+      .click();
+    await dialogo(s.pagina).getByRole("button", { name: "Confirmar descarte" }).click();
+    await esperarAte(
+      async () => (await s.registro(VENDA_A)) === null,
+      "registro corrompido removido",
+    );
+    assert.equal(
+      (await s.armazenamentos(VENDA_B)).duravel,
+      regB,
+      "o registro de outra venda foi apagado",
+    );
+    await semNovasRequisicoes(s.backend, 0, 500);
+    await s.encerrar();
+  });
+
+  test("19. pendente de uma abertura anterior: operação DIFERENTE é bloqueada, sem POST e sem trocar o registro", async () => {
+    const reg = registroDuravel(VENDA_A, OP_PARCIAL_ITEM1);
+    const s = await novaSessao({ duravel: { [PREFIXO_DURAVEL + VENDA_A]: reg } });
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM2);
+    await enviar(s.pagina, OP_PARCIAL_ITEM2);
+    await esperarTexto(s.pagina, MSG_BLOQUEIO);
+    await semNovasRequisicoes(s.backend, 0, 500);
+    assert.equal((await s.armazenamentos(VENDA_A)).duravel, reg);
+    await s.encerrar();
+  });
+
+  test("19. outra operação gravada FORA desta página (conflito no armazenamento): nada é enviado e ela passa a ser a pendente", async () => {
+    const s = await novaSessao();
+    await s.abrirVenda(VENDA_A);
+    await abrirDialogo(s.pagina);
+    await preencher(s.pagina, OP_PARCIAL_ITEM2);
+    // Depois da leitura da página, outra operação desta venda aparece no armazenamento durável.
+    const outra = registroDuravel(VENDA_A, OP_PARCIAL_ITEM1, "chave-de-outra-abertura-0001");
+    await s.pagina.evaluate(
+      ([k, v]) => localStorage.setItem(k, v),
+      [PREFIXO_DURAVEL + VENDA_A, outra],
+    );
+    await enviar(s.pagina, OP_PARCIAL_ITEM2);
+    await esperarTexto(s.pagina, MSG_CONFLITO_DURAVEL);
+    await esperarTexto(s.pagina, MSG_AVISO_INCERTA);
+    await semNovasRequisicoes(s.backend, 0, 500);
+    assert.equal(
+      (await s.armazenamentos(VENDA_A)).duravel,
+      outra,
+      "a operação pendente foi substituída",
+    );
     await s.encerrar();
   });
 });

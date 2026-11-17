@@ -37,6 +37,14 @@ import {
   vendasKeys,
 } from "@/hooks/use-vendas";
 import { mensagemDeErro } from "@/services/api/client";
+import { geracaoDaSessao } from "@/services/auth/session";
+import { tokenStorage } from "@/services/auth/token-storage";
+import {
+  carregarOperacao,
+  gravarOperacao,
+  removerOperacao,
+  type CarregamentoOperacao,
+} from "@/services/operacoes/registro-operacoes";
 import { formatarData, formatarDataHora, formatarMoeda, pluralizar } from "@/utils/format";
 import { gerarIdempotencyKey } from "@/utils/idempotencia";
 import {
@@ -44,12 +52,9 @@ import {
   decidirChave,
   ehResultadoIncerto,
   lerAssinatura,
-  lerOperacaoIncerta,
   marcarIncerta,
   mensagemDeRestauracao,
   payloadDaOperacaoPendente,
-  persistirOperacao,
-  removerOperacaoIncerta,
   resumoRestauracaoDoEvento,
   type ConclusaoDaOperacao,
   type EventoCancelamentoLido,
@@ -142,6 +147,10 @@ function ResumoLinha({
 }
 
 // ─── Fase 22.6.1 — apoio ao cancelamento/devolução (fora do componente: sem estado) ────────────────────────────────
+
+/** Fase 22.8.9.5 — envio recusado porque a sessão foi encerrada (nada sai por uma sessão antiga). */
+const MENSAGEM_SESSAO_ENCERRADA =
+  "A sessão foi encerrada antes do envio: a operação não foi enviada. Entre novamente e confira o histórico da venda antes de continuar.";
 
 function avisoIncerta(
   operacao: OperacaoCancelamento,
@@ -300,32 +309,68 @@ function VendaDetalhePage() {
    * Regras em `utils/operacao-cancelamento.ts` (`decidirChave`).
    *
    * Fica na página, e não no `CancelamentoDialog`, porque o diálogo desmonta quando a consulta da venda entra em erro
-   * (refetch sem rede). Uma operação INCERTA (timeout, rede, 502/503/504) também vai para o `sessionStorage` da aba,
-   * por venda, e é recuperada ao abrir esta página — sobrevive a reload. Recuperar NUNCA dispara requisição.
+   * (refetch sem rede). Uma operação INCERTA (timeout, rede, 502/503/504) também fica registrada, por venda, e é
+   * recuperada ao abrir esta página. Recuperar NUNCA dispara requisição.
+   *
+   * Fase 22.8.9.5 — o registro passou do `sessionStorage` para o armazenamento DURÁVEL
+   * (`services/operacoes/registro-operacoes.ts`): sobrevive a fechar o aplicativo, queda do processo e reinício do
+   * Windows. A leitura é assíncrona: nenhuma operação é decidida antes de ela terminar (`aguardarCarregamento`).
    */
   const operacaoCancelamentoRef = useRef<OperacaoCancelamento | null>(null);
+  /** O registro da operação pendente desta venda está no armazenamento durável (conferido)? */
+  const persistidaRef = useRef(false);
+  const carregamentoRef = useRef<{
+    vendaId: string;
+    promessa: Promise<CarregamentoOperacao>;
+  } | null>(null);
   const [avisoOperacao, setAvisoOperacao] = useState<AvisoOperacaoCancelamento | null>(null);
   const avisoOperacaoDaVenda = avisoOperacao?.vendaId === id ? avisoOperacao : null;
 
-  useEffect(() => {
-    const leitura = lerOperacaoIncerta(id);
+  /** Aplica o registro lido à memória e ao aviso. */
+  function aplicarCarregamento(vendaId: string, leitura: CarregamentoOperacao) {
     if (leitura.estado === "recuperada") {
       const atual = operacaoCancelamentoRef.current;
       // Uma operação incerta desta venda já em memória tem a mesma chave; não há o que trocar.
-      if (!(atual && atual.vendaId === id && atual.incerta)) {
+      if (!(atual && atual.vendaId === vendaId && atual.incerta)) {
         operacaoCancelamentoRef.current = leitura.operacao;
       }
-      // Fase 22.6.1 — `em_andamento` recuperado = a página foi recarregada/fechada DURANTE o envio. Nada é reenviado;
-      // a reconciliação abaixo encerra a pendência se a venda carregada já tiver o evento com esta chave.
-      setAvisoOperacao(avisoIncerta(leitura.operacao, true, leitura.origem === "em_andamento"));
+      persistidaRef.current = leitura.duravel;
+      // Fase 22.6.1 — `em_andamento` recuperado = a página foi recarregada (ou o app fechado/derrubado) DURANTE o
+      // envio. Nada é reenviado; a reconciliação abaixo encerra a pendência se a venda carregada já tiver o evento.
+      setAvisoOperacao(
+        avisoIncerta(leitura.operacao, leitura.duravel, leitura.origem === "em_andamento"),
+      );
     } else if (leitura.estado === "invalida") {
       // Registro ilegível: nenhuma chave é inventada nem reaproveitada; novas operações ficam bloqueadas até o
       // operador conferir o histórico e descartar.
-      setAvisoOperacao({ vendaId: id, estado: "invalida" });
+      setAvisoOperacao({ vendaId, estado: "invalida" });
     } else {
       // Nada persistido (ou armazenamento inacessível): mantém só um aviso em memória que seja desta venda.
-      setAvisoOperacao((atual) => (atual?.vendaId === id ? atual : null));
+      setAvisoOperacao((atual) => (atual?.vendaId === vendaId ? atual : null));
     }
+  }
+
+  /** A leitura do registro desta venda (a mesma promessa da abertura da página, ou uma nova). */
+  function aguardarCarregamento(vendaId: string): Promise<CarregamentoOperacao> {
+    const atual = carregamentoRef.current;
+    if (atual?.vendaId === vendaId) return atual.promessa;
+    const promessa = carregarOperacao(vendaId);
+    carregamentoRef.current = { vendaId, promessa };
+    return promessa;
+  }
+
+  useEffect(() => {
+    let ativa = true;
+    persistidaRef.current = false;
+    const promessa = carregarOperacao(id);
+    carregamentoRef.current = { vendaId: id, promessa };
+    void promessa.then((leitura) => {
+      if (ativa) aplicarCarregamento(id, leitura);
+    });
+    return () => {
+      ativa = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só a troca de venda recarrega o registro
   }, [id]);
 
   /**
@@ -344,13 +389,11 @@ function VendaDetalhePage() {
     if (!pendente || pendente.vendaId !== id || !pendente.incerta) return;
     const conclusao = avaliarOperacaoPelaChave(id, pendente.chave, { ok: true, venda });
     if (conclusao.tipo === "concluida" || conclusao.tipo === "registrada_sem_rastreio") {
-      operacaoCancelamentoRef.current = null;
-      removerOperacaoIncerta(id);
-      setAvisoOperacao((atual) => (atual?.vendaId === id ? null : atual));
+      encerrarOperacao(id, pendente.chave);
       notificarConclusao(rotuloDaOperacao(pendente.assinatura), conclusao, "historico");
       return;
     }
-    const persistida = lerOperacaoIncerta(id).estado === "recuperada";
+    const persistida = persistidaRef.current;
     if (conclusao.tipo === "efeitos_pendentes") {
       setAvisoOperacao((atual) =>
         atual?.vendaId === id && atual.estado === "efeitos_pendentes"
@@ -366,40 +409,51 @@ function VendaDetalhePage() {
     }
   }, [venda, id, avisoOperacao]);
 
-  /** Encerra a operação pendente da venda (registro confirmado): memória, registro DESTA venda e aviso. */
-  function encerrarOperacao(vendaId: string) {
+  /**
+   * Encerra a operação pendente da venda (conclusão confirmada): memória, aviso e o registro DESTA operação (só se a
+   * chave for a mesma — nunca apaga outra operação). Se a remoção falhar, o registro reaparece ao reabrir a venda e a
+   * reconciliação o encerra de novo.
+   */
+  function encerrarOperacao(vendaId: string, chave: string) {
     if (operacaoCancelamentoRef.current?.vendaId === vendaId)
       operacaoCancelamentoRef.current = null;
-    removerOperacaoIncerta(vendaId);
+    persistidaRef.current = false;
+    carregamentoRef.current = null;
+    void removerOperacao(vendaId, chave);
     setAvisoOperacao((atual) => (atual?.vendaId === vendaId ? null : atual));
   }
 
-  function descartarOperacaoIncerta() {
-    const removido = removerOperacaoIncerta(id);
+  /** Descarte EXPLÍCITO pelo operador (único caminho que remove uma operação não confirmada). */
+  async function descartarOperacaoIncerta() {
+    const removido = await removerOperacao(id, null);
     if (operacaoCancelamentoRef.current?.vendaId === id) operacaoCancelamentoRef.current = null;
+    persistidaRef.current = false;
+    carregamentoRef.current = null;
     setAvisoOperacao(null);
-    if (!removido && lerOperacaoIncerta(id).estado !== "indisponivel") {
+    if (!removido) {
       toast.warning(
-        "A operação pendente foi descartada nesta página, mas o registro salvo no navegador não pôde ser apagado e pode reaparecer ao recarregar.",
+        "A operação pendente foi descartada nesta página, mas o registro salvo neste computador não pôde ser apagado e pode reaparecer ao reabrir a venda.",
       );
     }
   }
 
   /**
    * Fase 22.6.3 — a operação continua protegida (chave e assinatura fixadas, registro da venda mantido no
-   * `sessionStorage`, sem reenvio automático). A mensagem distingue: efeitos pendentes (registrada, não terminou),
+   * armazenamento durável, sem reenvio automático). A mensagem distingue: efeitos pendentes (registrada, não terminou),
    * evento sem indicador, falha da consulta, resultado incerto e erro definitivo sem a chave no histórico.
    * Devolve `true` se o diálogo deve fechar.
    */
-  function manterOperacaoProtegida(
+  async function manterOperacaoProtegida(
     operacao: OperacaoCancelamento,
     conclusao: ConclusaoDaOperacao,
     registrado: string,
     erro: { valor: unknown } | null,
-  ): boolean {
+  ): Promise<boolean> {
     const incerta = marcarIncerta(operacao, new Date());
     operacaoCancelamentoRef.current = incerta;
-    const persistida = persistirOperacao(incerta, "incerta");
+    // Mesma operação (mesma chave): só atualiza o estado do registro. Falha = o aviso diz que não ficou guardada.
+    const persistida = (await gravarOperacao(incerta, "incerta")).ok;
+    persistidaRef.current = persistida;
     const mensagemOriginal = erro ? mensagemDeErro(erro.valor, "") : "";
     if (conclusao.tipo === "efeitos_pendentes") {
       setAvisoOperacao(avisoEfeitosPendentes(incerta, persistida));
@@ -454,7 +508,33 @@ function VendaDetalhePage() {
     origem: "dialogo" | "conclusao_pendente" = "dialogo",
   ) {
     if (cancelandoRef.current) return;
-    if (avisoOperacaoDaVenda?.estado === "invalida") {
+    cancelandoRef.current = true;
+    try {
+      await enviarCancelamento(payloadDoDialogo, origem);
+    } finally {
+      cancelandoRef.current = false;
+    }
+  }
+
+  async function enviarCancelamento(
+    payloadDoDialogo: CancelamentoPayload,
+    origem: "dialogo" | "conclusao_pendente",
+  ) {
+    // Fase 22.8.9.5 — a sessão que o operador está usando AGORA. Se ela for encerrada (logout, rejeição definitiva)
+    // antes do envio, nada é enviado: uma operação pendente nunca sai por uma sessão antiga.
+    const geracao = geracaoDaSessao();
+    const sessaoVigente = () => geracaoDaSessao() === geracao && tokenStorage.get() !== null;
+    // Fase 22.8.9.5 — nenhuma chave é decidida antes de o registro durável desta venda ser lido: uma operação incerta
+    // gravada antes (inclusive em outra abertura do aplicativo) nunca é trocada por uma chave nova.
+    const carregamento = await aguardarCarregamento(id);
+    if (carregamento.estado === "recuperada") {
+      const atual = operacaoCancelamentoRef.current;
+      if (!(atual && atual.vendaId === id && atual.incerta)) {
+        operacaoCancelamentoRef.current = carregamento.operacao;
+        persistidaRef.current = carregamento.duravel;
+      }
+    }
+    if (carregamento.estado === "invalida" || avisoOperacaoDaVenda?.estado === "invalida") {
       toast.error(
         "Há um registro ilegível de operação anterior sem confirmação. Confira o histórico da venda e descarte-o antes de registrar uma nova operação.",
       );
@@ -479,19 +559,40 @@ function VendaDetalhePage() {
       );
       return;
     }
-    cancelandoRef.current = true;
+    if (!sessaoVigente()) {
+      toast.error(MENSAGEM_SESSAO_ENCERRADA);
+      return;
+    }
     // Fase 22.6.1 (A3) — a operação é gravada ANTES do envio (`em_andamento`; uma já incerta continua `incerta`):
-    // um reload/fechamento durante a requisição não perde a chave. Sem armazenamento, a proteção fica só em memória
-    // e o operador é avisado de que ela não sobrevive a um reload.
+    // um reload, fechamento ou queda do aplicativo durante a requisição não perde a chave. Fase 22.8.9.5 — a gravação
+    // é durável e conferida; se não der para gravar, a proteção fica só em memória e o operador é avisado.
     const operacao: OperacaoCancelamento = {
       ...decisao.operacao,
       incertaDesde: decisao.operacao.incertaDesde ?? new Date().toISOString(),
     };
-    operacaoCancelamentoRef.current = operacao;
-    if (!persistirOperacao(operacao, operacao.incerta ? "incerta" : "em_andamento")) {
-      toast.warning(
-        "Não foi possível guardar a proteção desta operação no navegador: se a página for recarregada ou fechada durante o envio, a identificação da operação se perde.",
+    const gravacao = await gravarOperacao(operacao, operacao.incerta ? "incerta" : "em_andamento");
+    if (!gravacao.ok && gravacao.motivo === "conflito") {
+      // Há OUTRA operação desta venda registrada neste computador (gravada fora desta página): nada é enviado e ela
+      // passa a ser a operação pendente exibida.
+      carregamentoRef.current = null;
+      aplicarCarregamento(id, await aguardarCarregamento(id));
+      toast.error(
+        "Há outra operação desta venda registrada neste computador e ainda sem confirmação. Nada foi enviado: confira o histórico e reenvie a mesma operação ou descarte-a.",
       );
+      return;
+    }
+    operacaoCancelamentoRef.current = operacao;
+    persistidaRef.current = gravacao.ok;
+    if (!gravacao.ok) {
+      toast.warning(
+        "Não foi possível guardar a proteção desta operação neste computador: se a página for recarregada ou o aplicativo for fechado durante o envio, a identificação da operação se perde.",
+      );
+    }
+    if (!sessaoVigente()) {
+      // A sessão terminou enquanto o registro era gravado: nada é enviado; a operação continua guardada como
+      // pendente (pode ser conferida e reenviada, ou descartada, depois de entrar de novo).
+      toast.error(MENSAGEM_SESSAO_ENCERRADA);
+      return;
     }
     const payload: CancelamentoPayload = { ...payloadDoDialogo, idempotencyKey: operacao.chave };
     const registrado = rotuloDaOperacao(operacao.assinatura);
@@ -504,7 +605,7 @@ function VendaDetalhePage() {
         venda: resultado,
       });
       if (conclusao.tipo === "concluida" || conclusao.tipo === "registrada_sem_rastreio") {
-        encerrarOperacao(operacao.vendaId);
+        encerrarOperacao(operacao.vendaId, operacao.chave);
         notificarConclusao(
           registrado,
           conclusao,
@@ -513,7 +614,7 @@ function VendaDetalhePage() {
         setCancelamentoAberto(false);
         return;
       }
-      if (manterOperacaoProtegida(operacao, conclusao, registrado, null))
+      if (await manterOperacaoProtegida(operacao, conclusao, registrado, null))
         setCancelamentoAberto(false);
     } catch (err) {
       // Fase 22.6.1 (A2) — QUALQUER falha: o backend pode ter gravado o evento e respondido erro depois (caixa
@@ -522,7 +623,7 @@ function VendaDetalhePage() {
       void queryClient.invalidateQueries({ queryKey: vendasKeys.todas });
       const conclusao = avaliarOperacaoPelaChave(operacao.vendaId, operacao.chave, leitura);
       if (conclusao.tipo === "concluida" || conclusao.tipo === "registrada_sem_rastreio") {
-        encerrarOperacao(operacao.vendaId);
+        encerrarOperacao(operacao.vendaId, operacao.chave);
         notificarConclusao(
           registrado,
           conclusao,
@@ -534,10 +635,8 @@ function VendaDetalhePage() {
       }
       // Não concluída (efeitos pendentes, evento sem indicador, consulta inconclusiva OU chave ausente neste momento —
       // que não prova nada): a operação fica PROTEGIDA, sem chave nova e sem reenvio automático.
-      if (manterOperacaoProtegida(operacao, conclusao, registrado, { valor: err }))
+      if (await manterOperacaoProtegida(operacao, conclusao, registrado, { valor: err }))
         setCancelamentoAberto(false);
-    } finally {
-      cancelandoRef.current = false;
     }
   }
 
@@ -644,7 +743,7 @@ function VendaDetalhePage() {
             <AvisoOperacaoIncerta
               aviso={avisoOperacaoDaVenda}
               venda={venda}
-              onDescartar={descartarOperacaoIncerta}
+              onDescartar={() => void descartarOperacaoIncerta()}
               onConcluir={concluirOperacaoPendente}
               concluindo={cancelar.isPending}
             />
@@ -917,7 +1016,7 @@ function VendaDetalhePage() {
             onOpenChange={setCancelamentoAberto}
             salvando={cancelar.isPending}
             avisoOperacao={avisoOperacaoDaVenda}
-            onDescartarOperacaoIncerta={descartarOperacaoIncerta}
+            onDescartarOperacaoIncerta={() => void descartarOperacaoIncerta()}
             onConcluirOperacaoPendente={concluirOperacaoPendente}
             onConfirmar={(payload) => void confirmarCancelamento(payload)}
           />

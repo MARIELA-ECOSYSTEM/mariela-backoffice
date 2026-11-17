@@ -18,6 +18,10 @@ fn main() {
             "sessao_carregar",
             "sessao_gravar",
             "sessao_apagar",
+            // Fase 22.8.9.5 — operações incertas de cancelamento/devolução (`capabilities/operacoes.json`).
+            "operacao_ler",
+            "operacao_gravar",
+            "operacao_remover",
         ]),
     ))
     .expect("falha ao executar o tauri-build");

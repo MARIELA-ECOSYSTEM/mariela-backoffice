@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-operacao-remover"
+description = "Enables the operacao_remover command without any pre-configured scope."
+commands.allow = ["operacao_remover"]
+
+[[permission]]
+identifier = "deny-operacao-remover"
+description = "Denies the operacao_remover command without any pre-configured scope."
+commands.deny = ["operacao_remover"]
