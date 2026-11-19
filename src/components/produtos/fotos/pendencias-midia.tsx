@@ -95,7 +95,11 @@ function ItemPendente({ pendente, nomeProduto }: { pendente: EnvioPendente; nome
     try {
       const r = await reconciliar.mutateAsync(pendente.uploadId);
       if (r.estado === "confirmado") {
-        toast.success("Foto confirmada na galeria.");
+        toast.success(
+          pendente.kind === "video"
+            ? "Vídeo confirmado na galeria."
+            : "Foto confirmada na galeria.",
+        );
         void queryClient.invalidateQueries({ queryKey: galeriaKeys.galeria(pendente.produtoId) });
       } else {
         setResultado(r.falha.mensagem);

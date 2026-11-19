@@ -6,6 +6,7 @@ import { Page } from "@/components/layout/page";
 import { ProdutoForm } from "@/components/produtos/produto-form";
 import { GaleriaFotosProduto } from "@/components/produtos/fotos/galeria-fotos-produto";
 import { SeletorFotos } from "@/components/produtos/fotos/seletor-fotos";
+import { SeletorVideo, VideoProduto } from "@/components/produtos/video/video-produto";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFilaFotos } from "@/hooks/use-fila-fotos";
@@ -41,6 +42,8 @@ function NovoProdutoPage() {
   const { data: galeria } = useGaleria(criado?.id ?? "");
   const imagensNaGaleria = galeria?.midias.filter((m) => m.tipo === "image").length ?? 0;
   const fila = useFilaFotos({ imagensNaGaleria });
+  // Fase 22.8.9.9.6 (M4) — o vídeo escolhido no cadastro (no máximo 1), enviado depois das fotos.
+  const filaVideo = useFilaFotos({ imagensNaGaleria: 0, kind: "video" });
   const enviouRef = useRef(false);
 
   async function onSubmit(values: ProdutoFormValues) {
@@ -48,7 +51,7 @@ function NovoProdutoPage() {
     try {
       const produto = await criar.mutateAsync(values);
       toast.success("Produto criado com sucesso.");
-      if (fila.fila.length === 0) {
+      if (fila.fila.length === 0 && filaVideo.fila.length === 0) {
         void navigate({ to: "/produtos/$id", params: { id: produto.id } });
         return;
       }
@@ -59,14 +62,17 @@ function NovoProdutoPage() {
     }
   }
 
-  // Produto confirmado pelo backend: só agora as fotos escolhidas são enviadas (uma vez, por decisão do operador ao
-  // clicar em "Criar produto").
+  // Produto confirmado pelo backend: só agora as fotos e o vídeo escolhidos são enviados (uma vez, por decisão do
+  // operador ao clicar em "Criar produto"), EM SEQUÊNCIA — o fluxo de envio admite um envio por produto de cada vez.
   useEffect(() => {
     if (criado && !enviouRef.current) {
       enviouRef.current = true;
-      void fila.enviarTodos(criado.id);
+      void (async () => {
+        await fila.enviarTodos(criado.id);
+        await filaVideo.enviarTodos(criado.id);
+      })();
     }
-  }, [criado, fila]);
+  }, [criado, fila, filaVideo]);
 
   return (
     <Page
@@ -87,8 +93,12 @@ function NovoProdutoPage() {
             >
               <p className="flex items-center gap-2 text-sm">
                 <CheckCircle2 aria-hidden className="size-4 text-success" />
-                Produto <strong>{criado.nome}</strong> criado. As fotos escolhidas estão sendo
-                enviadas para a galeria.
+                Produto <strong>{criado.nome}</strong> criado.{" "}
+                {filaVideo.fila.length === 0
+                  ? "As fotos escolhidas estão sendo enviadas para a galeria."
+                  : fila.fila.length === 0
+                    ? "O vídeo escolhido está sendo enviado para a galeria."
+                    : "As fotos e o vídeo escolhidos estão sendo enviados para a galeria."}
               </p>
               <Button asChild size="sm">
                 <Link to="/produtos/$id" params={{ id: criado.id }}>
@@ -104,6 +114,14 @@ function NovoProdutoPage() {
                 <GaleriaFotosProduto produto={criado} fila={fila} />
               </CardContent>
             </Card>
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="font-display text-xl">Vídeo</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <VideoProduto produto={criado} fila={filaVideo} />
+              </CardContent>
+            </Card>
           </>
         ) : (
           <ProdutoForm
@@ -111,17 +129,35 @@ function NovoProdutoPage() {
             enviando={criar.isPending}
             onCancel={() => void navigate({ to: "/produtos" })}
             secaoExtra={
-              <Card className="shadow-card">
-                <CardHeader>
-                  <CardTitle className="font-display text-xl">Fotos</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-xs text-muted-foreground">
-                    As fotos escolhidas aqui são enviadas depois que o produto for criado.
-                  </p>
-                  <SeletorFotos fila={fila} produtoId={null} imagensNaGaleria={0} />
-                </CardContent>
-              </Card>
+              <>
+                <Card className="shadow-card">
+                  <CardHeader>
+                    <CardTitle className="font-display text-xl">Fotos</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      As fotos escolhidas aqui são enviadas depois que o produto for criado.
+                    </p>
+                    <SeletorFotos fila={fila} produtoId={null} imagensNaGaleria={0} />
+                  </CardContent>
+                </Card>
+                <Card className="shadow-card">
+                  <CardHeader>
+                    <CardTitle className="font-display text-xl">Vídeo</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      O vídeo escolhido aqui é enviado depois que o produto for criado.
+                    </p>
+                    <SeletorVideo
+                      fila={filaVideo}
+                      produtoId={null}
+                      substituiMidiaId={null}
+                      rotulo="Selecionar vídeo"
+                    />
+                  </CardContent>
+                </Card>
+              </>
             }
           />
         )}

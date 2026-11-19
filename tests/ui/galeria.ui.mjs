@@ -83,6 +83,18 @@ function midiaImagem(produtoId, id, ordem) {
   };
 }
 
+/** Fase 22.8.9.9.6 (M4) — vídeo da galeria (fictício). */
+function midiaVideo(produtoId, id, ordem) {
+  return {
+    ...midiaImagem(produtoId, id, ordem),
+    tipo: "video",
+    chave: `products/${produtoId}/${id}.mp4`,
+    url: `https://midia.ficticia.test/products/${produtoId}/${id}.mp4`,
+    contentType: "video/mp4",
+    nomeOriginal: `${id}.mp4`,
+  };
+}
+
 function criarBackend() {
   const produtos = new Map();
   const galerias = new Map();
@@ -112,10 +124,11 @@ function criarBackend() {
     const marcada = imgs.find((m) => m.id === g.midiaPrincipalId);
     return { midias, midiaPrincipalId: (marcada ?? imgs[0])?.id ?? null };
   }
-  function semear(pid, n, extra = {}) {
+  function semear(pid, n, extra = {}, { video = false } = {}) {
     produtos.set(pid, produtoBase(pid, extra));
     const g = galeria(pid);
     for (let i = 0; i < n; i += 1) g.midias.push(midiaImagem(pid, `${pid}-m${i + 1}`, i));
+    if (video) g.midias.push(midiaVideo(pid, `${pid}-v1`, n));
   }
 
   const json = (route, status, corpo, headers = {}) =>
@@ -254,16 +267,26 @@ function criarBackend() {
       if (await aplicarComportamento(route, comportamentos.solicitar)) return;
       const pid = m[1];
       const g = galeria(pid);
-      const imgs = g.midias.filter((x) => x.tipo === "image").length;
+      const kind = corpo.kind === "video" ? "video" : "image";
+      const limite = kind === "video" ? 1 : 10;
+      const atuais = g.midias.filter((x) => x.tipo === kind).length;
       const reservas = [...uploads.values()].filter(
-        (u) => u.produtoId === pid && !u.confirmado && !u.substitui,
+        (u) => u.produtoId === pid && u.kind === kind && !u.confirmado && !u.substitui,
       ).length;
-      if (!corpo.substituiMidiaId && imgs + reservas >= 10) {
-        return erro(route, 409, "CONFLICT", "Limite de 10 imagens por produto atingido.");
+      if (!corpo.substituiMidiaId && atuais + reservas >= limite) {
+        return erro(
+          route,
+          409,
+          "CONFLICT",
+          kind === "video"
+            ? "Limite de 1 vídeo por produto atingido."
+            : "Limite de 10 imagens por produto atingido.",
+        );
       }
       const uploadId = `upl-${(seq += 1)}`;
       uploads.set(uploadId, {
         produtoId: pid,
+        kind,
         contentType: corpo.contentType,
         size: corpo.size,
         substitui: corpo.substituiMidiaId ?? null,
@@ -313,7 +336,8 @@ function criarBackend() {
         if (g.midiaPrincipalId === antiga.id) g.midiaPrincipalId = uploadId;
         g.midias = g.midias.filter((x) => x.id !== antiga.id);
       }
-      const nova = midiaImagem(pid, uploadId, ordem);
+      const nova =
+        u.kind === "video" ? midiaVideo(pid, uploadId, ordem) : midiaImagem(pid, uploadId, ordem);
       g.midias.push(nova);
       u.confirmado = true;
       const c = comportamentos.confirmar[0];
@@ -439,6 +463,56 @@ async function novaSessao({ registrosConfirmacao = {} } = {}) {
     (u) => u.host === `localhost:${PORTA}` && u.pathname.startsWith(PREFIXO_R2),
     (r) => backend.atenderR2(r),
   );
+  // Fase 22.8.9.9.6 (M4) — os arquivos de teste não são vídeos reais: quando `window.__duracaoTeste` está definido, um
+  // `<video>` com URL `blob:` "lê os metadados" com essa duração (simula o navegador; só neste teste).
+  await contexto.addInitScript(() => {
+    const dur = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "duration");
+    Object.defineProperty(HTMLMediaElement.prototype, "duration", {
+      configurable: true,
+      get() {
+        return typeof window.__duracaoTeste === "number" &&
+          String(this.getAttribute("src") ?? this.currentSrc ?? "").startsWith("blob:")
+          ? window.__duracaoTeste
+          : dur.get.call(this);
+      },
+    });
+    const src = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "src");
+    Object.defineProperty(HTMLMediaElement.prototype, "src", {
+      configurable: true,
+      get() {
+        return src.get.call(this);
+      },
+      set(v) {
+        src.set.call(this, v);
+        if (typeof window.__duracaoTeste === "number" && String(v).startsWith("blob:")) {
+          setTimeout(() => this.onloadedmetadata?.(), 0);
+        }
+      },
+    });
+  });
+  // Fase 22.8.9.9.6 (M4) — registra os atributos de todo <video> com URL https que entra na página (o player troca o
+  // <video> pela mensagem de erro assim que a rede externa — bloqueada no teste — falha).
+  await contexto.addInitScript(() => {
+    window.__videosVistos = [];
+    const ver = (v) => {
+      const src = v.getAttribute("src") ?? "";
+      if (src.startsWith("https:")) {
+        window.__videosVistos.push({
+          src,
+          controls: v.controls,
+          preload: v.preload,
+          autoplay: v.autoplay,
+        });
+      }
+    };
+    new MutationObserver((mudancas) => {
+      for (const m of mudancas)
+        for (const n of m.addedNodes) {
+          if (n instanceof HTMLVideoElement) ver(n);
+          else if (n instanceof Element) n.querySelectorAll("video").forEach(ver);
+        }
+    }).observe(document, { childList: true, subtree: true });
+  });
   // Conta as liberações de URLs `blob:` (pré-visualizações).
   await contexto.addInitScript(() => {
     window.__revogadas = [];
@@ -448,7 +522,7 @@ async function novaSessao({ registrosConfirmacao = {} } = {}) {
       original(u);
     };
   });
-  const pagina = await contexto.newPage();
+  let pagina = await contexto.newPage();
   const errosDePagina = [];
   pagina.on("pageerror", (e) => errosDePagina.push(String(e)));
   await pagina.goto(`${BASE}${PREFIXO_API}/preparar`);
@@ -459,7 +533,14 @@ async function novaSessao({ registrosConfirmacao = {} } = {}) {
   return {
     backend,
     contexto,
-    pagina,
+    /** A página atual; trocá-la ("fechar e reabrir") registra os erros da nova também. */
+    get pagina() {
+      return pagina;
+    },
+    set pagina(nova) {
+      pagina = nova;
+      pagina.on("pageerror", (e) => errosDePagina.push(String(e)));
+    },
     async abrirEdicao(id) {
       await pagina.goto(`${BASE}/produtos/${id}/editar`);
       await pagina.getByText("Fotos", { exact: true }).first().waitFor({ timeout: 60_000 });
@@ -1067,6 +1148,360 @@ describe("erros", () => {
     await esperarAte(
       async () => (await s.pagina.getByText("Confirmações pendentes").count()) === 0,
       "pendência encerrada",
+    );
+    await s.encerrar();
+  });
+});
+
+// ─── Fase 22.8.9.9.6 (M4) — vídeo do produto ──────────────────────────────────────────────────────────────────────
+
+const MP4 = Buffer.from("conteudo-ficticio-de-video-mp4");
+const videoMp4 = (nome = "video.mp4", buffer = MP4) => ({
+  name: nome,
+  mimeType: "video/mp4",
+  buffer,
+});
+const entradaVideo = (p) => p.getByTestId("entrada-video");
+const itensVideo = (p) => p.getByLabel("Envio de vídeo").locator("li");
+const playerDoProduto = (p) =>
+  p.getByLabel("Vídeo do produto").locator("video[aria-label^='Vídeo de']");
+async function estadosVideo(p, estados, timeout = 20_000) {
+  await esperarAte(
+    async () =>
+      JSON.stringify(
+        await itensVideo(p).evaluateAll((els) => els.map((e) => e.getAttribute("data-estado"))),
+      ) === JSON.stringify(estados),
+    `estados do vídeo ${estados}`,
+    timeout,
+  );
+}
+const duracao = (p, s) => p.evaluate((v) => (window.__duracaoTeste = v), s);
+
+describe("vídeo do produto (M4)", () => {
+  test("1, 8, 9. vídeo válido: duração exibida, progresso, concluído só após a confirmação; player com a URL da galeria, sem autoplay", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-v", 2);
+    await s.abrirEdicao("prod-v");
+    await esperarTexto(s.pagina, "Este produto ainda não tem vídeo.");
+    await duracao(s.pagina, 12);
+    await entradaVideo(s.pagina).setInputFiles([videoMp4("desfile.mp4")]);
+    await estadosVideo(s.pagina, ["aguardando"]);
+    await esperarTexto(s.pagina, "MP4 ·");
+    await esperarTexto(s.pagina, "· 12 s");
+    let soltarPut;
+    s.backend.travas.put = new Promise((r) => (soltarPut = r));
+    let soltarConfirmacao;
+    await s.pagina.getByRole("button", { name: "Enviar vídeo" }).click();
+    await estadosVideo(s.pagina, ["enviando"]);
+    assert.equal(await itensVideo(s.pagina).first().getByRole("progressbar").count(), 1);
+    s.backend.travas.confirmar = new Promise((r) => (soltarConfirmacao = r));
+    s.backend.travas.put = null;
+    soltarPut();
+    await estadosVideo(s.pagina, ["confirmando"]);
+    assert.equal(await playerDoProduto(s.pagina).count(), 0, "vídeo apareceu antes da confirmação");
+    s.backend.travas.confirmar = null;
+    soltarConfirmacao();
+    await estadosVideo(s.pagina, ["concluida"]);
+    await esperarAte(
+      async () =>
+        (await s.pagina
+          .getByLabel("Vídeo do produto")
+          .locator("[data-midia-id^='upl-']")
+          .count()) === 1,
+      "vídeo confirmado",
+    );
+    const put = s.backend.puts.at(-1);
+    assert.deepEqual(
+      [put.metodo, put.contentType, put.cacheControl, put.authorization],
+      ["PUT", "video/mp4", CACHE_CONTROL, null],
+    );
+    // O player usa a URL PÚBLICA da galeria, controles nativos, preload=metadata e nada de autoplay. Como a rede
+    // externa está bloqueada no teste, o erro de reprodução vira mensagem clara.
+    const vistos = await s.pagina.evaluate(() => window.__videosVistos);
+    const doProduto = vistos.filter((v) => /\/products\/prod-v\/upl-\d+\.mp4$/.test(v.src));
+    assert.ok(
+      doProduto.length >= 1,
+      `player não montado com a URL da galeria: ${JSON.stringify(vistos)}`,
+    );
+    for (const v of doProduto) {
+      assert.match(v.src, /^https:\/\/midia\.ficticia\.test\/products\/prod-v\/upl-\d+\.mp4$/);
+      assert.deepEqual([v.controls, v.preload, v.autoplay], [true, "metadata", false]);
+    }
+    await esperarTexto(s.pagina, "Não foi possível reproduzir o vídeo.");
+    assert.equal(await cartoes(s.pagina).count(), 2, "as fotos foram afetadas");
+    await s.encerrar();
+  });
+
+  test("2, 3, 4. formato inválido, acima de 15 MiB e acima de 30 s recusados ANTES de qualquer requisição", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-v", 0);
+    await s.abrirEdicao("prod-v");
+    await entradaVideo(s.pagina).setInputFiles([
+      { name: "clip.webm", mimeType: "video/webm", buffer: MP4 },
+    ]);
+    await esperarTexto(s.pagina, "Tipo de arquivo não permitido. Use: video/mp4.");
+    await entradaVideo(s.pagina).setInputFiles([
+      videoMp4("grande.mp4", Buffer.alloc(15 * 1024 * 1024 + 1)),
+    ]);
+    await esperarTexto(s.pagina, "excede 15 MB");
+    await duracao(s.pagina, 45);
+    await entradaVideo(s.pagina).setInputFiles([videoMp4("longo.mp4")]);
+    await esperarTexto(s.pagina, "O vídeo tem 45 s; o máximo é 30 s.");
+    assert.equal(await itensVideo(s.pagina).count(), 0);
+    assert.equal(s.backend.contar("POST", /midias\/uploads$/), 0);
+    await s.encerrar();
+  });
+
+  test("5, 19. um vídeo por vez: segundo arquivo recusado; 409 do backend (limite) vira falha clara", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-v", 0);
+    await s.abrirEdicao("prod-v");
+    await duracao(s.pagina, 10);
+    await entradaVideo(s.pagina).setInputFiles([videoMp4("a.mp4")]);
+    await estadosVideo(s.pagina, ["aguardando"]);
+    await entradaVideo(s.pagina).setInputFiles([videoMp4("b.mp4")]);
+    await esperarTexto(s.pagina, "Já há um vídeo selecionado ou em envio para este produto.");
+    assert.equal(await itensVideo(s.pagina).count(), 1);
+    s.backend.comportamentos.solicitar.push({
+      tipo: "erro",
+      status: 409,
+      code: "CONFLICT",
+      message: "Limite de 1 vídeo por produto atingido.",
+    });
+    await s.pagina.getByRole("button", { name: "Enviar vídeo" }).click();
+    await estadosVideo(s.pagina, ["falhou"]);
+    await esperarTexto(s.pagina, "Limite de 1 vídeo por produto atingido.");
+    await s.encerrar();
+  });
+
+  test("6, 7. substituição: o vídeo anterior fica até a confirmação; falha na substituição preserva o anterior", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-v", 1, {}, { video: true });
+    await s.abrirEdicao("prod-v");
+    await s.pagina.getByRole("button", { name: "Substituir vídeo" }).waitFor();
+    await duracao(s.pagina, 20);
+    s.backend.comportamentos.confirmar.push({
+      tipo: "erro",
+      status: 409,
+      code: "CONFLICT",
+      message: "A mídia a ser substituída não está mais na galeria.",
+    });
+    await entradaVideo(s.pagina).setInputFiles([videoMp4("novo.mp4")]);
+    await s.pagina.getByRole("button", { name: "Enviar e substituir" }).click();
+    await estadosVideo(s.pagina, ["falhou"]);
+    assert.equal(
+      await s.pagina.locator("[data-midia-id='prod-v-v1']").count(),
+      1,
+      "o vídeo anterior sumiu apesar da falha",
+    );
+    await itensVideo(s.pagina).first().getByRole("button", { name: "Remover" }).click();
+
+    let soltar;
+    s.backend.travas.confirmar = new Promise((r) => (soltar = r));
+    await entradaVideo(s.pagina).setInputFiles([videoMp4("novo2.mp4")]);
+    await s.pagina.getByRole("button", { name: "Enviar e substituir" }).click();
+    await estadosVideo(s.pagina, ["confirmando"]);
+    assert.equal(
+      await s.pagina.locator("[data-midia-id='prod-v-v1']").count(),
+      1,
+      "o anterior sumiu antes da confirmação",
+    );
+    s.backend.travas.confirmar = null;
+    soltar();
+    await estadosVideo(s.pagina, ["concluida"]);
+    await esperarAte(
+      async () => (await s.pagina.locator("[data-midia-id='prod-v-v1']").count()) === 0,
+      "anterior substituído",
+    );
+    assert.equal(
+      s.backend.resposta("prod-v").midias.filter((x) => x.tipo === "video").length,
+      1,
+      "mais de um vídeo",
+    );
+    assert.equal(await cartoes(s.pagina).count(), 1, "as fotos foram afetadas");
+    await s.encerrar();
+  });
+
+  test("10, 11. falha na solicitação (503) e no PUT ao armazenamento: falhou, nada muda na galeria", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-v", 0);
+    await s.abrirEdicao("prod-v");
+    await duracao(s.pagina, 5);
+    await entradaVideo(s.pagina).setInputFiles([videoMp4("a.mp4")]);
+    s.backend.comportamentos.solicitar.push({
+      tipo: "erro",
+      status: 503,
+      code: "STORAGE_UNAVAILABLE",
+      message: "Armazenamento indisponível (fictício).",
+    });
+    await s.pagina.getByRole("button", { name: "Enviar vídeo" }).click();
+    await estadosVideo(s.pagina, ["falhou"]);
+    await esperarTexto(s.pagina, "Armazenamento indisponível (fictício).");
+    await itensVideo(s.pagina).first().getByRole("button", { name: "Tentar de novo" }).click();
+    s.backend.comportamentos.put.push({ tipo: "erro", status: 503 });
+    await s.pagina.getByRole("button", { name: "Enviar vídeo" }).click();
+    await estadosVideo(s.pagina, ["falhou"]);
+    assert.equal(s.backend.contar("POST", /confirmacao$/), 0, "confirmou sem o arquivo");
+    assert.equal(s.backend.resposta("prod-v").midias.length, 0);
+    await s.encerrar();
+  });
+
+  test("12, 13, 14, 15, 16. confirmação inconclusiva: pendente; recarregar e reabrir mantêm; nada automático; verificação pela galeria, mesmo uploadId", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-v", 0);
+    await s.abrirEdicao("prod-v");
+    await duracao(s.pagina, 8);
+    await entradaVideo(s.pagina).setInputFiles([videoMp4("a.mp4")]);
+    s.backend.comportamentos.confirmar.push({
+      tipo: "erro",
+      status: 503,
+      code: "STORAGE_UNAVAILABLE",
+      message: "Indisponível (fictício).",
+    });
+    await s.pagina.getByRole("button", { name: "Enviar vídeo" }).click();
+    await estadosVideo(s.pagina, ["confirmacao_pendente"]);
+    const uploadId = s.backend.puts.at(-1).uploadId;
+    // 13. recarregar
+    await s.pagina.reload();
+    await s.pagina.getByLabel("Galeria de fotos do produto").waitFor({ timeout: 60_000 });
+    await esperarTexto(s.pagina, "Confirmações pendentes");
+    await esperarTexto(s.pagina, "Vídeo ·");
+    // 14. fechar e reabrir (nova página no mesmo perfil; o registro durável continua)
+    const nova = await s.contexto.newPage();
+    await s.pagina.close();
+    s.pagina = nova;
+    await s.abrirEdicao("prod-v");
+    await esperarTexto(s.pagina, "Confirmações pendentes");
+    await dormir(1500);
+    const confirmacoesAntes = s.backend.contar("POST", /confirmacao$/);
+    assert.equal(confirmacoesAntes, 1, "15: confirmação reenviada automaticamente");
+    // Pendência bloqueia novo vídeo do produto.
+    await entradaVideo(s.pagina).setInputFiles([videoMp4("outro.mp4")]);
+    await s.pagina.getByRole("button", { name: "Enviar vídeo" }).click();
+    await esperarTexto(s.pagina, "Há um envio deste produto aguardando confirmação");
+    const antes = s.backend.chamadas.length;
+    await s.pagina.getByRole("button", { name: "Verificar e confirmar" }).click();
+    await esperarTexto(s.pagina, "Vídeo confirmado na galeria.");
+    const depois = s.backend.chamadas.slice(antes);
+    const iGet = depois.findIndex(([m, c]) => m === "GET" && /\/midias$/.test(c));
+    const iPost = depois.findIndex(([m, c]) => m === "POST" && /confirmacao$/.test(c));
+    assert.ok(iGet >= 0 && iPost > iGet, "a galeria não foi consultada antes");
+    assert.equal(
+      depois[iPost][1],
+      `/produtos/prod-v/midias/uploads/${uploadId}/confirmacao`,
+      "16: outro uploadId",
+    );
+    assert.deepEqual(depois[iPost][2], {}, "16: outro corpo");
+    assert.equal(s.backend.contar("POST", /midias\/uploads$/), 1, "novo upload na recuperação");
+    await esperarAte(
+      async () => (await s.pagina.locator(`[data-midia-id='${uploadId}']`).count()) === 1,
+      "vídeo na galeria",
+    );
+    await s.encerrar();
+  });
+
+  test("17, 18. remoção pede confirmação; falha mantém o vídeo; sucesso remove só depois da resposta", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-v", 1, {}, { video: true });
+    await s.abrirEdicao("prod-v");
+    s.backend.comportamentos.remover.push({
+      tipo: "erro",
+      status: 500,
+      message: "Falha fictícia ao remover o vídeo.",
+    });
+    await s.pagina.getByRole("button", { name: "Remover o vídeo" }).click();
+    await s.pagina.getByRole("alertdialog").getByRole("button", { name: "Remover" }).click();
+    await esperarTexto(s.pagina, "Falha fictícia ao remover o vídeo.");
+    assert.equal(await s.pagina.locator("[data-midia-id='prod-v-v1']").count(), 1);
+    await s.pagina.getByRole("alertdialog").getByRole("button", { name: "Remover" }).click();
+    await esperarTexto(s.pagina, "Vídeo removido do produto.");
+    await esperarTexto(s.pagina, "Este produto ainda não tem vídeo.");
+    assert.equal(await cartoes(s.pagina).count(), 1, "a foto foi removida junto");
+    await s.encerrar();
+  });
+
+  test("20, 21. 429 com Retry-After e falha de rede: mensagem clara, sem repetição e SEM logout", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-v", 0);
+    await s.abrirEdicao("prod-v");
+    await duracao(s.pagina, 5);
+    await entradaVideo(s.pagina).setInputFiles([videoMp4("a.mp4")]);
+    s.backend.comportamentos.solicitar.push({
+      tipo: "erro",
+      status: 429,
+      code: "TOO_MANY_REQUESTS",
+      message: "Muitas solicitações (fictício).",
+      headers: { "Retry-After": "41" },
+    });
+    await s.pagina.getByRole("button", { name: "Enviar vídeo" }).click();
+    await estadosVideo(s.pagina, ["falhou"]);
+    await esperarTexto(s.pagina, "Aguarde cerca de 41 s antes de tentar de novo.");
+    await itensVideo(s.pagina).first().getByRole("button", { name: "Tentar de novo" }).click();
+    s.backend.comportamentos.solicitar.push({ tipo: "abortar" });
+    await s.pagina.getByRole("button", { name: "Enviar vídeo" }).click();
+    await estadosVideo(s.pagina, ["falhou"]);
+    await esperarTexto(s.pagina, "Não foi possível falar com o servidor.");
+    const n = s.backend.contar("POST", /midias\/uploads$/);
+    await dormir(1500);
+    assert.equal(s.backend.contar("POST", /midias\/uploads$/), n, "repetição automática");
+    assert.ok(s.pagina.url().endsWith("/produtos/prod-v/editar"), "saiu da tela (logout?)");
+    assert.equal(
+      await s.pagina.evaluate(() => localStorage.getItem("mariela.accessToken")),
+      "token-ficticio-de-teste",
+      "sessão encerrada por falha temporária",
+    );
+    await s.encerrar();
+  });
+
+  test("detalhe: player do vídeo da galeria; cadastro envia o vídeo depois de criar o produto", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-v", 1, {}, { video: true });
+    await s.pagina.goto(`${BASE}/produtos/prod-v`);
+    await esperarTexto(s.pagina, "Vídeo do produto");
+    const v = s.pagina.locator("video[aria-label^='Vídeo de']").first();
+    await v.waitFor({ timeout: 30_000 }).catch(() => undefined);
+    await esperarTexto(s.pagina, "Não foi possível reproduzir o vídeo."); // rede externa bloqueada no teste
+    const noDetalhe = await s.pagina.evaluate(() => window.__videosVistos);
+    assert.ok(
+      noDetalhe.some(
+        (v) =>
+          v.src.endsWith("/products/prod-v/prod-v-v1.mp4") &&
+          v.controls &&
+          v.preload === "metadata" &&
+          !v.autoplay,
+      ),
+      `player do detalhe: ${JSON.stringify(noDetalhe)}`,
+    );
+
+    await s.pagina.goto(`${BASE}/produtos/novo`);
+    await s.pagina.locator("#nome").waitFor({ timeout: 60_000 });
+    await s.pagina.locator("#nome").fill("Vestido Com Vídeo");
+    await s.pagina.locator("#categoria").click();
+    await s.pagina.getByRole("option", { name: "Vestidos" }).click();
+    await s.pagina.locator("#precoCusto").fill("50");
+    await s.pagina.locator("#precoVenda").fill("120");
+    await duracao(s.pagina, 9);
+    await entrada(s.pagina).setInputFiles([arquivo("a.jpg")]);
+    await entradaVideo(s.pagina).setInputFiles([videoMp4("v.mp4")]);
+    await estadosVideo(s.pagina, ["aguardando"]);
+    assert.equal(
+      s.backend.contar("POST", /midias\/uploads$/),
+      0,
+      "envio antes de o produto existir",
+    );
+    await s.pagina.getByRole("button", { name: "Criar produto" }).click();
+    await estadosVideo(s.pagina, ["concluida"], 30_000);
+    assert.equal(s.backend.contar("POST", /^\/produtos$/), 1);
+    const kinds = s.backend.chamadas
+      .filter(([m, c]) => m === "POST" && /midias\/uploads$/.test(c))
+      .map(([, c, b]) => [c.split("/")[2], b.kind]);
+    assert.deepEqual(
+      kinds,
+      [
+        ["prod-novo-1", "image"],
+        ["prod-novo-1", "video"],
+      ],
+      "ordem/produto dos envios",
     );
     await s.encerrar();
   });

@@ -20,6 +20,7 @@ import {
   LIMITE_IMAGENS,
   PODE_REMOVER,
   ROTULO_ESTADO,
+  formatarDuracao,
   formatarTamanho,
   rotuloFormato,
   type EstadoItem,
@@ -149,7 +150,7 @@ export function SeletorFotos({
   );
 }
 
-function ItemDaFila({
+export function ItemDaFila({
   item,
   fila,
   produtoId,
@@ -166,11 +167,23 @@ function ItemDaFila({
       aria-label={`${item.substituiMidiaId ? "Substituição: " : ""}${item.nome} — ${ROTULO_ESTADO[item.estado]}`}
       data-estado={item.estado}
     >
-      <img
-        src={item.previewUrl}
-        alt={`Pré-visualização de ${item.nome}`}
-        className="size-16 shrink-0 rounded-md border border-border object-cover"
-      />
+      {item.tipo.startsWith("video/") ? (
+        // Fase 22.8.9.9.6 (M4) — pré-visualização LOCAL do vídeo (blob:), sem reprodução automática.
+        <video
+          src={item.previewUrl}
+          controls
+          preload="metadata"
+          muted
+          aria-label={`Pré-visualização de ${item.nome}`}
+          className="h-20 w-32 shrink-0 rounded-md border border-border bg-black object-contain"
+        />
+      ) : (
+        <img
+          src={item.previewUrl}
+          alt={`Pré-visualização de ${item.nome}`}
+          className="size-16 shrink-0 rounded-md border border-border object-cover"
+        />
+      )}
       <div className="min-w-0 flex-1 space-y-1">
         <p className="truncate text-sm font-medium" title={item.nome}>
           {item.substituiMidiaId ? (
@@ -180,6 +193,7 @@ function ItemDaFila({
         </p>
         <p className="text-xs text-muted-foreground">
           {rotuloFormato(item.tipo)} · {formatarTamanho(item.tamanho)}
+          {item.duracaoSegundos !== null ? ` · ${formatarDuracao(item.duracaoSegundos)}` : ""}
         </p>
         <p className="flex items-center gap-1 text-xs" role="status">
           <Icone

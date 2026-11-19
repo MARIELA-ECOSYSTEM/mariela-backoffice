@@ -10,6 +10,7 @@ import {
 import { dependenciasEnvioPadrao } from "@/services/midia/dependencias-envio";
 import { galeriaKeys, pendenciasMidiaKeys } from "@/hooks/use-galeria";
 import { produtosKeys } from "@/hooks/use-produtos";
+import type { TipoMidia } from "@/types/media";
 import {
   novoItem,
   percentual,
@@ -29,6 +30,8 @@ import {
  * - URLs `blob:` são liberadas ao remover o item e ao desmontar a tela. Arquivo e URL vivem só em memória.
  */
 export interface OpcoesFilaFotos {
+  /** Fase 22.8.9.9.6 (M4) — tipo da fila (`image` por padrão; `video` para o vídeo do produto). */
+  kind?: TipoMidia;
   /** Fotos de imagem já na galeria (para o limite). */
   imagensNaGaleria: number;
   deps?: DependenciasEnvio;
@@ -40,6 +43,7 @@ let sequencia = 0;
 
 export function useFilaFotos({
   imagensNaGaleria,
+  kind = "image",
   deps = dependenciasEnvioPadrao,
   criarUrl = (a) => URL.createObjectURL(a),
   liberarUrl = (u) => URL.revokeObjectURL(u),
@@ -69,15 +73,26 @@ export function useFilaFotos({
   }, []);
 
   const adicionar = useCallback(
-    (arquivos: readonly File[], substituiMidiaId: string | null = null) => {
-      const vagas = vagasRestantes(imagensNaGaleria, filaRef.current);
+    (
+      arquivos: readonly File[],
+      substituiMidiaId: string | null = null,
+      duracaoSegundos: number | null = null,
+    ) => {
+      const vagas = vagasRestantes(imagensNaGaleria, filaRef.current, kind);
       const { aceitos, recusados: novas } = validarSelecao(arquivos, vagas, {
         substituicao: substituiMidiaId !== null,
+        kind,
       });
       setRecusados(novas);
       if (aceitos.length === 0) return [];
       const itens = aceitos.map((a) =>
-        novoItem(a, `foto-${(sequencia += 1)}`, criarUrl(a), substituiMidiaId),
+        novoItem(
+          a,
+          `${kind === "video" ? "video" : "foto"}-${(sequencia += 1)}`,
+          criarUrl(a),
+          substituiMidiaId,
+          duracaoSegundos,
+        ),
       );
       // A ref também é atualizada JÁ: quem chama `enviarTodos` logo em seguida (substituição) precisa ver o item novo
       // antes do próximo render.
@@ -85,7 +100,7 @@ export function useFilaFotos({
       setFila((atual) => [...atual, ...itens]);
       return itens;
     },
-    [imagensNaGaleria, criarUrl],
+    [imagensNaGaleria, criarUrl, kind],
   );
 
   const remover = useCallback((id: string) => {
@@ -158,7 +173,7 @@ export function useFilaFotos({
             {
               produtoId,
               arquivo: item.arquivo,
-              kind: "image",
+              kind,
               ...(item.substituiMidiaId ? { substituiMidiaId: item.substituiMidiaId } : {}),
               onEtapa: (etapa) =>
                 atualizar(item.id, {
@@ -181,7 +196,7 @@ export function useFilaFotos({
         processandoRef.current = false;
       }
     },
-    [atualizar, aplicarResultado, deps],
+    [atualizar, aplicarResultado, deps, kind],
   );
 
   /** Falhou antes de confirmar: volta para `aguardando` (novo envio completo, nova autorização). */
@@ -217,7 +232,7 @@ export function useFilaFotos({
     fila,
     recusados,
     limparRecusados: () => setRecusados([]),
-    vagas: vagasRestantes(imagensNaGaleria, fila),
+    vagas: vagasRestantes(imagensNaGaleria, fila, kind),
     adicionar,
     remover,
     limparConcluidos,

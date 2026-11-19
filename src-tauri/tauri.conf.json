@@ -28,6 +28,7 @@
         "style-src": "'self' 'unsafe-inline'",
         "font-src": "'self'",
         "img-src": "'self' https: blob:",
+        "media-src": "'self' https://media.mariela.app blob:",
         "connect-src": "'self' ipc: http://ipc.localhost https://mariela-backend.onrender.com https://api.github.com https://*.r2.cloudflarestorage.com",
         "object-src": "'none'",
         "frame-src": "'none'",

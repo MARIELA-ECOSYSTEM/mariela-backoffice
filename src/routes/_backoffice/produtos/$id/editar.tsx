@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { ProdutoForm } from "@/components/produtos/produto-form";
 import { GaleriaFotosProduto } from "@/components/produtos/fotos/galeria-fotos-produto";
+import { VideoProduto } from "@/components/produtos/video/video-produto";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState, TableSkeleton } from "@/components/common/states";
 import { useAtualizarProduto, useProduto } from "@/hooks/use-produtos";
@@ -69,6 +70,15 @@ function EditarProdutoPage() {
               </CardHeader>
               <CardContent>
                 <GaleriaFotosProduto produto={produto} />
+              </CardContent>
+            </Card>
+            {/* Fase 22.8.9.9.6 (M4) — vídeo: cartão próprio, também independente do formulário. */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="font-display text-xl">Vídeo</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <VideoProduto produto={produto} />
               </CardContent>
             </Card>
           </>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useDefinirFotoPrincipal } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
 import { galeriaEfetiva } from "@/utils/galeria";
+import { PlayerVideo } from "@/components/produtos/video/player-video";
 import type { Produto } from "@/types/produto";
 
 /**
@@ -49,6 +50,16 @@ export function GaleriaProduto({ produto }: { produto: Produto }) {
     }
   }
 
+  // Fase 22.8.9.9.6 (M4) — vídeo do produto (o da galeria; senão o antigo da variante), com player nativo.
+  const videoDoProduto = efetiva.video ? (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-muted-foreground">
+        {efetiva.video.origem === "galeria" ? "Vídeo do produto" : "Vídeo antigo (variante)"}
+      </p>
+      <PlayerVideo url={efetiva.video.url} titulo={`Vídeo de ${produto.nome}`} />
+    </div>
+  ) : null;
+
   const gerenciar = (
     <Button asChild variant="outline" size="sm" className="w-full">
       <Link to="/produtos/$id/editar" params={{ id: produto.id }}>
@@ -67,6 +78,7 @@ export function GaleriaProduto({ produto }: { produto: Produto }) {
             Envie fotos do computador para montar a galeria do produto.
           </p>
         </div>
+        {videoDoProduto}
         {gerenciar}
       </div>
     );
@@ -158,6 +170,7 @@ export function GaleriaProduto({ produto }: { produto: Produto }) {
           {atual.principal ? "Já é a imagem principal" : "Definir como imagem principal"}
         </Button>
       ) : null}
+      {videoDoProduto}
       {gerenciar}
       <p className="text-xs text-muted-foreground">
         {efetiva.fonte === "galeria"

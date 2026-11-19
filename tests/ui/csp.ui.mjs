@@ -254,6 +254,16 @@ async function novaPagina({ tema } = {}) {
           body: "{}",
         });
       }
+      // Fase 22.8.9.9.6 (M4) — domínio público de mídia permitido em `media-src`: a requisição só chega aqui se a CSP
+      // deixou sair (bloqueio de CSP acontece antes da rede).
+      if (url.host === "media.mariela.app") {
+        atendidas.push(`media.mariela.app ${url.pathname}`);
+        return route.fulfill({
+          status: 200,
+          contentType: "video/mp4",
+          body: Buffer.from("nao-e-um-video-real"),
+        });
+      }
       if (url.host === "midia.ficticia.test") {
         atendidas.push(`midia ${url.pathname}`);
         return route.fulfill({ status: 200, contentType: "image/png", body: PNG_1PX });
@@ -325,12 +335,57 @@ describe("CSP — o app funciona sob a política (bundle de produção)", () => 
       /connect-src[^;]*\*(?!\.r2\.cloudflarestorage\.com)/,
       "connect-src sem curinga amplo",
     );
-    // Fase 22.8.9.9.4 (M3) — `blob:` SÓ em img-src (pré-visualização local das fotos), em nenhuma outra diretiva.
+    // Fase 22.8.9.9.4 (M3) / 22.8.9.9.6 (M4) — `blob:` SÓ em img-src e media-src (pré-visualização local das fotos e do
+    // vídeo escolhido, e leitura da duração), em nenhuma outra diretiva.
     const diretivasComBlob = cspEfetiva
       .split("; ")
       .filter((d) => /(^|\s)blob:/.test(d))
       .map((d) => d.split(" ")[0]);
-    assert.deepEqual(diretivasComBlob, ["img-src"]);
+    assert.deepEqual(diretivasComBlob, ["img-src", "media-src"]);
+    // media-src: só a própria origem, o domínio público de mídia e blob: — nada de https: amplo nem curinga.
+    const mediaSrc = cspEfetiva.split("; ").find((d) => d.startsWith("media-src "));
+    assert.equal(mediaSrc, "media-src 'self' https://media.mariela.app blob:");
+  });
+
+  test("media-src: vídeo do domínio público de mídia sai (permitido); de outro domínio https é bloqueado; blob: local é permitido", async () => {
+    const s = await novaPagina();
+    await s.pagina.goto(`${BASE}/login`);
+    await s.pagina.getByText("Entrar no Backoffice").waitFor({ timeout: 30_000 });
+    // 1) domínio de mídia: a requisição chega à rede (o conteúdo fictício não é um vídeo; o erro de mídia é esperado).
+    await s.pagina.evaluate(() => {
+      const v = document.createElement("video");
+      v.preload = "metadata";
+      v.src = "https://media.mariela.app/products/p1/upl-1.mp4";
+      document.body.appendChild(v);
+    });
+    await s.pagina.waitForTimeout(800);
+    assert.ok(
+      s.atendidas.some((a) => a.startsWith("media.mariela.app /products/p1/upl-1.mp4")),
+      `vídeo do domínio de mídia não saiu: ${JSON.stringify(s.atendidas)}`,
+    );
+    assert.deepEqual(await s.violacoes(), []);
+    // 2) blob: local (pré-visualização / leitura de duração): permitido.
+    await s.pagina.evaluate(() => {
+      const v = document.createElement("video");
+      v.preload = "metadata";
+      v.src = URL.createObjectURL(new Blob([new Uint8Array(16)], { type: "video/mp4" }));
+      document.body.appendChild(v);
+    });
+    await s.pagina.waitForTimeout(400);
+    assert.deepEqual(await s.violacoes(), []);
+    // 3) outro domínio https: bloqueado por media-src, sem sair para a rede.
+    await s.pagina.evaluate(() => {
+      const v = document.createElement("video");
+      v.preload = "metadata";
+      v.src = "https://videos.outro-dominio.invalid/x.mp4";
+      document.body.appendChild(v);
+    });
+    await s.pagina.waitForTimeout(800);
+    const violacoes = await s.violacoes();
+    assert.equal(violacoes.length, 1, JSON.stringify(violacoes));
+    assert.equal(violacoes[0].diretiva, "media-src");
+    assert.ok(!s.atendidas.some((a) => a.includes("outro-dominio")));
+    await s.encerrar();
   });
 
   test("img-src: pré-visualização local (URL blob:) de uma imagem carrega — zero violações", async () => {

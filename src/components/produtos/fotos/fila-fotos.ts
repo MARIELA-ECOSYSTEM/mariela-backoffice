@@ -11,7 +11,7 @@ import {
   type ConfirmacaoARetomar,
   type FalhaMidia,
 } from "@/services/midia/envio-midia";
-import { LIMITES_GALERIA, type MidiaProduto } from "@/types/media";
+import { LIMITES_GALERIA, type MidiaProduto, type TipoMidia } from "@/types/media";
 
 export const LIMITE_IMAGENS = LIMITES_GALERIA.image.maximoPorProduto;
 
@@ -60,6 +60,8 @@ export interface ItemFila {
   retomar: ConfirmacaoARetomar | null;
   /** Substituição: `id` da mídia que este arquivo vai substituir (não consome vaga). */
   substituiMidiaId: string | null;
+  /** Fase 22.8.9.9.6 (M4) — duração lida localmente (vídeo), em segundos; `null` se não lida/desconhecida. */
+  duracaoSegundos: number | null;
 }
 
 export interface Recusa {
@@ -80,9 +82,21 @@ const OCUPAM_VAGA: readonly EstadoItem[] = [
 /** Itens que podem ser tirados da fila (não estão no meio de uma requisição). */
 export const PODE_REMOVER: readonly EstadoItem[] = ["aguardando", "falhou", "concluida"];
 
-export function vagasRestantes(imagensNaGaleria: number, fila: readonly ItemFila[]): number {
+/** Vagas do tipo (`image`: 10; `video`: 1 — `LIMITES_GALERIA`), descontando a galeria e a fila. */
+export function vagasRestantes(
+  naGaleria: number,
+  fila: readonly ItemFila[],
+  kind: TipoMidia = "image",
+): number {
   const naFila = fila.filter((i) => !i.substituiMidiaId && OCUPAM_VAGA.includes(i.estado)).length;
-  return Math.max(0, LIMITE_IMAGENS - imagensNaGaleria - naFila);
+  return Math.max(0, LIMITES_GALERIA[kind].maximoPorProduto - naGaleria - naFila);
+}
+
+/** Texto da recusa por falta de vaga. */
+export function motivoSemVaga(kind: TipoMidia): string {
+  return kind === "video"
+    ? 'Limite de 1 vídeo por produto (contando o vídeo da galeria e os envios em andamento). Use "Substituir vídeo".'
+    : `Limite de ${LIMITE_IMAGENS} fotos por produto (contando as fotos da galeria e os envios em andamento).`;
 }
 
 export function formatarTamanho(bytes: number): string {
@@ -104,23 +118,20 @@ export function rotuloFormato(tipo: string): string {
 export function validarSelecao(
   arquivos: readonly File[],
   vagas: number,
-  { substituicao = false }: { substituicao?: boolean } = {},
+  { substituicao = false, kind = "image" }: { substituicao?: boolean; kind?: TipoMidia } = {},
 ): { aceitos: File[]; recusados: Recusa[] } {
   const aceitos: File[] = [];
   const recusados: Recusa[] = [];
   let livres = vagas;
   for (const arquivo of arquivos) {
-    const invalido = validarArquivoLocal(arquivo, "image");
+    const invalido = validarArquivoLocal(arquivo, kind);
     if (invalido) {
       recusados.push({ nome: arquivo.name, motivo: invalido.mensagem });
       continue;
     }
     if (!substituicao) {
       if (livres <= 0) {
-        recusados.push({
-          nome: arquivo.name,
-          motivo: `Limite de ${LIMITE_IMAGENS} fotos por produto (contando as fotos da galeria e os envios em andamento).`,
-        });
+        recusados.push({ nome: arquivo.name, motivo: motivoSemVaga(kind) });
         continue;
       }
       livres -= 1;
@@ -135,6 +146,7 @@ export function novoItem(
   id: string,
   previewUrl: string,
   substituiMidiaId: string | null = null,
+  duracaoSegundos: number | null = null,
 ): ItemFila {
   return {
     id,
@@ -149,7 +161,79 @@ export function novoItem(
     uploadId: null,
     retomar: null,
     substituiMidiaId,
+    duracaoSegundos,
   };
+}
+
+// ─── Fase 22.8.9.9.6 (M4) — vídeo ──────────────────────────────────────────────────────────────────────────────────
+
+export const DURACAO_MAXIMA_VIDEO_S = LIMITES_GALERIA.video.duracaoMaximaSegundos;
+
+/** Elemento mínimo para ler a duração (injetável nos testes). */
+export interface VideoParaMetadados {
+  preload: string;
+  muted: boolean;
+  src: string;
+  readonly duration: number;
+  onloadedmetadata: (() => void) | null;
+  onerror: (() => void) | null;
+  removeAttribute(nome: string): void;
+  load(): void;
+}
+
+/**
+ * Duração do vídeo LOCAL (antes de qualquer requisição), lendo só os METADADOS (`preload="metadata"`): o arquivo não
+ * é reproduzido nem decodificado por inteiro. `null` se não der para ler (formato que o navegador não abre, prazo
+ * esgotado) — nesse caso quem decide é o backend (30 s, conferidos na confirmação). A URL `blob:` é sempre liberada.
+ */
+export function lerDuracaoVideo(
+  arquivo: Blob,
+  {
+    criarElemento = () => document.createElement("video") as unknown as VideoParaMetadados,
+    criarUrl = (a: Blob) => URL.createObjectURL(a),
+    liberarUrl = (u: string) => URL.revokeObjectURL(u),
+    prazoMs = 10_000,
+  }: {
+    criarElemento?: () => VideoParaMetadados;
+    criarUrl?: (a: Blob) => string;
+    liberarUrl?: (u: string) => void;
+    prazoMs?: number;
+  } = {},
+): Promise<number | null> {
+  return new Promise((resolver) => {
+    const url = criarUrl(arquivo);
+    const video = criarElemento();
+    let encerrado = false;
+    const fim = (valor: number | null) => {
+      if (encerrado) return;
+      encerrado = true;
+      clearTimeout(prazo);
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute("src");
+      video.load();
+      liberarUrl(url);
+      resolver(valor);
+    };
+    const prazo = setTimeout(() => fim(null), prazoMs);
+    video.preload = "metadata";
+    video.muted = true;
+    video.onloadedmetadata = () =>
+      fim(Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null);
+    video.onerror = () => fim(null);
+    video.src = url;
+  });
+}
+
+/** Recusa por duração (só quando a duração foi lida e passa do limite do backend). */
+export function motivoDuracao(duracaoSegundos: number | null): string | null {
+  if (duracaoSegundos === null || duracaoSegundos <= DURACAO_MAXIMA_VIDEO_S) return null;
+  return `O vídeo tem ${formatarDuracao(duracaoSegundos)}; o máximo é ${DURACAO_MAXIMA_VIDEO_S} s.`;
+}
+
+export function formatarDuracao(segundos: number): string {
+  const s = Math.round(segundos);
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")} s`;
 }
 
 /** Percentual inteiro (0–100) a partir de bytes enviados; `null` se o total é desconhecido. */
