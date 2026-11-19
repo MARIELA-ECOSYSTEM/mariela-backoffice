@@ -68,6 +68,7 @@ jobs:
     timeout-minutes: 25
     # Fase 22.8.9.9.5 (M3.1) — dois arquivos, cada um no seu passo: `cancelamento.ui.mjs` (Vite na porta 5317) e
     # `galeria.ui.mjs` (galeria de fotos do produto, porta 5318). Os dois seguem o mesmo modelo descrito abaixo.
+    # Fase 22.8.9.9.7 — terceiro passo: `csp.ui.mjs` (CSP do bundle desktop, porta 5319; ver o passo).
     # Sem VITE_* aqui de propósito: `tests/ui/cancelamento.ui.mjs` sobe o Vite com `VITE_USE_MOCK_API=false` e
     # `VITE_API_URL` apontando para um caminho FICTÍCIO na própria origem, atende toda a API com um backend falso em
     # memória e ABORTA qualquer requisição do navegador para fora de `localhost` (o teste falha se houver chamada de
@@ -114,3 +115,18 @@ jobs:
       - name: Testes de interface (galeria de fotos do produto)
         if: ${{ !cancelled() }}
         run: node --test --test-concurrency=1 tests/ui/galeria.ui.mjs
+
+      # Fase 22.8.9.9.7 — Content Security Policy do app desktop, no BUNDLE DE PRODUÇÃO. O próprio teste gera o bundle
+      # com `bun --no-env-file run build:desktop` (o MESMO comando do `beforeBuildCommand` do Tauri; é o único build deste
+      # job — o `bun run build` do job `validacao` é outro alvo e roda noutra máquina, não há artefato a reaproveitar),
+      # lê a CSP de `src-tauri/tauri.conf.json`, injeta-a como o Tauri (meta + hashes dos scripts inline), serve
+      # `dist/client` em 127.0.0.1 e verifica no Chrome: diretivas esperadas, `blob:` só em img-src/media-src,
+      # media-src restrito a `https://media.mariela.app`, zero violações nos recursos permitidos e bloqueio dos não
+      # autorizados. API, GitHub, R2 e mídia são atendidos por respostas falsas via `page.route`; qualquer outra
+      # requisição externa é abortada e reprova o teste. Sem instalar nem abrir o app Tauri. `CSP_PORT` explícita:
+      # porta própria, distinta da 5318 usada pela galeria no passo anterior.
+      - name: Testes de segurança (CSP do bundle desktop)
+        if: ${{ !cancelled() }}
+        env:
+          CSP_PORT: "5319"
+        run: node --test --test-concurrency=1 tests/ui/csp.ui.mjs
