@@ -95,6 +95,19 @@ function buildQueryString(params: QueryParams): string {
   return qs ? `?${qs}` : "";
 }
 
+/**
+ * Fase 22.8.9.9.2 (M2) — `Retry-After` em segundos (inteiro ≥ 0) ou data HTTP, convertido em segundos inteiros
+ * (mínimo 1). Ausente, ilegível ou não exposto pelo CORS → `null`.
+ */
+export function lerRetryAfter(valor: string | null, agora: number = Date.now()): number | null {
+  const texto = valor?.trim();
+  if (!texto) return null;
+  if (/^\d+$/.test(texto)) return Math.max(1, Number(texto));
+  const data = Date.parse(texto);
+  if (Number.isNaN(data)) return null;
+  return Math.max(1, Math.ceil((data - agora) / 1000));
+}
+
 async function httpRequest<T>(request: ApiRequest): Promise<ApiResponse<T>> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -123,6 +136,9 @@ async function httpRequest<T>(request: ApiRequest): Promise<ApiResponse<T>> {
         code: parsed.code ?? "HTTP_ERROR",
         message: parsed.message ?? "Não foi possível completar a requisição.",
         errors: parsed.errors ?? [],
+        ...(response.status === 429
+          ? { retryAfterSegundos: lerRetryAfter(response.headers.get("retry-after")) }
+          : {}),
       });
     }
 

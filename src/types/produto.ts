@@ -1,4 +1,5 @@
 import type { SelecaoFacetas } from "@/lib/filtros/facetas";
+import type { MidiaProduto } from "./media";
 import type { Variante } from "./variante";
 
 export interface Produto {
@@ -25,6 +26,14 @@ export interface Produto {
   fotoPrincipalVarianteId?: string | null;
   estoqueZeradoEm?: string | null;
   variantes: Variante[];
+  /**
+   * Fase 22.8.9.9.2 (M2) — galeria do produto (`Produto.midias` do backend, Fase 60.1). OPCIONAL: produtos e
+   * respostas antigas não a têm; nesse caso valem só os campos legados (`variante.foto`/`video`,
+   * `fotoPrincipalVarianteId`). Ver `galeriaEfetiva` em `utils/galeria.ts`.
+   */
+  midias?: MidiaProduto[];
+  /** `id` de uma imagem de `midias` marcada como principal, ou `null`. */
+  midiaPrincipalId?: string | null;
   criadoEm: string;
   atualizadoEm: string;
 }

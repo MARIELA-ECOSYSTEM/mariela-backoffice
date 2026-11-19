@@ -38,12 +38,20 @@ export interface ApiErrorPayload {
   code: string;
   message: string;
   errors?: ApiFieldError[];
+  /**
+   * Fase 22.8.9.9.2 (M2) — segundos indicados por `Retry-After` numa resposta 429, quando o cabeçalho é legível.
+   * Numa requisição de outra origem (o app desktop), o navegador só expõe o cabeçalho se o backend o listar em
+   * `Access-Control-Expose-Headers`; sem isso fica `null` e quem trata o 429 usa a janela conhecida do limite.
+   */
+  retryAfterSegundos?: number | null;
 }
 
 export class ApiError extends Error {
   readonly statusCode: number;
   readonly code: string;
   readonly errors: ApiFieldError[];
+  /** Fase 22.8.9.9.2 (M2) — ver `ApiErrorPayload.retryAfterSegundos`. */
+  readonly retryAfterSegundos: number | null;
 
   constructor(payload: ApiErrorPayload) {
     super(payload.message);
@@ -51,6 +59,7 @@ export class ApiError extends Error {
     this.statusCode = payload.statusCode;
     this.code = payload.code;
     this.errors = payload.errors ?? [];
+    this.retryAfterSegundos = payload.retryAfterSegundos ?? null;
   }
 
   static validation(message: string, errors: ApiFieldError[] = []): ApiError {
