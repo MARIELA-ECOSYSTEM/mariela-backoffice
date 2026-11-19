@@ -345,6 +345,8 @@ export interface ParametrosEnvio {
   /** Mídia ATIVA do mesmo tipo a substituir. */
   substituiMidiaId?: string;
   onProgresso?: (enviados: number, total: number) => void;
+  /** Fase 22.8.9.9.4 (M3) — avisa a interface da etapa em curso (nada é concluído antes da confirmação). */
+  onEtapa?: (etapa: "solicitando" | "enviando" | "confirmando") => void;
 }
 
 /** O necessário para (re)tentar a confirmação de um arquivo JÁ enviado — sem novo upload nem nova URL. */
@@ -454,6 +456,7 @@ export async function enviarMidia(
     const sessao = { geracao: deps.sessao.geracao() };
 
     // 1. Solicitação.
+    p.onEtapa?.("solicitando");
     let autorizacao: UploadGaleriaAutorizado;
     try {
       autorizacao = await deps.api.solicitarUpload(p.produtoId, {
@@ -474,6 +477,7 @@ export async function enviarMidia(
     if (prazoMs < FOLGA_MINIMA_URL_MS) {
       return { estado: "falhou", uploadId, falha: falha("url_expirada", "envio") };
     }
+    p.onEtapa?.("enviando");
     const { status } = await deps.transporte({
       url: autorizacao.uploadUrl,
       method: autorizacao.method,
@@ -500,6 +504,7 @@ export async function enviarMidia(
     }
 
     // 3. Confirmação — com registro durável ANTES do POST.
+    p.onEtapa?.("confirmando");
     return await confirmarComRegistro(
       {
         produtoId: p.produtoId,

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
@@ -53,11 +53,14 @@ export function ProdutoForm({
   onSubmit,
   enviando,
   onCancel,
+  secaoExtra,
 }: {
   produto?: Produto;
   onSubmit: (values: ProdutoFormValues) => Promise<void>;
   enviando: boolean;
   onCancel: () => void;
+  /** Fase 22.8.9.9.4 (M3) — conteúdo extra antes dos botões (no cadastro: a seleção de fotos). */
+  secaoExtra?: ReactNode;
 }) {
   const { data: configuracoes } = useConfiguracoes();
   const { data: colecoes } = useColecoes();
@@ -350,6 +353,7 @@ export function ProdutoForm({
         </CardContent>
       </Card>
 
+      {secaoExtra}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar

@@ -325,6 +325,39 @@ describe("CSP — o app funciona sob a política (bundle de produção)", () => 
       /connect-src[^;]*\*(?!\.r2\.cloudflarestorage\.com)/,
       "connect-src sem curinga amplo",
     );
+    // Fase 22.8.9.9.4 (M3) — `blob:` SÓ em img-src (pré-visualização local das fotos), em nenhuma outra diretiva.
+    const diretivasComBlob = cspEfetiva
+      .split("; ")
+      .filter((d) => /(^|\s)blob:/.test(d))
+      .map((d) => d.split(" ")[0]);
+    assert.deepEqual(diretivasComBlob, ["img-src"]);
+  });
+
+  test("img-src: pré-visualização local (URL blob:) de uma imagem carrega — zero violações", async () => {
+    const s = await novaPagina();
+    await s.pagina.goto(`${BASE}/login`);
+    await s.pagina.getByText("Entrar no Backoffice").waitFor({ timeout: 30_000 });
+    const carregou = await s.pagina.evaluate(async () => {
+      const png = Uint8Array.from(
+        atob(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        ),
+        (c) => c.charCodeAt(0),
+      );
+      const url = URL.createObjectURL(new Blob([png], { type: "image/png" }));
+      const img = new Image();
+      document.body.appendChild(img);
+      const ok = await new Promise((r) => {
+        img.onload = () => r(img.naturalWidth === 1);
+        img.onerror = () => r(false);
+        img.src = url;
+      });
+      URL.revokeObjectURL(url);
+      return ok;
+    });
+    assert.equal(carregou, true, "a pré-visualização blob: foi bloqueada");
+    assert.deepEqual(await s.violacoes(), []);
+    await s.encerrar();
   });
 
   test("tela de login: carrega, fontes LOCAIS aplicadas, toast de erro (sonner) funciona — zero violações", async () => {
@@ -470,6 +503,28 @@ describe("CSP — bloqueios (testes negativos controlados, sem rede)", () => {
   }
 
   const casos = [
+    // Fase 22.8.9.9.4 (M3) — `blob:` liberado só para imagens: script e fetch de URL blob: continuam bloqueados.
+    [
+      "script de URL blob:",
+      "script-src-elem",
+      () => {
+        const url = URL.createObjectURL(
+          new Blob(["window.__blobScript = true"], { type: "text/javascript" }),
+        );
+        const el = document.createElement("script");
+        el.src = url;
+        document.head.appendChild(el);
+      },
+    ],
+    [
+      "fetch de URL blob:",
+      "connect-src",
+      () =>
+        fetch(URL.createObjectURL(new Blob(["x"]))).then(
+          () => "ok",
+          (e) => String(e).slice(0, 40),
+        ),
+    ],
     [
       "script de origem não autorizada",
       "script-src-elem",

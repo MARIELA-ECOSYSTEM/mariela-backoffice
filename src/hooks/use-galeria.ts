@@ -22,6 +22,24 @@ export const galeriaKeys = {
   galeria: (produtoId: string) => [...produtosKeys.detalhe(produtoId), "galeria"] as const,
 };
 
+/** Fase 22.8.9.9.4 (M3) — registros duráveis de confirmações pendentes (leitura LOCAL, sem rede). */
+export const pendenciasMidiaKeys = {
+  todas: ["midia", "pendencias-duraveis"] as const,
+};
+
+/**
+ * Fase 22.8.9.9.4 (M3) — lista os registros duráveis de confirmação pendente (inclusive de aberturas anteriores do
+ * app). Só leitura LOCAL do armazenamento (`midia_confirmacao_listar` / `localStorage`): nenhuma requisição.
+ * `null` = armazenamento inacessível.
+ */
+export function usePendenciasMidia() {
+  return useQuery({
+    queryKey: pendenciasMidiaKeys.todas,
+    queryFn: () => dependenciasEnvioPadrao.pendencias.listarTodas(),
+    refetchOnWindowFocus: false,
+  });
+}
+
 export function useGaleria(produtoId: string) {
   return useQuery({
     queryKey: galeriaKeys.galeria(produtoId),
@@ -90,12 +108,14 @@ export function useEnviarMidia(produtoId: string) {
 
 export function useReconciliarEnvio(produtoId: string) {
   const aplicar = useAplicarGaleria(produtoId);
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (uploadId: string) =>
       reconciliarEnvio(produtoId, uploadId, dependenciasEnvioPadrao),
     onSuccess: (resultado) => {
       if (resultado.estado === "confirmado") aplicar(resultado.galeria);
     },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: pendenciasMidiaKeys.todas }),
   });
 }
 
@@ -105,12 +125,14 @@ export function useReconciliarEnvio(produtoId: string) {
  */
 export function useRetomarConfirmacao(produtoId: string) {
   const aplicar = useAplicarGaleria(produtoId);
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (retomar: ConfirmacaoARetomar) =>
       retomarConfirmacao(retomar, dependenciasEnvioPadrao),
     onSuccess: (resultado) => {
       if (resultado.estado === "confirmado") aplicar(resultado.galeria);
     },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: pendenciasMidiaKeys.todas }),
   });
 }
 
@@ -125,6 +147,7 @@ export function useVerificacaoConfirmacoesMidia(habilitada: boolean) {
     queryKey: ["midia", "confirmacoes-pendentes"],
     queryFn: async () => {
       const situacoes = (await verificarPendencias(dependenciasEnvioPadrao)) ?? [];
+      void queryClient.invalidateQueries({ queryKey: pendenciasMidiaKeys.todas });
       for (const s of situacoes) {
         if (s.situacao === "confirmada" && s.produtoId) {
           void queryClient.invalidateQueries({ queryKey: galeriaKeys.galeria(s.produtoId) });

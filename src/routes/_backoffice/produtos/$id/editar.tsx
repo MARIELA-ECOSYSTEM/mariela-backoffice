@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { ProdutoForm } from "@/components/produtos/produto-form";
+import { GaleriaFotosProduto } from "@/components/produtos/fotos/galeria-fotos-produto";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState, TableSkeleton } from "@/components/common/states";
 import { useAtualizarProduto, useProduto } from "@/hooks/use-produtos";
 import { mensagemDeErro } from "@/services/api/client";
@@ -46,18 +48,30 @@ function EditarProdutoPage() {
         { label: "Editar" },
       ]}
     >
-      <div className="max-w-4xl">
+      <div className="max-w-4xl space-y-6">
         {isPending ? (
           <TableSkeleton linhas={6} colunas={2} />
         ) : isError || !produto ? (
           <ErrorState error={error} onRetry={() => void refetch()} />
         ) : (
-          <ProdutoForm
-            produto={produto}
-            onSubmit={onSubmit}
-            enviando={atualizar.isPending}
-            onCancel={() => void navigate({ to: "/produtos/$id", params: { id } })}
-          />
+          <>
+            <ProdutoForm
+              produto={produto}
+              onSubmit={onSubmit}
+              enviando={atualizar.isPending}
+              onCancel={() => void navigate({ to: "/produtos/$id", params: { id } })}
+            />
+            {/* Fase 22.8.9.9.4 (M3) — fotos independentes do formulário: cada ação vale na hora, e uma falha de envio
+                nunca descarta as alterações já salvas do produto (nem o contrário). */}
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="font-display text-xl">Fotos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <GaleriaFotosProduto produto={produto} />
+              </CardContent>
+            </Card>
+          </>
         )}
       </div>
     </Page>
