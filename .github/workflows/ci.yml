@@ -66,6 +66,8 @@ jobs:
     name: Testes de interface (Playwright + Chrome, backend falso)
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    # Fase 22.8.9.9.5 (M3.1) — dois arquivos, cada um no seu passo: `cancelamento.ui.mjs` (Vite na porta 5317) e
+    # `galeria.ui.mjs` (galeria de fotos do produto, porta 5318). Os dois seguem o mesmo modelo descrito abaixo.
     # Sem VITE_* aqui de propósito: `tests/ui/cancelamento.ui.mjs` sobe o Vite com `VITE_USE_MOCK_API=false` e
     # `VITE_API_URL` apontando para um caminho FICTÍCIO na própria origem, atende toda a API com um backend falso em
     # memória e ABORTA qualquer requisição do navegador para fora de `localhost` (o teste falha se houver chamada de
@@ -104,3 +106,11 @@ jobs:
 
       - name: Testes de interface (cancelamento/devolução)
         run: node --test --test-concurrency=1 tests/ui/cancelamento.ui.mjs
+
+      # Fase 22.8.9.9.5 (M3.1) — galeria de fotos do produto: backend falso em memória (produtos, galeria, uploads) e
+      # um "R2" falso na própria origem (`/__r2_ficticio__/`), que confere método, cabeçalhos exatos e tamanho; nenhuma
+      # requisição sai de `localhost` (nada de R2 real). `!cancelled()`: roda MESMO se o passo anterior falhar, para as
+      # duas suítes sempre reportarem — sem `continue-on-error`, a falha de qualquer uma reprova o job.
+      - name: Testes de interface (galeria de fotos do produto)
+        if: ${{ !cancelled() }}
+        run: node --test --test-concurrency=1 tests/ui/galeria.ui.mjs
