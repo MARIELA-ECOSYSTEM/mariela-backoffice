@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { useGaleria, useRemoverMidia } from "@/hooks/use-galeria";
 import { useFilaFotos, type FilaFotos } from "@/hooks/use-fila-fotos";
+import { useMontado } from "@/hooks/use-montado";
 import { classificarErroMidia } from "@/services/midia/envio-midia";
 import { LIMITES_GALERIA } from "@/types/media";
 import type { Produto } from "@/types/produto";
@@ -156,20 +157,28 @@ export function VideoProduto({
 }) {
   const { data: galeria, isPending } = useGaleria(produto.id);
   const video = galeria?.midias.find((m) => m.tipo === "video") ?? null;
-  const filaInterna = useFilaFotos({ imagensNaGaleria: video ? 1 : 0, kind: "video" });
+  // Fase 22.8.9.9.9 (M4.1) — a fila interna pertence a ESTE produto.
+  const filaInterna = useFilaFotos({
+    imagensNaGaleria: video ? 1 : 0,
+    kind: "video",
+    produtoId: produto.id,
+  });
   const fila = filaExterna ?? filaInterna;
   const remover = useRemoverMidia(produto.id);
   const legado = galeriaEfetiva({ ...produto, midias: [] }).video;
+  const montado = useMontado();
 
   async function removerVideo() {
     if (!video) return;
     try {
       await remover.mutateAsync(video.id);
-      toast.success("Vídeo removido do produto.");
+      if (montado.current) toast.success("Vídeo removido do produto.");
     } catch (erro) {
-      toast.error(
-        classificarErroMidia(erro, "reconciliacao").mensagem || "Não foi possível remover o vídeo.",
-      );
+      if (montado.current)
+        toast.error(
+          classificarErroMidia(erro, "reconciliacao").mensagem ||
+            "Não foi possível remover o vídeo.",
+        );
       throw erro; // mantém o diálogo aberto; o vídeo continua na tela
     }
   }

@@ -62,6 +62,11 @@ export interface ItemFila {
   substituiMidiaId: string | null;
   /** Fase 22.8.9.9.6 (M4) — duração lida localmente (vídeo), em segundos; `null` se não lida/desconhecida. */
   duracaoSegundos: number | null;
+  /**
+   * Fase 22.8.9.9.9 (M4.1) — produto DONO deste arquivo: o item só pode ser enviado para ele. `null` só no cadastro
+   * (o produto ainda não existe): o item se vincula ao produto no primeiro envio e não muda mais.
+   */
+  produtoId: string | null;
 }
 
 export interface Recusa {
@@ -147,8 +152,10 @@ export function novoItem(
   previewUrl: string,
   substituiMidiaId: string | null = null,
   duracaoSegundos: number | null = null,
+  produtoId: string | null = null,
 ): ItemFila {
   return {
+    produtoId,
     id,
     arquivo,
     nome: arquivo.name,
@@ -242,13 +249,30 @@ export function percentual(enviados: number, total: number): number | null {
   return Math.max(0, Math.min(100, Math.round((enviados / total) * 100)));
 }
 
-/** O próximo item a enviar (ordem de seleção), respeitando `ENVIOS_SIMULTANEOS`. */
-export function proximoParaEnviar(fila: readonly ItemFila[]): ItemFila | null {
+/** Fase 22.8.9.9.9 (M4.1) — o item pode ir para `produtoId`? Só para o dono (ou, sem dono, no cadastro). */
+export function pertenceAo(item: ItemFila, produtoId: string): boolean {
+  return item.produtoId === null || item.produtoId === produtoId;
+}
+
+/** Fase 22.8.9.9.9 (M4.1) — os itens que a tela de `produtoId` pode mostrar e enviar. */
+export function itensDoProduto(fila: readonly ItemFila[], produtoId: string): ItemFila[] {
+  return fila.filter((i) => pertenceAo(i, produtoId));
+}
+
+/**
+ * O próximo item a enviar (ordem de seleção), respeitando `ENVIOS_SIMULTANEOS`. Com `destino`, só itens que
+ * pertencem a ele (M4.1): um arquivo escolhido para outro produto nunca é enviado.
+ */
+export function proximoParaEnviar(fila: readonly ItemFila[], destino?: string): ItemFila | null {
   const ativos = fila.filter((i) =>
     ["solicitando", "enviando", "confirmando"].includes(i.estado),
   ).length;
   if (ativos >= ENVIOS_SIMULTANEOS) return null;
-  return fila.find((i) => i.estado === "aguardando") ?? null;
+  return (
+    fila.find(
+      (i) => i.estado === "aguardando" && (destino === undefined || pertenceAo(i, destino)),
+    ) ?? null
+  );
 }
 
 /** Nova ordem COMPLETA (todas as mídias), trocando de lugar duas imagens vizinhas — o resto (inclusive vídeo) não se move. */

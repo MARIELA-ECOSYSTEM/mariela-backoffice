@@ -23,6 +23,7 @@ import {
   useReordenarMidias,
 } from "@/hooks/use-galeria";
 import { useFilaFotos, type FilaFotos } from "@/hooks/use-fila-fotos";
+import { useMontado } from "@/hooks/use-montado";
 import { mensagemDeErro } from "@/services/api/client";
 import { classificarErroMidia } from "@/services/midia/envio-midia";
 import { galeriaEfetiva } from "@/utils/galeria";
@@ -48,7 +49,8 @@ export function GaleriaFotosProduto({
   const midias = [...(galeria?.midias ?? [])].sort((a, b) => a.ordem - b.ordem);
   const imagens = midias.filter((m) => m.tipo === "image");
   const videos = midias.length - imagens.length;
-  const filaInterna = useFilaFotos({ imagensNaGaleria: imagens.length });
+  // Fase 22.8.9.9.9 (M4.1) — a fila interna pertence a ESTE produto (a tela de edição também é remontada por produto).
+  const filaInterna = useFilaFotos({ imagensNaGaleria: imagens.length, produtoId: produto.id });
   const fila = filaExterna ?? filaInterna;
   const legado = galeriaEfetiva({ ...produto, midias: [] });
 
@@ -57,6 +59,8 @@ export function GaleriaFotosProduto({
   const remover = useRemoverMidia(produto.id);
   const [ordemNaoSalva, setOrdemNaoSalva] = useState<string[] | null>(null);
   const ocupadoRef = useRef(false);
+  // M4.1 — resposta que chega depois de a tela sair não vira aviso na tela de outro produto.
+  const montado = useMontado();
 
   async function salvarOrdem(ids: string[]) {
     if (ocupadoRef.current) return;
@@ -64,11 +68,12 @@ export function GaleriaFotosProduto({
     try {
       await reordenar.mutateAsync(ids);
       setOrdemNaoSalva(null);
-      toast.success("Ordem das fotos salva.");
+      if (montado.current) toast.success("Ordem das fotos salva.");
     } catch (erro) {
       // A tela continua mostrando a ordem CONFIRMADA; a tentada fica guardada para nova tentativa.
       setOrdemNaoSalva(ids);
-      toast.error(mensagemDeErro(erro, "Não foi possível salvar a nova ordem."));
+      if (montado.current)
+        toast.error(mensagemDeErro(erro, "Não foi possível salvar a nova ordem."));
     } finally {
       ocupadoRef.current = false;
     }
@@ -79,9 +84,10 @@ export function GaleriaFotosProduto({
     ocupadoRef.current = true;
     try {
       await definirPrincipal.mutateAsync(midiaId);
-      toast.success("Foto principal atualizada.");
+      if (montado.current) toast.success("Foto principal atualizada.");
     } catch (erro) {
-      toast.error(mensagemDeErro(erro, "Não foi possível definir a foto principal."));
+      if (montado.current)
+        toast.error(mensagemDeErro(erro, "Não foi possível definir a foto principal."));
     } finally {
       ocupadoRef.current = false;
     }
@@ -90,10 +96,10 @@ export function GaleriaFotosProduto({
   async function removerFoto(midiaId: string) {
     try {
       await remover.mutateAsync(midiaId);
-      toast.success("Foto removida da galeria.");
+      if (montado.current) toast.success("Foto removida da galeria.");
     } catch (erro) {
       const f = classificarErroMidia(erro, "reconciliacao");
-      toast.error(f.mensagem || "Não foi possível remover a foto.");
+      if (montado.current) toast.error(f.mensagem || "Não foi possível remover a foto.");
       throw erro; // mantém o diálogo aberto; a foto continua na tela
     }
   }

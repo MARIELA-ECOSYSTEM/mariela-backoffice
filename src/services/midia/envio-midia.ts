@@ -80,6 +80,11 @@ export type TipoFalhaMidia =
    * confirmação NÃO é enviada e nada é apresentado como concluído.
    */
   | "persistencia_indisponivel"
+  /**
+   * Fase 22.8.9.9.9 (M4.1) — o arquivo LOCAL não pôde ser lido (movido, apagado, bloqueado ou sem permissão:
+   * `NotReadableError`/`NotFoundError` do navegador). Não é falha de rede: escolher o arquivo de novo resolve.
+   */
+  | "arquivo_ilegivel"
   | "desconhecido";
 
 export interface FalhaMidia {
@@ -113,6 +118,8 @@ const MENSAGENS_PADRAO: Record<TipoFalhaMidia, string> = {
   envio_em_andamento: "Já há um envio em andamento para este produto.",
   persistencia_indisponivel:
     "Não foi possível guardar o registro desta confirmação neste computador. Por segurança, ela NÃO foi enviada. Tente novamente.",
+  arquivo_ilegivel:
+    "Não foi possível ler o arquivo selecionado neste computador. Ele pode ter sido movido, apagado ou estar bloqueado. Selecione o arquivo de novo.",
   desconhecido: "Não foi possível concluir a operação.",
 };
 
@@ -412,6 +419,20 @@ function corpoDaConfirmacao(p: ParametrosEnvio): ConfirmarUploadPayload {
   };
 }
 
+/**
+ * Fase 22.8.9.9.9 (M4.1) — o arquivo LOCAL ainda pode ser lido? Lê 1 byte (sem carregar o arquivo inteiro). Um `File`
+ * de disco que foi movido/apagado/bloqueado depois da seleção falha aqui (`NotReadableError`/`NotFoundError`). O
+ * `XMLHttpRequest` não distingue essa falha de uma falha de rede (os dois dão `status 0`), por isso a sonda.
+ */
+export async function arquivoLegivel(arquivo: Blob): Promise<boolean> {
+  try {
+    await arquivo.slice(0, 1).arrayBuffer();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const enviosEmAndamento = new WeakMap<RegistroEnviosPendentes, Set<string>>();
 
 function emAndamento(deps: DependenciasEnvio): Set<string> {
@@ -437,6 +458,10 @@ export async function enviarMidia(
 
   ativos.add(p.produtoId);
   try {
+    // M4.1 — arquivo local ilegível: nenhuma requisição (nem reserva de vaga, nem registro durável).
+    if (!(await arquivoLegivel(p.arquivo))) {
+      return { estado: "falhou", uploadId: null, falha: falha("arquivo_ilegivel", "validacao") };
+    }
     // Pendência de confirmação deste produto (inclusive de uma abertura anterior do app): reconciliar antes.
     const pendentes = await deps.pendencias.listar(p.produtoId);
     if (pendentes === null) {
@@ -488,6 +513,13 @@ export async function enviarMidia(
     });
     if (status < 200 || status >= 300) {
       const vencida = deps.agora() >= venceEm;
+      // M4.1 — o arquivo deixou de ser legível durante o envio? A causa é local, não a rede nem o armazenamento: sem
+      // conseguir ler o arquivo, o navegador ou falha sem resposta (`status 0`) ou manda o corpo incompleto, que o
+      // armazenamento recusa (403/400 — comportamento observado no Chrome). Em qualquer caso, a mensagem certa é a de
+      // leitura (escolher o arquivo de novo).
+      if (!vencida && !(await arquivoLegivel(p.arquivo))) {
+        return { estado: "falhou", uploadId, falha: falha("arquivo_ilegivel", "envio") };
+      }
       const tipo: TipoFalhaMidia =
         status === 0
           ? vencida

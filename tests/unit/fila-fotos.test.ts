@@ -236,3 +236,50 @@ describe("vídeo (M4)", () => {
     expect(await f.lerDuracaoVideo(new Blob(["x"]), infinita.opcoes)).toBeNull();
   });
 });
+
+// ─── Fase 22.8.9.9.9 (M4.1) — cada item pertence a UM produto ──────────────────────────────────────────────────────
+
+describe("M4.1 — dono da fila", () => {
+  const de = (dono: string | null, estado: ItemFila["estado"] = "aguardando"): ItemFila => ({
+    ...f.novoItem(
+      foto(`${dono}.jpg`),
+      `i-${dono}-${Math.random()}`,
+      "blob:ficticio",
+      null,
+      null,
+      dono,
+    ),
+    estado,
+  });
+
+  test("o item guarda o produto dono; sem dono só no cadastro (null)", () => {
+    expect(f.novoItem(foto("a.jpg"), "1", "blob:x").produtoId).toBeNull();
+    expect(f.novoItem(foto("a.jpg"), "1", "blob:x", null, null, "prod-a").produtoId).toBe("prod-a");
+  });
+
+  test("pertenceAo / itensDoProduto: um item de A nunca aparece nem vale para B", () => {
+    const a = de("prod-a");
+    const b = de("prod-b");
+    const cadastro = de(null);
+    expect(f.pertenceAo(a, "prod-a")).toBe(true);
+    expect(f.pertenceAo(a, "prod-b")).toBe(false);
+    expect(f.pertenceAo(cadastro, "prod-b")).toBe(true);
+    expect(f.itensDoProduto([a, b, cadastro], "prod-b")).toEqual([b, cadastro]);
+  });
+
+  test("proximoParaEnviar com destino: NUNCA escolhe arquivo de outro produto", () => {
+    const a = de("prod-a");
+    const b = de("prod-b");
+    expect(f.proximoParaEnviar([a, b], "prod-b")).toBe(b);
+    expect(f.proximoParaEnviar([a], "prod-b")).toBeNull();
+    // Sem destino (comportamento anterior), a ordem de seleção continua valendo.
+    expect(f.proximoParaEnviar([a, b])).toBe(a);
+    // A concorrência continua contando QUALQUER envio em andamento da fila.
+    expect(f.proximoParaEnviar([de("prod-a", "enviando"), b], "prod-b")).toBeNull();
+  });
+
+  test("vagas do produto contam só os itens dele", () => {
+    const fila = [de("prod-a"), de("prod-a"), de("prod-b")];
+    expect(f.vagasRestantes(0, f.itensDoProduto(fila, "prod-b"))).toBe(9);
+  });
+});

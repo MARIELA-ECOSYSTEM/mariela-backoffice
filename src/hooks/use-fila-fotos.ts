@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   enviarMidia,
   reconciliarEnvio,
@@ -12,8 +13,10 @@ import { galeriaKeys, pendenciasMidiaKeys } from "@/hooks/use-galeria";
 import { produtosKeys } from "@/hooks/use-produtos";
 import type { TipoMidia } from "@/types/media";
 import {
+  itensDoProduto,
   novoItem,
   percentual,
+  pertenceAo,
   proximoParaEnviar,
   validarSelecao,
   vagasRestantes,
@@ -28,12 +31,19 @@ import {
  * - Nada é "concluído" antes da confirmação do backend; uma foto que falha não afeta as outras.
  * - Operações incertas NUNCA são repetidas sozinhas: `reconciliar`/`retomar`/`tentarDeNovo` são ações do operador.
  * - URLs `blob:` são liberadas ao remover o item e ao desmontar a tela. Arquivo e URL vivem só em memória.
+ *
+ * Fase 22.8.9.9.9 (M4.1) — a fila tem DONO (`produtoId`): cada item pertence a um produto e só é enviado para ele.
+ * Se o dono mudar sem a tela ser desmontada, a seleção local do produto anterior é descartada (URLs liberadas) e um
+ * envio já em andamento segue até o fim no produto de ORIGEM (o resultado vai para a galeria e as pendências dele),
+ * sem alterar a fila do produto novo. Sem dono (`undefined`/`null`) = cadastro: o item se vincula no primeiro envio.
  */
 export interface OpcoesFilaFotos {
   /** Fase 22.8.9.9.6 (M4) — tipo da fila (`image` por padrão; `video` para o vídeo do produto). */
   kind?: TipoMidia;
   /** Fotos de imagem já na galeria (para o limite). */
   imagensNaGaleria: number;
+  /** Fase 22.8.9.9.9 (M4.1) — produto dono da fila (ausente só no cadastro, antes de o produto existir). */
+  produtoId?: string | null;
   deps?: DependenciasEnvio;
   criarUrl?: (arquivo: File) => string;
   liberarUrl?: (url: string) => void;
@@ -41,9 +51,21 @@ export interface OpcoesFilaFotos {
 
 let sequencia = 0;
 
+/** Resultado de um envio que terminou depois de a fila de origem sair da tela: o operador precisa saber. */
+function avisarEmSegundoPlano(item: ItemFila, r: ResultadoEnvio) {
+  // Confirmado: já está na galeria do produto de origem. Pendente: o registro durável aparece nele ("Confirmações
+  // pendentes"). Falhou / confirmação não enviada: nada foi gravado — só o operador pode reenviar.
+  if (r.estado === "falhou" || r.estado === "confirmacao_nao_enviada") {
+    toast.error(
+      `O envio de "${item.nome}", iniciado em outro produto, não foi concluído: ${r.falha.mensagem} Envie o arquivo de novo no produto de origem.`,
+    );
+  }
+}
+
 export function useFilaFotos({
   imagensNaGaleria,
   kind = "image",
+  produtoId: dono = null,
   deps = dependenciasEnvioPadrao,
   criarUrl = (a) => URL.createObjectURL(a),
   liberarUrl = (u) => URL.revokeObjectURL(u),
@@ -57,6 +79,7 @@ export function useFilaFotos({
   const montadoRef = useRef(true);
   const liberarRef = useRef(liberarUrl);
   liberarRef.current = liberarUrl;
+  const donoRef = useRef(dono);
 
   // Ao desmontar: libera TODAS as URLs `blob:` ainda vivas.
   useEffect(() => {
@@ -66,6 +89,19 @@ export function useFilaFotos({
       for (const item of filaRef.current) liberarRef.current(item.previewUrl);
     };
   }, []);
+
+  // M4.1 — troca de dono sem desmontar: a seleção do produto anterior sai da fila (e da tela) na hora.
+  useEffect(() => {
+    if (donoRef.current === dono) return;
+    donoRef.current = dono;
+    if (dono === null) return;
+    const deOutro = filaRef.current.filter((i) => !pertenceAo(i, dono));
+    if (deOutro.length === 0) return;
+    for (const item of deOutro) liberarRef.current(item.previewUrl);
+    filaRef.current = filaRef.current.filter((i) => pertenceAo(i, dono));
+    setFila((atual) => atual.filter((i) => pertenceAo(i, dono)));
+    setRecusados([]);
+  }, [dono]);
 
   const atualizar = useCallback((id: string, mudanca: Partial<ItemFila>) => {
     if (!montadoRef.current) return;
@@ -78,7 +114,8 @@ export function useFilaFotos({
       substituiMidiaId: string | null = null,
       duracaoSegundos: number | null = null,
     ) => {
-      const vagas = vagasRestantes(imagensNaGaleria, filaRef.current, kind);
+      const visiveis = dono === null ? filaRef.current : itensDoProduto(filaRef.current, dono);
+      const vagas = vagasRestantes(imagensNaGaleria, visiveis, kind);
       const { aceitos, recusados: novas } = validarSelecao(arquivos, vagas, {
         substituicao: substituiMidiaId !== null,
         kind,
@@ -92,6 +129,7 @@ export function useFilaFotos({
           criarUrl(a),
           substituiMidiaId,
           duracaoSegundos,
+          dono,
         ),
       );
       // A ref também é atualizada JÁ: quem chama `enviarTodos` logo em seguida (substituição) precisa ver o item novo
@@ -100,13 +138,14 @@ export function useFilaFotos({
       setFila((atual) => [...atual, ...itens]);
       return itens;
     },
-    [imagensNaGaleria, criarUrl, kind],
+    [imagensNaGaleria, criarUrl, kind, dono],
   );
 
   const remover = useCallback((id: string) => {
     const item = filaRef.current.find((i) => i.id === id);
     if (!item) return;
     liberarRef.current(item.previewUrl);
+    filaRef.current = filaRef.current.filter((i) => i.id !== id);
     setFila((atual) => atual.filter((i) => i.id !== id));
   }, []);
 
@@ -155,20 +194,26 @@ export function useFilaFotos({
     [atualizar, queryClient],
   );
 
-  /** Envia, em sequência, todos os itens `aguardando`. Uma falha não interrompe os demais. */
+  /**
+   * Envia, em sequência, todos os itens `aguardando` QUE PERTENCEM a `produtoId`. Uma falha não interrompe os demais.
+   * M4.1: uma fila com dono nunca envia para outro produto; um item sem dono (cadastro) se vincula a `produtoId`.
+   */
   const enviarTodos = useCallback(
     async (produtoId: string) => {
+      if (donoRef.current !== null && donoRef.current !== produtoId) return;
       if (processandoRef.current) return;
       processandoRef.current = true;
       try {
         for (;;) {
-          const item = proximoParaEnviar(filaRef.current);
-          if (!item || !montadoRef.current) break;
-          // Marca de imediato (ref + estado) para o laço não pegar o mesmo item de novo.
+          if (!montadoRef.current || (donoRef.current !== null && donoRef.current !== produtoId))
+            break;
+          const item = proximoParaEnviar(filaRef.current, produtoId);
+          if (!item) break;
+          // Marca de imediato (ref + estado) para o laço não pegar o mesmo item de novo — e vincula ao produto.
           filaRef.current = filaRef.current.map((i) =>
-            i.id === item.id ? { ...i, estado: "solicitando" } : i,
+            i.id === item.id ? { ...i, estado: "solicitando", produtoId } : i,
           );
-          atualizar(item.id, { estado: "solicitando", falha: null, progresso: null });
+          atualizar(item.id, { estado: "solicitando", falha: null, progresso: null, produtoId });
           const r = await enviarMidia(
             {
               produtoId,
@@ -185,10 +230,14 @@ export function useFilaFotos({
             },
             deps,
           );
+          // O item ainda está na fila VISÍVEL (tela montada, mesmo dono)? Senão o resultado é avisado à parte.
+          const naTela = montadoRef.current && filaRef.current.some((i) => i.id === item.id);
           filaRef.current = filaRef.current.map((i) =>
             i.id === item.id ? { ...i, estado: "falhou" } : i,
           );
+          // A galeria e as pendências são do produto de ORIGEM (`produtoId`), nunca da tela atual.
           aplicarResultado(produtoId, item.id, r);
+          if (!naTela) avisarEmSegundoPlano(item, r);
           // Uma pendência de confirmação bloqueia novos envios deste produto até ser reconciliada (regra M2).
           if (r.estado === "confirmacao_pendente") break;
         }
@@ -210,7 +259,7 @@ export function useFilaFotos({
   const reconciliar = useCallback(
     async (produtoId: string, id: string) => {
       const item = filaRef.current.find((i) => i.id === id);
-      if (!item?.uploadId) return;
+      if (!item?.uploadId || item.produtoId !== produtoId) return;
       atualizar(id, { estado: "confirmando", falha: null });
       aplicarResultado(produtoId, id, await reconciliarEnvio(produtoId, item.uploadId, deps));
     },
@@ -221,18 +270,20 @@ export function useFilaFotos({
   const retomar = useCallback(
     async (produtoId: string, id: string) => {
       const item = filaRef.current.find((i) => i.id === id);
-      if (!item?.retomar) return;
+      if (!item?.retomar || item.retomar.produtoId !== produtoId) return;
       atualizar(id, { estado: "confirmando", falha: null });
       aplicarResultado(produtoId, id, await retomarConfirmacao(item.retomar, deps));
     },
     [atualizar, aplicarResultado, deps],
   );
 
+  // M4.1 — a tela só vê (e só pode enviar) os itens do dono atual.
+  const visiveis = dono === null ? fila : itensDoProduto(fila, dono);
   return {
-    fila,
+    fila: visiveis,
     recusados,
     limparRecusados: () => setRecusados([]),
-    vagas: vagasRestantes(imagensNaGaleria, fila, kind),
+    vagas: vagasRestantes(imagensNaGaleria, visiveis, kind),
     adicionar,
     remover,
     limparConcluidos,
@@ -240,7 +291,9 @@ export function useFilaFotos({
     tentarDeNovo,
     reconciliar,
     retomar,
-    emAndamento: fila.some((i) => ["solicitando", "enviando", "confirmando"].includes(i.estado)),
+    emAndamento: visiveis.some((i) =>
+      ["solicitando", "enviando", "confirmando"].includes(i.estado),
+    ),
   };
 }
 

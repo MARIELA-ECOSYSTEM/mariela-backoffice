@@ -237,7 +237,11 @@ export function ItemDaFila({
               {item.estado === "concluida" ? "Tirar da lista" : "Remover"}
             </Button>
           ) : null}
-          {produtoId && falhaAntesDeConfirmar && item.falha?.tipo !== "reconciliacao_pendente" ? (
+          {/* M4.1 — arquivo ilegível: repetir com o mesmo arquivo não adianta; a mensagem pede nova seleção. */}
+          {produtoId &&
+          falhaAntesDeConfirmar &&
+          item.falha?.tipo !== "reconciliacao_pendente" &&
+          item.falha?.tipo !== "arquivo_ilegivel" ? (
             <Button
               type="button"
               variant="outline"

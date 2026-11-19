@@ -11,6 +11,9 @@
 import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { chromium } from "playwright";
 
 const PORTA = Number(process.env.UI_PORT_GALERIA ?? 5318);
@@ -110,7 +113,7 @@ function criarBackend() {
     remover: [],
     put: [],
   };
-  const travas = { put: null, confirmar: null, principal: null };
+  const travas = { put: null, confirmar: null, principal: null, solicitar: null };
   let seq = 0;
 
   function galeria(pid) {
@@ -264,6 +267,7 @@ function criarBackend() {
     }
     m = caminho.match(/^\/produtos\/([^/]+)\/midias\/uploads$/);
     if (m && metodo === "POST") {
+      if (travas.solicitar) await travas.solicitar;
       if (await aplicarComportamento(route, comportamentos.solicitar)) return;
       const pid = m[1];
       const g = galeria(pid);
@@ -1503,6 +1507,312 @@ describe("vídeo do produto (M4)", () => {
       ],
       "ordem/produto dos envios",
     );
+    await s.encerrar();
+  });
+});
+
+// ─── Fase 22.8.9.9.9 (M4.1) — fila isolada por produto; arquivo local ilegível ───────────────────────────────────────
+
+/**
+ * Troca de produto NA MESMA ROTA (`/produtos/A/editar` → `/produtos/B/editar`), sem passar pela lista e sem recarregar —
+ * exatamente o cenário que revelou o achado na Fase 22.8.9.9.8 (o roteador reaproveita a tela).
+ */
+async function irPara(p, id) {
+  await p.evaluate((rota) => {
+    window.history.pushState(window.history.state, "", rota);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+  }, `/produtos/${id}/editar`);
+  await p
+    .getByRole("heading", { name: `Editar Vestido Fictício ${id}`, exact: true })
+    .waitFor({ timeout: 30_000 });
+  await p.getByLabel("Galeria de fotos do produto").waitFor({ timeout: 30_000 });
+  await dormir(500);
+}
+
+/**
+ * O achado só aparece quando o produto de DESTINO já está em cache (visitado antes): aí a rota mostra B na hora, sem o
+ * esqueleto de carregamento — e, sem a correção, reaproveita a tela de A. Abre B primeiro (fica em cache) e vai para A.
+ */
+async function abrirAComBEmCache(s) {
+  await s.abrirEdicao("prod-b");
+  await irPara(s.pagina, "prod-a");
+}
+const naoGet = (s, desde) => s.backend.chamadas.slice(desde).filter(([m]) => m !== "GET");
+const botoesDeEnvio = (p) =>
+  p.getByRole("button", { name: /^(Enviar \d+ fotos?|Enviar vídeo|Enviar e substituir)$/ }).count();
+const registrosLocais = (p) =>
+  p.evaluate(
+    (pre) =>
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith(pre))
+        .map((k) => JSON.parse(localStorage.getItem(k))),
+    PREFIXO_CONFIRMACOES,
+  );
+const confirmacoesPara = (s) =>
+  s.backend.chamadas
+    .filter(([m, c]) => m === "POST" && /confirmacao$/.test(c))
+    .map(([, c]) => c.split("/")[2]);
+
+describe("M4.1 — a fila pertence a UM produto", () => {
+  test("A → B na mesma rota: seleção de A (foto e vídeo) some de B, nada é enviado, B usa só a própria seleção; ao voltar, A está limpo", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-a", 1);
+    s.backend.semear("prod-b", 1);
+    await abrirAComBEmCache(s);
+    await entrada(s.pagina).setInputFiles([arquivo("de-a.jpg")]);
+    await s.pagina.evaluate(() => (window.__duracaoTeste = 5));
+    await entradaVideo(s.pagina).setInputFiles([arquivo("de-a.mp4", "video/mp4")]);
+    await esperarAte(async () => (await itens(s.pagina).count()) === 1, "foto de A na fila");
+    await esperarAte(async () => (await itensVideo(s.pagina).count()) === 1, "vídeo de A na fila");
+    const previewsDeA = [
+      await itens(s.pagina).locator("img").getAttribute("src"),
+      await itensVideo(s.pagina).locator("video").getAttribute("src"),
+    ];
+    assert.equal(await botoesDeEnvio(s.pagina), 2, "A tem os dois botões de envio");
+    const desde = s.backend.chamadas.length;
+
+    await irPara(s.pagina, "prod-b");
+    assert.equal(await itens(s.pagina).count(), 0, "a foto de A apareceu na tela de B");
+    assert.equal(await itensVideo(s.pagina).count(), 0, "o vídeo de A apareceu na tela de B");
+    assert.equal(await botoesDeEnvio(s.pagina), 0, "botão capaz de enviar a mídia de A para B");
+    assert.equal(await s.pagina.getByText("de-a.jpg").count(), 0);
+    assert.equal(await s.pagina.getByText("de-a.mp4").count(), 0);
+    const revogadas = await s.pagina.evaluate(() => window.__revogadas);
+    assert.ok(
+      previewsDeA.every((u) => revogadas.includes(u)),
+      "URLs blob: de A não liberadas",
+    );
+    assert.deepEqual(naoGet(s, desde), [], "POST/PUT durante a troca de rota");
+    assert.deepEqual(s.backend.puts, [], "PUT ao armazenamento durante a troca de rota");
+
+    // B aceita a PRÓPRIA seleção — e o envio vai para B, com o arquivo de B.
+    await entrada(s.pagina).setInputFiles([arquivo("de-b.jpg")]);
+    await enviar(s.pagina, 1);
+    await esperarEstados(s.pagina, ["concluida"]);
+    const solicitacoes = s.backend.chamadas.filter(
+      ([m, c]) => m === "POST" && /\/midias\/uploads$/.test(c),
+    );
+    assert.deepEqual(
+      solicitacoes.map(([, c, b]) => [c, b.fileName]),
+      [["/produtos/prod-b/midias/uploads", "de-b.jpg"]],
+      "a mídia de A foi enviada (ou B enviou para outro produto)",
+    );
+
+    // Volta para A: a seleção local de A foi descartada (nada enviado); a galeria de A é a do servidor.
+    const antesDeVoltar = s.backend.chamadas.length;
+    await irPara(s.pagina, "prod-a");
+    assert.equal(await itens(s.pagina).count(), 0);
+    assert.equal(await itensVideo(s.pagina).count(), 0);
+    assert.equal(await cartoes(s.pagina).count(), 1);
+    assert.deepEqual(naoGet(s, antesDeVoltar), []);
+    assert.equal(s.backend.resposta("prod-a").midias.length, 1, "algo foi enviado para A");
+    await s.encerrar();
+  });
+
+  test("A → B: o formulário mostra os dados de B (salvar nunca grava dados de A em B)", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-a", 0);
+    s.backend.semear("prod-b", 0);
+    await abrirAComBEmCache(s);
+    await s.pagina.locator("#nome").fill("Nome digitado em A (não salvo)");
+    await irPara(s.pagina, "prod-b");
+    assert.equal(await s.pagina.locator("#nome").inputValue(), "Vestido Fictício prod-b");
+    await s.encerrar();
+  });
+
+  test("troca de produto com envio EM ANDAMENTO: o envio termina no produto de origem; a resposta tardia não altera a tela de B", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-a", 1);
+    s.backend.semear("prod-b", 1);
+    await abrirAComBEmCache(s);
+    let soltar;
+    s.backend.travas.confirmar = new Promise((r) => (soltar = r));
+    await entrada(s.pagina).setInputFiles([arquivo("de-a.jpg")]);
+    await enviar(s.pagina, 1);
+    await esperarEstados(s.pagina, ["confirmando"]);
+
+    await irPara(s.pagina, "prod-b");
+    const telaDeB = async () => ({
+      fila: await itens(s.pagina).count(),
+      galeria: await cartoes(s.pagina).count(),
+      pendencias: await s.pagina.getByText("Confirmações pendentes").count(),
+      envio: await botoesDeEnvio(s.pagina),
+    });
+    const antes = await telaDeB();
+    s.backend.travas.confirmar = null;
+    soltar(); // a resposta de A chega com a tela de B aberta
+    await esperarAte(
+      async () => s.backend.resposta("prod-a").midias.length === 2,
+      "upload de A confirmado no servidor",
+    );
+    await dormir(1500);
+    assert.deepEqual(await telaDeB(), antes, "a resposta tardia de A alterou a tela de B");
+    assert.deepEqual(antes, { fila: 0, galeria: 1, pendencias: 0, envio: 0 });
+    assert.equal(s.backend.resposta("prod-b").midias.length, 1, "B recebeu mídia de A");
+    // A confirmação foi enviada UMA vez (nada é recriado), e para A.
+    assert.deepEqual(confirmacoesPara(s), ["prod-a"]);
+    // A operação confirmada é preservada: voltando para A, a foto nova está na galeria.
+    await irPara(s.pagina, "prod-a");
+    await esperarAte(async () => (await cartoes(s.pagina).count()) === 2, "2 fotos em A");
+    await s.encerrar();
+  });
+
+  test("resposta tardia INCERTA (503) de A com B aberto: pendência durável fica vinculada a A, aparece só em A, nada é reenviado", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-a", 1);
+    s.backend.semear("prod-b", 1);
+    await abrirAComBEmCache(s);
+    let soltar;
+    s.backend.travas.confirmar = new Promise((r) => (soltar = r));
+    s.backend.comportamentos.confirmar.push({
+      tipo: "erro",
+      status: 503,
+      code: "SERVICE_UNAVAILABLE",
+    });
+    await entrada(s.pagina).setInputFiles([arquivo("de-a.jpg")]);
+    await enviar(s.pagina, 1);
+    await esperarEstados(s.pagina, ["confirmando"]);
+    const [registroAntes] = await registrosLocais(s.pagina);
+    assert.equal(registroAntes?.produtoId, "prod-a");
+
+    await irPara(s.pagina, "prod-b");
+    s.backend.travas.confirmar = null;
+    soltar();
+    await esperarAte(
+      async () => (await registrosLocais(s.pagina))[0]?.estado === "pendente",
+      "registro durável pendente",
+    );
+    await dormir(1500);
+    const registros = await registrosLocais(s.pagina);
+    assert.equal(registros.length, 1);
+    assert.equal(registros[0].produtoId, "prod-a", "a pendência mudou de produto");
+    assert.equal(registros[0].uploadId, registroAntes.uploadId);
+    assert.equal(
+      await s.pagina.getByText("Confirmações pendentes").count(),
+      0,
+      "pendência de A na tela de B",
+    );
+    assert.equal(await itens(s.pagina).count(), 0);
+
+    await irPara(s.pagina, "prod-a");
+    await esperarTexto(s.pagina, "Confirmações pendentes");
+    await s.pagina.getByLabel(`Pendência ${registroAntes.uploadId}`).waitFor({ timeout: 15_000 });
+    assert.deepEqual(confirmacoesPara(s), ["prod-a"], "a confirmação foi reenviada sozinha");
+    await s.encerrar();
+  });
+
+  test("falha de A que chega com B aberto é avisada (sem alterar a fila de B) — nunca descartada em silêncio", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-a", 1);
+    s.backend.semear("prod-b", 1);
+    await abrirAComBEmCache(s);
+    let soltar;
+    s.backend.travas.confirmar = new Promise((r) => (soltar = r));
+    s.backend.comportamentos.confirmar.push({
+      tipo: "erro",
+      status: 409,
+      code: "CONFLICT",
+      message: "Upload encerrado (fictício).",
+    });
+    await entrada(s.pagina).setInputFiles([arquivo("de-a.jpg")]);
+    await enviar(s.pagina, 1);
+    await esperarEstados(s.pagina, ["confirmando"]);
+    await irPara(s.pagina, "prod-b");
+    s.backend.travas.confirmar = null;
+    soltar();
+    await esperarTexto(
+      s.pagina,
+      'O envio de "de-a.jpg", iniciado em outro produto, não foi concluído',
+    );
+    assert.equal(await itens(s.pagina).count(), 0, "a falha de A entrou na fila de B");
+    assert.deepEqual(await registrosLocais(s.pagina), []);
+    await s.encerrar();
+  });
+});
+
+describe("M4.1 — arquivo local ilegível ≠ falha de rede", () => {
+  /** Arquivo REAL em disco (o Chrome recebe o CAMINHO): apagá-lo depois da seleção torna a leitura impossível. */
+  function arquivoEmDisco(nome) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mariela-m41-"));
+    const caminho = path.join(dir, nome);
+    fs.writeFileSync(caminho, PNG);
+    return { caminho, apagar: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  }
+
+  test("arquivo apagado ANTES do envio: 'Não foi possível ler o arquivo selecionado', nenhuma requisição, nenhum registro, sem logout", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-a", 1);
+    await s.abrirEdicao("prod-a");
+    const f = arquivoEmDisco("sumiu.jpg");
+    await entrada(s.pagina).setInputFiles(f.caminho);
+    await esperarEstados(s.pagina, ["aguardando"]);
+    f.apagar();
+    const desde = s.backend.chamadas.length;
+    await enviar(s.pagina, 1);
+    await esperarEstados(s.pagina, ["falhou"]);
+    const texto = await itens(s.pagina).first().innerText();
+    assert.match(texto, /Não foi possível ler o arquivo selecionado/);
+    assert.doesNotMatch(texto, /falar com o servidor/);
+    assert.equal(
+      await itens(s.pagina).first().getByRole("button", { name: "Tentar de novo" }).count(),
+      0,
+    );
+    assert.deepEqual(naoGet(s, desde), [], "requisição com arquivo ilegível");
+    assert.deepEqual(await registrosLocais(s.pagina), []);
+    assert.match(new URL(s.pagina.url()).pathname, /\/produtos\/prod-a\/editar$/, "logout");
+    await s.encerrar();
+  });
+
+  test("arquivo apagado DURANTE o envio (depois da autorização): erro de leitura (não rede nem recusa do armazenamento); nada é gravado; sem confirmação", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-a", 1);
+    await s.abrirEdicao("prod-a");
+    const f = arquivoEmDisco("sumiu-no-meio.jpg");
+    await entrada(s.pagina).setInputFiles(f.caminho);
+    let soltar;
+    s.backend.travas.solicitar = new Promise((r) => (soltar = r));
+    await enviar(s.pagina, 1);
+    await esperarEstados(s.pagina, ["solicitando"]);
+    f.apagar(); // o arquivo some entre a autorização e o PUT
+    s.backend.travas.solicitar = null;
+    soltar();
+    await esperarEstados(s.pagina, ["falhou"]);
+    const texto = await itens(s.pagina).first().innerText();
+    assert.match(texto, /Não foi possível ler o arquivo selecionado/);
+    assert.doesNotMatch(texto, /armazenamento recusou|falar com o servidor/);
+    // No Chrome, o PUT de um arquivo que sumiu sai com o corpo INCOMPLETO (ou nem sai): o armazenamento recusa e nada
+    // é gravado — o upload nunca é marcado como recebido.
+    const [upload] = [...s.backend.uploads.values()];
+    assert.equal(upload?.recebido, false, "o armazenamento aceitou um arquivo ilegível");
+    assert.ok(
+      s.backend.puts.every((x) => x.tamanho < upload.size),
+      `PUT completo de um arquivo apagado: ${JSON.stringify(s.backend.puts)}`,
+    );
+    assert.deepEqual(confirmacoesPara(s), []);
+    assert.deepEqual(await registrosLocais(s.pagina), []);
+    await s.encerrar();
+  });
+
+  test("falha de REDE real no PUT (conexão interrompida, arquivo legível) continua com a mensagem de conexão", async () => {
+    const s = await novaSessao();
+    s.backend.semear("prod-a", 1);
+    await s.abrirEdicao("prod-a");
+    const f = arquivoEmDisco("legivel.jpg");
+    await s.contexto.route(
+      (u) => u.pathname.startsWith(PREFIXO_R2),
+      (r) => r.abort("connectionreset"),
+    );
+    await entrada(s.pagina).setInputFiles(f.caminho);
+    await enviar(s.pagina, 1);
+    await esperarEstados(s.pagina, ["falhou"]);
+    const texto = await itens(s.pagina).first().innerText();
+    assert.match(texto, /Não foi possível falar com o servidor/);
+    assert.doesNotMatch(texto, /ler o arquivo/);
+    assert.equal(
+      await itens(s.pagina).first().getByRole("button", { name: "Tentar de novo" }).count(),
+      1,
+    );
+    f.apagar();
     await s.encerrar();
   });
 });

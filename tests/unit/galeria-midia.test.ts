@@ -742,3 +742,126 @@ describe("segurança", () => {
     expect(JSON.stringify(r)).not.toContain(urlVista);
   });
 });
+
+// ─── Fase 22.8.9.9.9 (M4.1) — arquivo local ilegível ≠ falha de rede ───────────────────────────────────────────────
+
+/**
+ * `File` cuja LEITURA falha como a de um arquivo de disco movido/apagado/bloqueado depois da seleção: o navegador
+ * rejeita a leitura com `NotReadableError`/`NotFoundError`. `quebrado` pode ser ligado no meio do envio.
+ */
+class ArquivoIlegivel extends File {
+  quebrado: boolean;
+  constructor(
+    nome: string,
+    tipo: string,
+    private readonly nomeDoErro: "NotReadableError" | "NotFoundError",
+    quebrado = true,
+  ) {
+    super([new Uint8Array(1024)], nome, { type: tipo });
+    this.quebrado = quebrado;
+  }
+  override slice(...args: Parameters<Blob["slice"]>): Blob {
+    const parte = super.slice(...args);
+    if (!this.quebrado) return parte;
+    const erro = new DOMException("Arquivo ilegível (sintético).", this.nomeDoErro);
+    return Object.assign(parte, { arrayBuffer: () => Promise.reject(erro) });
+  }
+}
+
+describe("M4.1 — arquivo local ilegível", () => {
+  for (const nomeDoErro of ["NotReadableError", "NotFoundError"] as const) {
+    test(`${nomeDoErro} antes do envio: mensagem própria, NENHUMA requisição, nenhum registro durável`, async () => {
+      const chamadas: string[] = [];
+      let puts = 0;
+      const d = deps({ chamadas, transporte: async () => ((puts += 1), { status: 200 }) });
+      const arquivo = new ArquivoIlegivel("foto.jpg", "image/jpeg", nomeDoErro);
+      const r = await envio.enviarMidia({ produtoId: produto.id, arquivo, kind: "image" }, d);
+      expect(r.estado).toBe("falhou");
+      if (r.estado !== "falhou") throw new Error();
+      expect(r.falha).toMatchObject({
+        tipo: "arquivo_ilegivel",
+        etapa: "validacao",
+        incerta: false,
+      });
+      expect(r.falha.mensagem).toContain("Não foi possível ler o arquivo selecionado");
+      expect(r.falha.mensagem).not.toContain("servidor");
+      expect(r.uploadId).toBeNull();
+      expect(chamadas).toEqual([]);
+      expect(puts).toBe(0);
+      expect(await d.pendencias.listarTodas()).toEqual({ pendentes: [], corrompidos: [] });
+    });
+  }
+
+  // Sem conseguir ler o arquivo, o navegador falha sem resposta (0) ou envia o corpo incompleto, que o armazenamento
+  // recusa (403 — observado no Chrome). Nos dois casos a causa é LOCAL.
+  for (const status of [0, 403]) {
+    test(`o arquivo deixa de ser legível DURANTE o PUT (status ${status}): 'arquivo_ilegivel', sem confirmação nem registro`, async () => {
+      const chamadas: string[] = [];
+      const arquivo = new ArquivoIlegivel("video.mp4", "video/mp4", "NotReadableError", false);
+      const d = deps({
+        chamadas,
+        transporte: async () => {
+          arquivo.quebrado = true; // movido/apagado enquanto o navegador lia o corpo
+          return { status };
+        },
+      });
+      const r = await envio.enviarMidia({ produtoId: produto.id, arquivo, kind: "video" }, d);
+      expect(r.estado).toBe("falhou");
+      if (r.estado !== "falhou") throw new Error();
+      expect(r.falha).toMatchObject({ tipo: "arquivo_ilegivel", etapa: "envio" });
+      expect(chamadas).toEqual(["solicitar"]);
+      expect(await d.pendencias.listarTodas()).toEqual({ pendentes: [], corrompidos: [] });
+    });
+  }
+
+  test("arquivo legível com recusa REAL do armazenamento (403) continua 'armazenamento_recusou'", async () => {
+    const r = await enviarImagem(deps({ transporte: async () => ({ status: 403 }) }));
+    expect(r.estado).toBe("falhou");
+    if (r.estado !== "falhou") throw new Error();
+    expect(r.falha.tipo).toBe("armazenamento_recusou");
+  });
+
+  test("falha de REDE real (arquivo legível, PUT sem resposta) continua 'rede', com a mensagem de conexão", async () => {
+    const chamadas: string[] = [];
+    const r = await enviarImagem(deps({ chamadas, transporte: async () => ({ status: 0 }) }));
+    expect(r.estado).toBe("falhou");
+    if (r.estado !== "falhou") throw new Error();
+    expect(r.falha).toMatchObject({ tipo: "rede", etapa: "envio" });
+    expect(r.falha.mensagem).toContain("Não foi possível falar com o servidor");
+    expect(chamadas).toEqual(["solicitar"]);
+  });
+
+  test("arquivoLegivel: arquivo normal legível; ilegível não; a sonda lê só 1 byte", async () => {
+    expect(await envio.arquivoLegivel(jpg())).toBe(true);
+    expect(
+      await envio.arquivoLegivel(new ArquivoIlegivel("a.jpg", "image/jpeg", "NotFoundError")),
+    ).toBe(false);
+    const fatias: Array<[number | undefined, number | undefined]> = [];
+    class Espiao extends File {
+      override slice(inicio?: number, fim?: number, tipo?: string): Blob {
+        fatias.push([inicio, fim]);
+        return super.slice(inicio, fim, tipo);
+      }
+    }
+    await envio.arquivoLegivel(
+      new Espiao([new Uint8Array(4 * MIB)], "g.jpg", { type: "image/jpeg" }),
+    );
+    expect(fatias).toEqual([[0, 1]]);
+  });
+
+  test("409/413/429/502/503/504 mantêm a classificação anterior", () => {
+    const e = (statusCode: number, extra: Record<string, unknown> = {}) =>
+      envio.classificarErroMidia(
+        new ApiError({ statusCode, code: "X", message: "m", ...extra }),
+        "solicitacao",
+      ).tipo;
+    expect([e(409), e(413), e(429), e(502), e(503), e(504)]).toEqual([
+      "conflito",
+      "muito_grande",
+      "limite_requisicoes",
+      "indisponivel",
+      "indisponivel",
+      "indisponivel",
+    ]);
+  });
+});

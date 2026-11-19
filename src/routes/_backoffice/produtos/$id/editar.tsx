@@ -56,20 +56,27 @@ function EditarProdutoPage() {
           <ErrorState error={error} onRetry={() => void refetch()} />
         ) : (
           <>
+            {/* Fase 22.8.9.9.9 (M4.1) — mesma causa do achado da fila: o formulário só lê `defaultValues` na
+                montagem; sem `key`, trocar de produto na mesma rota manteria os campos do anterior (e "Salvar"
+                gravaria esses dados no produto novo). */}
             <ProdutoForm
+              key={produto.id}
               produto={produto}
               onSubmit={onSubmit}
               enviando={atualizar.isPending}
               onCancel={() => void navigate({ to: "/produtos/$id", params: { id } })}
             />
             {/* Fase 22.8.9.9.4 (M3) — fotos independentes do formulário: cada ação vale na hora, e uma falha de envio
-                nunca descarta as alterações já salvas do produto (nem o contrário). */}
+                nunca descarta as alterações já salvas do produto (nem o contrário).
+                Fase 22.8.9.9.9 (M4.1) — `key` por produto: esta rota é REUTILIZADA quando só o `$id` muda; sem a
+                chave, a fila, a ordem não salva e os avisos do produto anterior continuariam nesta tela. Um envio já
+                em andamento segue no produto de ORIGEM (galeria e pendências dele). */}
             <Card className="shadow-card">
               <CardHeader>
                 <CardTitle className="font-display text-xl">Fotos</CardTitle>
               </CardHeader>
               <CardContent>
-                <GaleriaFotosProduto produto={produto} />
+                <GaleriaFotosProduto key={produto.id} produto={produto} />
               </CardContent>
             </Card>
             {/* Fase 22.8.9.9.6 (M4) — vídeo: cartão próprio, também independente do formulário. */}
@@ -78,7 +85,7 @@ function EditarProdutoPage() {
                 <CardTitle className="font-display text-xl">Vídeo</CardTitle>
               </CardHeader>
               <CardContent>
-                <VideoProduto produto={produto} />
+                <VideoProduto key={produto.id} produto={produto} />
               </CardContent>
             </Card>
           </>
