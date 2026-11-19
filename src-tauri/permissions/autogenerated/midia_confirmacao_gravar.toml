@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-midia-confirmacao-gravar"
+description = "Enables the midia_confirmacao_gravar command without any pre-configured scope."
+commands.allow = ["midia_confirmacao_gravar"]
+
+[[permission]]
+identifier = "deny-midia-confirmacao-gravar"
+description = "Denies the midia_confirmacao_gravar command without any pre-configured scope."
+commands.deny = ["midia_confirmacao_gravar"]

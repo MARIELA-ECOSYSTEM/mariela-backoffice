@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-midia-confirmacao-listar"
+description = "Enables the midia_confirmacao_listar command without any pre-configured scope."
+commands.allow = ["midia_confirmacao_listar"]
+
+[[permission]]
+identifier = "deny-midia-confirmacao-listar"
+description = "Denies the midia_confirmacao_listar command without any pre-configured scope."
+commands.deny = ["midia_confirmacao_listar"]

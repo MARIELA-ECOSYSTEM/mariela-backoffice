@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "confirmacoes-midia",
+  "description": "Fase 22.8.9.9.3: somente a janela principal pode listar, gravar e remover o registro durável das confirmações de upload de mídia pendentes. O diretório é fixo no Rust (dados do app da identidade vigente), separado das operações de cancelamento.",
+  "windows": ["main"],
+  "permissions": [
+    "allow-midia-confirmacao-listar",
+    "allow-midia-confirmacao-gravar",
+    "allow-midia-confirmacao-remover"
+  ]
+}

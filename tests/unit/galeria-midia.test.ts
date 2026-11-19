@@ -66,6 +66,8 @@ function deps(
         return armazenamento.receberEnvioMock(req);
       }),
     pendencias: extra.pendencias ?? new envio.RegistroEnviosPendentes(),
+    // Fase 22.8.9.9.3 — sessão ADMIN ativa (os testes de sessão encerrada ficam em `confirmacoes-midia.test.ts`).
+    sessao: extra.sessao ?? { geracao: () => 1, ativa: () => true },
     agora: extra.agora ?? (() => relogio),
   };
 }
@@ -295,9 +297,13 @@ describe("falhas", () => {
 
   test("8. 429: classificado com o Retry-After; sem o cabeçalho legível, usa a janela de 60 s", async () => {
     armazenamento.simularFalhasDeMidia(["solicitacao-429"]);
-    const r = await enviarImagem(deps());
+    const chamadas429: string[] = [];
+    const r = await enviarImagem(deps({ chamadas: chamadas429 }));
     if (r.estado !== "falhou") throw new Error();
     expect(r.falha).toMatchObject({ tipo: "limite_requisicoes", retryAfterSegundos: 42 });
+    // Fase 22.8.9.9.3 (22) — nenhuma repetição automática durante a espera: uma única solicitação, nada depois.
+    await new Promise((resolver) => setTimeout(resolver, 50));
+    expect(chamadas429).toEqual(["solicitar"]);
     const semCabecalho = envio.classificarErroMidia(
       new ApiError({ statusCode: 429, code: "TOO_MANY_REQUESTS", message: "x" }),
       "solicitacao",
@@ -343,7 +349,7 @@ describe("falhas", () => {
     expect(r.estado).toBe("confirmacao_pendente");
     if (r.estado !== "confirmacao_pendente") throw new Error();
     expect(r.falha).toMatchObject({ tipo: "indisponivel", etapa: "confirmacao", incerta: true });
-    expect(d.pendencias.listar(produto.id).map((p) => p.uploadId)).toEqual([r.uploadId]);
+    expect((await d.pendencias.listar(produto.id))!.map((p) => p.uploadId)).toEqual([r.uploadId]);
 
     // Antes de reconciliar, nenhum novo envio para o produto.
     const bloqueado = await enviarImagem(d, 2);
@@ -354,7 +360,7 @@ describe("falhas", () => {
     const conciliado = await envio.reconciliarEnvio(produto.id, r.uploadId, d);
     expect(conciliado.estado).toBe("confirmado");
     expect(chamadas).toEqual(["solicitar", "confirmar", "listar"]);
-    expect(d.pendencias.listar(produto.id)).toEqual([]);
+    expect(await d.pendencias.listar(produto.id)).toEqual([]);
   });
 
   test("11b. confirmação sem resposta e NÃO gravada: a reconciliação repete a confirmação com o MESMO uploadId", async () => {
@@ -383,6 +389,8 @@ describe("falhas", () => {
     expect(r.estado).toBe("confirmacao_pendente");
     if (r.estado !== "confirmacao_pendente") throw new Error();
     expect(r.falha).toMatchObject({ tipo: "limite_requisicoes", retryAfterSegundos: 42 });
+    // (22) A confirmação recusada por 429 NÃO é repetida sozinha: só a reconciliação explícita a repete.
+    expect((await d.pendencias.listar(produto.id))!.map((x) => x.estado)).toEqual(["pendente"]);
     expect((await envio.reconciliarEnvio(produto.id, r.uploadId, d)).estado).toBe("confirmado");
     expect(puts).toBe(1);
   });

@@ -39,8 +39,13 @@ mod sessao;
 #[allow(dead_code)]
 #[path = "../src/operacoes.rs"]
 mod operacoes;
+// Fase 22.8.9.9.3 — confirmações de mídia pendentes (mesmo código dos comandos reais, pelo caminho).
+#[allow(dead_code)]
+#[path = "../src/confirmacoes_midia.rs"]
+mod confirmacoes_midia;
 
 use cofre::{Cofre, FalhaCofre};
+use confirmacoes_midia::ServicoConfirmacoesMidia;
 use operacoes::ServicoOperacoes;
 use serde_json::{json, Value};
 use sessao::{testes_comuns::conteudo_valido, ServicoSessao};
@@ -65,6 +70,26 @@ const PERMISSOES_OPERACOES: [&str; 3] = [
     "allow-operacao-remover",
 ];
 const VENDA_TESTE: &str = "venda-acl-teste";
+/// Fase 22.8.9.9.3 — comandos e permissões do registro durável das confirmações de mídia.
+const COMANDOS_CONFIRMACOES: [&str; 3] = [
+    "midia_confirmacao_listar",
+    "midia_confirmacao_gravar",
+    "midia_confirmacao_remover",
+];
+const PERMISSOES_CONFIRMACOES: [&str; 3] = [
+    "allow-midia-confirmacao-listar",
+    "allow-midia-confirmacao-gravar",
+    "allow-midia-confirmacao-remover",
+];
+const UPLOAD_TESTE: &str = "upload-acl-teste";
+
+fn confirmacao_teste() -> String {
+    json!({
+        "versao": 1, "produtoId": "produto-acl-teste", "uploadId": UPLOAD_TESTE, "kind": "image",
+        "confirmacao": {}, "estado": "confirmando", "criadoEm": "2026-11-19T12:00:00.000Z",
+    })
+    .to_string()
+}
 const CHAVE_TESTE: &str = "33333333-3333-4333-8333-333333333333";
 
 fn registro_teste() -> String {
@@ -132,6 +157,10 @@ fn app() -> App<MockRuntime> {
             Mutex::new(None),
         ))))
         .manage(ServicoOperacoes::novo(
+            Some(dados.clone()),
+            ambiente::ATUAL.identifier,
+        ))
+        .manage(ServicoConfirmacoesMidia::novo(
             Some(dados),
             ambiente::ATUAL.identifier,
         ))
@@ -141,7 +170,10 @@ fn app() -> App<MockRuntime> {
             sessao::sessao_apagar,
             operacoes::operacao_ler,
             operacoes::operacao_gravar,
-            operacoes::operacao_remover
+            operacoes::operacao_remover,
+            confirmacoes_midia::midia_confirmacao_listar,
+            confirmacoes_midia::midia_confirmacao_gravar,
+            confirmacoes_midia::midia_confirmacao_remover
         ])
         .build(contexto)
         .expect("app de teste")
@@ -184,6 +216,11 @@ fn corpo(comando: &str, seq: u64) -> Value {
         "operacao_ler" => json!({ "vendaId": VENDA_TESTE }),
         "operacao_gravar" => json!({ "vendaId": VENDA_TESTE, "conteudo": registro_teste() }),
         "operacao_remover" => json!({ "vendaId": VENDA_TESTE, "chave": CHAVE_TESTE }),
+        "midia_confirmacao_listar" => json!({}),
+        "midia_confirmacao_gravar" => {
+            json!({ "uploadId": UPLOAD_TESTE, "conteudo": confirmacao_teste() })
+        }
+        "midia_confirmacao_remover" => json!({ "uploadId": UPLOAD_TESTE }),
         _ => json!({}),
     }
 }
@@ -302,6 +339,47 @@ fn outra_janela_e_conteudo_remoto_nao_executam_comandos_de_operacoes() {
     assert_eq!(estado, Value::Null);
 }
 
+// Fase 22.8.9.9.3 — confirmações de mídia: só a janela `main`, só conteúdo local.
+#[test]
+fn janela_main_com_conteudo_local_executa_os_comandos_de_confirmacoes() {
+    let app = app();
+    let main = janela(&app, "main");
+    let listar = |c: &str| invocar(&main, c, URL_LOCAL, corpo(c, 0));
+    assert_eq!(
+        listar("midia_confirmacao_listar").expect("listar"),
+        json!([])
+    );
+    listar("midia_confirmacao_gravar").expect("gravar");
+    assert_eq!(
+        listar("midia_confirmacao_listar").expect("listar"),
+        json!([{ "uploadId": UPLOAD_TESTE, "conteudo": confirmacao_teste() }])
+    );
+    listar("midia_confirmacao_remover").expect("remover");
+    assert_eq!(
+        listar("midia_confirmacao_listar").expect("listar"),
+        json!([])
+    );
+}
+
+#[test]
+fn outra_janela_e_conteudo_remoto_nao_executam_comandos_de_confirmacoes() {
+    let app = app();
+    let main = janela(&app, "main");
+    let intrusa = janela(&app, "intrusa");
+    for comando in COMANDOS_CONFIRMACOES {
+        assert_recusado_pela_acl(
+            invocar(&intrusa, comando, URL_LOCAL, corpo(comando, 0)),
+            &format!("janela 'intrusa' → {comando}"),
+        );
+        assert_recusado_pela_acl(
+            invocar(&main, comando, URL_REMOTA, corpo(comando, 0)),
+            &format!("origem remota → {comando}"),
+        );
+    }
+    let estado = invocar(&main, "midia_confirmacao_listar", URL_LOCAL, json!({})).expect("listar");
+    assert_eq!(estado, json!([]));
+}
+
 // ─── Configuração ────────────────────────────────────────────────────────────────────────────────────────────────
 
 fn json_do_projeto(caminho: &str) -> Value {
@@ -327,11 +405,13 @@ fn identificadores(capability: &Value) -> Vec<String> {
 fn capabilities_concedem_a_sessao_so_a_janela_main_e_so_localmente() {
     let mut com_sessao = Vec::new();
     let mut com_operacoes = Vec::new();
+    let mut com_confirmacoes = Vec::new();
     for arquivo in [
         "default.json",
         "desktop.json",
         "sessao.json",
         "operacoes.json",
+        "confirmacoes-midia.json",
     ] {
         let cap = json_do_projeto(&format!("capabilities/{arquivo}"));
         // Nenhuma capability usa curinga de janela/webview nem libera conteúdo remoto.
@@ -343,6 +423,13 @@ fn capabilities_concedem_a_sessao_so_a_janela_main_e_so_localmente() {
             com_sessao.push(arquivo);
             assert_eq!(ids, PERMISSOES, "{arquivo}: exatamente as três permissões");
         }
+        if ids.iter().any(|id| id.contains("midia-confirmacao")) {
+            com_confirmacoes.push(arquivo);
+            assert_eq!(
+                ids, PERMISSOES_CONFIRMACOES,
+                "{arquivo}: exatamente as três permissões"
+            );
+        }
         if ids.iter().any(|id| id.contains("operacao")) {
             com_operacoes.push(arquivo);
             assert_eq!(
@@ -353,11 +440,12 @@ fn capabilities_concedem_a_sessao_so_a_janela_main_e_so_localmente() {
     }
     assert_eq!(com_sessao, ["sessao.json"]);
     assert_eq!(com_operacoes, ["operacoes.json"]);
+    assert_eq!(com_confirmacoes, ["confirmacoes-midia.json"]);
 
     // O que o build embute (capabilities resolvidas pelo tauri-build) é o mesmo conjunto.
     let geradas = json_do_projeto("gen/schemas/capabilities.json");
     let geradas = geradas.as_object().unwrap();
-    assert_eq!(geradas.len(), 4);
+    assert_eq!(geradas.len(), 5);
     for (id, cap) in geradas {
         assert_eq!(cap["windows"], json!(["main"]), "{id}");
         assert_eq!(cap["local"], json!(true), "{id}");
@@ -367,6 +455,10 @@ fn capabilities_concedem_a_sessao_so_a_janela_main_e_so_localmente() {
     assert_eq!(
         identificadores(&geradas["operacoes-pendentes"]),
         PERMISSOES_OPERACOES
+    );
+    assert_eq!(
+        identificadores(&geradas["confirmacoes-midia"]),
+        PERMISSOES_CONFIRMACOES
     );
 }
 
@@ -381,7 +473,13 @@ fn manifesto_do_app_nao_tem_permissao_padrao_e_mapeia_um_comando_por_permissao()
     for (permissao, comando) in PERMISSOES
         .iter()
         .chain(PERMISSOES_OPERACOES.iter())
-        .zip(COMANDOS.iter().chain(COMANDOS_OPERACOES.iter()))
+        .chain(PERMISSOES_CONFIRMACOES.iter())
+        .zip(
+            COMANDOS
+                .iter()
+                .chain(COMANDOS_OPERACOES.iter())
+                .chain(COMANDOS_CONFIRMACOES.iter()),
+        )
     {
         let p = &app["permissions"][*permissao]["commands"];
         assert_eq!(p["allow"], json!([comando]), "{permissao}");

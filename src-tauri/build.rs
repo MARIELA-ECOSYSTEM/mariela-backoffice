@@ -22,6 +22,10 @@ fn main() {
             "operacao_ler",
             "operacao_gravar",
             "operacao_remover",
+            // Fase 22.8.9.9.3 — confirmações de mídia pendentes (`capabilities/confirmacoes-midia.json`).
+            "midia_confirmacao_listar",
+            "midia_confirmacao_gravar",
+            "midia_confirmacao_remover",
         ]),
     ))
     .expect("falha ao executar o tauri-build");

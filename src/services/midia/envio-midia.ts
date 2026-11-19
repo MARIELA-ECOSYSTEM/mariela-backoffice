@@ -14,6 +14,9 @@
  *   - Confirmação sem resposta conclusiva (rede, tempo esgotado, 502/503/504, 429): a operação fica PENDENTE, por
  *     `uploadId`, e precisa ser RECONCILIADA (`reconciliarEnvio`: lê a galeria e, se preciso, repete a confirmação
  *     com o MESMO `uploadId`) antes de qualquer nova solicitação para o mesmo produto.
+ *   - Fase 22.8.9.9.3 — a pendência é DURÁVEL (`registro-confirmacoes.ts`) e gravada ANTES do POST de confirmação:
+ *     sem registro comprovado, a confirmação não é enviada (fail-closed). Na abertura do app, `verificarPendencias`
+ *     só LÊ a galeria (nenhum POST); repetir a confirmação é sempre uma ação explícita.
  *   - Um envio por produto de cada vez (evita duplicar a mesma operação por duplo clique).
  *   - A URL assinada vive só na memória durante o envio: nunca é persistida nem registrada em log; nenhuma mensagem de
  *     erro a contém.
@@ -30,6 +33,14 @@ import {
   type TipoMidia,
   type UploadGaleriaAutorizado,
 } from "@/types/media";
+import {
+  criarArmazenamentoConfirmacoesSobreStorage,
+  criarStorageMemoria,
+  lerRegistroConfirmacao,
+  serializarRegistroConfirmacao,
+  type ArmazenamentoConfirmacoes,
+  type EstadoConfirmacao,
+} from "./registro-confirmacoes";
 
 // ─── Classificação de erros ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -64,6 +75,11 @@ export type TipoFalhaMidia =
   | "reconciliacao_pendente"
   /** Já existe um envio em andamento neste produto. */
   | "envio_em_andamento"
+  /**
+   * Fase 22.8.9.9.3 — o registro durável da confirmação não pôde ser gravado/conferido (ou lido): fail-closed, a
+   * confirmação NÃO é enviada e nada é apresentado como concluído.
+   */
+  | "persistencia_indisponivel"
   | "desconhecido";
 
 export interface FalhaMidia {
@@ -95,6 +111,8 @@ const MENSAGENS_PADRAO: Record<TipoFalhaMidia, string> = {
   reconciliacao_pendente:
     "Há um envio deste produto aguardando confirmação. Confira-o antes de enviar outro arquivo.",
   envio_em_andamento: "Já há um envio em andamento para este produto.",
+  persistencia_indisponivel:
+    "Não foi possível guardar o registro desta confirmação neste computador. Por segurança, ela NÃO foi enviada. Tente novamente.",
   desconhecido: "Não foi possível concluir a operação.",
 };
 
@@ -198,39 +216,82 @@ export function transporteXhr(
     });
 }
 
-// ─── Pendências (confirmações incertas), só em memória ──────────────────────────────────────────────────────────────
+// ─── Pendências (confirmações sem resultado conclusivo) — DURÁVEIS (Fase 22.8.9.9.3) ────────────────────────────────
 
 export interface EnvioPendente {
   produtoId: string;
   uploadId: string;
   kind: TipoMidia;
-  /** O mesmo corpo da confirmação original (repetido na reconciliação). */
+  /** O corpo EXATO da confirmação original (repetido na reconciliação). */
   confirmacao: ConfirmarUploadPayload;
-  ultimaFalha: FalhaMidia;
+  /** `confirmando` = gravado antes do POST; `pendente` = o POST terminou sem resultado conclusivo. */
+  estado: EstadoConfirmacao;
+  criadoEm: string;
+}
+
+export interface PendenciasListadas {
+  pendentes: EnvioPendente[];
+  /** `uploadId`s com registro ilegível: nunca reaproveitados; só saem por descarte explícito. */
+  corrompidos: string[];
 }
 
 /**
- * Confirmações sem resultado conclusivo, por produto. Só `uploadId` e o corpo da confirmação — nunca a URL assinada,
- * tokens ou o arquivo. Vive na memória do processo: depois de fechar o app, o registro do backend expira sozinho
- * (a vaga volta em até 10 min; o registro, em 24 h).
+ * Pendências de confirmação gravadas no armazenamento DURÁVEL (`registro-confirmacoes.ts`): sobrevivem a fechar o
+ * app, queda do processo e reinício do Windows. Toda gravação é conferida por uma nova leitura; um registro de OUTRA
+ * operação ou ilegível nunca é sobrescrito. Só `uploadId`, produto, tipo, corpo da confirmação, estado e data.
  */
 export class RegistroEnviosPendentes {
-  private readonly porProduto = new Map<string, EnvioPendente[]>();
+  constructor(
+    private readonly armazenamento: ArmazenamentoConfirmacoes = criarArmazenamentoConfirmacoesSobreStorage(
+      criarStorageMemoriaUnica(),
+      "memoria",
+    ),
+  ) {}
 
-  listar(produtoId: string): EnvioPendente[] {
-    return [...(this.porProduto.get(produtoId) ?? [])];
+  /** `null` = armazenamento inacessível (não se sabe se há pendências). */
+  async listarTodas(): Promise<PendenciasListadas | null> {
+    const r = await this.armazenamento.listar();
+    if (!r.ok) return null;
+    const pendentes: EnvioPendente[] = [];
+    const corrompidos: string[] = [];
+    for (const { uploadId, conteudo } of r.valor) {
+      const registro = lerRegistroConfirmacao(uploadId, conteudo);
+      if (!registro) corrompidos.push(uploadId);
+      else {
+        const { versao: _versao, ...pendente } = registro;
+        pendentes.push(pendente);
+      }
+    }
+    return { pendentes, corrompidos };
   }
 
-  registrar(pendente: EnvioPendente): void {
-    const lista = this.listar(pendente.produtoId).filter((p) => p.uploadId !== pendente.uploadId);
-    this.porProduto.set(pendente.produtoId, [...lista, pendente]);
+  /** Pendências válidas do produto; `null` = armazenamento inacessível. */
+  async listar(produtoId: string): Promise<EnvioPendente[] | null> {
+    const todas = await this.listarTodas();
+    return todas ? todas.pendentes.filter((p) => p.produtoId === produtoId) : null;
   }
 
-  remover(produtoId: string, uploadId: string): void {
-    const lista = this.listar(produtoId).filter((p) => p.uploadId !== uploadId);
-    if (lista.length) this.porProduto.set(produtoId, lista);
-    else this.porProduto.delete(produtoId);
+  /** Grava e CONFERE (relendo). `false` = não ficou gravado de forma comprovada. */
+  async registrar(pendente: EnvioPendente): Promise<boolean> {
+    const conteudo = serializarRegistroConfirmacao(pendente);
+    const gravado = await this.armazenamento.gravar(pendente.uploadId, conteudo);
+    if (!gravado.ok) return false;
+    const lido = await this.armazenamento.listar();
+    return (
+      lido.ok && lido.valor.some((r) => r.uploadId === pendente.uploadId && r.conteudo === conteudo)
+    );
   }
+
+  /** Remove só o registro deste `uploadId` (inclusive corrompido, no descarte explícito). */
+  async remover(uploadId: string): Promise<boolean> {
+    return (await this.armazenamento.remover(uploadId)).ok;
+  }
+}
+
+/** Um `Storage` em memória por instância (padrão dos testes). */
+function criarStorageMemoriaUnica(): () => Storage {
+  const s = criarStorageMemoria();
+  return () => s;
 }
 
 // ─── Fluxo ─────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -248,10 +309,18 @@ export interface ApiGaleriaEnvio {
   listar(produtoId: string): Promise<GaleriaProduto>;
 }
 
+/** Sessão ADMIN: nada é enviado por uma sessão encerrada (mesma regra dos cancelamentos, Fase 22.8.9.5). */
+export interface SessaoEnvio {
+  geracao(): number;
+  /** Há sessão autenticada agora (token presente)? */
+  ativa(): boolean;
+}
+
 export interface DependenciasEnvio {
   api: ApiGaleriaEnvio;
   transporte: TransporteArmazenamento;
   pendencias: RegistroEnviosPendentes;
+  sessao: SessaoEnvio;
   agora: () => number;
 }
 
@@ -278,10 +347,29 @@ export interface ParametrosEnvio {
   onProgresso?: (enviados: number, total: number) => void;
 }
 
+/** O necessário para (re)tentar a confirmação de um arquivo JÁ enviado — sem novo upload nem nova URL. */
+export interface ConfirmacaoARetomar {
+  produtoId: string;
+  uploadId: string;
+  kind: TipoMidia;
+  confirmacao: ConfirmarUploadPayload;
+  criadoEm: string;
+}
+
 export type ResultadoEnvio =
   | { estado: "confirmado"; uploadId: string; midia: MidiaProduto; galeria: GaleriaProduto }
-  /** Confirmação sem resultado conclusivo: `reconciliarEnvio` antes de qualquer outro envio deste produto. */
+  /** Confirmação sem resultado conclusivo (registro durável mantido): `reconciliarEnvio` antes de outro envio. */
   | { estado: "confirmacao_pendente"; uploadId: string; falha: FalhaMidia }
+  /**
+   * Fail-closed: o registro durável NÃO pôde ser gravado e conferido, então a confirmação NÃO foi enviada. O arquivo
+   * já está no armazenamento: `retomarConfirmacao(retomar)` tenta de novo com o MESMO `uploadId` (sem novo envio).
+   */
+  | {
+      estado: "confirmacao_nao_enviada";
+      uploadId: string;
+      falha: FalhaMidia;
+      retomar: ConfirmacaoARetomar;
+    }
   | { estado: "falhou"; uploadId: string | null; falha: FalhaMidia };
 
 /** Recusa local, antes de gastar a cota de requisições (o backend revalida tudo). */
@@ -338,13 +426,6 @@ export async function enviarMidia(
   p: ParametrosEnvio,
   deps: DependenciasEnvio,
 ): Promise<ResultadoEnvio> {
-  if (deps.pendencias.listar(p.produtoId).length > 0) {
-    return {
-      estado: "falhou",
-      uploadId: null,
-      falha: falha("reconciliacao_pendente", "validacao"),
-    };
-  }
   const ativos = emAndamento(deps);
   if (ativos.has(p.produtoId)) {
     return { estado: "falhou", uploadId: null, falha: falha("envio_em_andamento", "validacao") };
@@ -354,6 +435,24 @@ export async function enviarMidia(
 
   ativos.add(p.produtoId);
   try {
+    // Pendência de confirmação deste produto (inclusive de uma abertura anterior do app): reconciliar antes.
+    const pendentes = await deps.pendencias.listar(p.produtoId);
+    if (pendentes === null) {
+      return {
+        estado: "falhou",
+        uploadId: null,
+        falha: falha("persistencia_indisponivel", "validacao"),
+      };
+    }
+    if (pendentes.length > 0) {
+      return {
+        estado: "falhou",
+        uploadId: null,
+        falha: falha("reconciliacao_pendente", "validacao"),
+      };
+    }
+    const sessao = { geracao: deps.sessao.geracao() };
+
     // 1. Solicitação.
     let autorizacao: UploadGaleriaAutorizado;
     try {
@@ -400,77 +499,186 @@ export async function enviarMidia(
       return { estado: "falhou", uploadId, falha: falha(tipo, "envio") };
     }
 
-    // 3. Confirmação.
-    const confirmacao = corpoDaConfirmacao(p);
-    return await confirmar(p.produtoId, uploadId, p.kind, confirmacao, deps);
+    // 3. Confirmação — com registro durável ANTES do POST.
+    return await confirmarComRegistro(
+      {
+        produtoId: p.produtoId,
+        uploadId,
+        kind: p.kind,
+        confirmacao: corpoDaConfirmacao(p),
+        criadoEm: new Date(deps.agora()).toISOString(),
+      },
+      sessao.geracao,
+      deps,
+    );
   } finally {
     ativos.delete(p.produtoId);
   }
 }
 
-async function confirmar(
-  produtoId: string,
-  uploadId: string,
-  kind: TipoMidia,
-  confirmacao: ConfirmarUploadPayload,
+/**
+ * Grava o registro durável (`confirmando`), CONFERE, e só então envia a confirmação. Sem registro comprovado: nada é
+ * enviado (fail-closed). Sessão encerrada desde `geracao`: nada é enviado (o registro fica para depois do login).
+ * Sucesso → remove o registro; resultado inconclusivo → registro `pendente`; recusa definitiva → remove.
+ */
+async function confirmarComRegistro(
+  alvo: ConfirmacaoARetomar,
+  geracao: number,
   deps: DependenciasEnvio,
 ): Promise<ResultadoEnvio> {
+  const { produtoId, uploadId, kind, confirmacao, criadoEm } = alvo;
+  const registrado = await deps.pendencias.registrar({
+    produtoId,
+    uploadId,
+    kind,
+    confirmacao,
+    estado: "confirmando",
+    criadoEm,
+  });
+  if (!registrado) {
+    return {
+      estado: "confirmacao_nao_enviada",
+      uploadId,
+      falha: falha("persistencia_indisponivel", "confirmacao"),
+      retomar: alvo,
+    };
+  }
+  if (deps.sessao.geracao() !== geracao || !deps.sessao.ativa()) {
+    return { estado: "confirmacao_pendente", uploadId, falha: falha("sessao", "confirmacao") };
+  }
   try {
     const resposta = await deps.api.confirmarUpload(produtoId, uploadId, confirmacao);
-    deps.pendencias.remover(produtoId, uploadId);
+    // O backend já tem a mídia; se a remoção falhar, a próxima verificação a encontra na galeria e remove.
+    await deps.pendencias.remover(uploadId);
     const { midia, ...galeria } = resposta;
     return { estado: "confirmado", uploadId, midia, galeria };
   } catch (erro) {
     const f = classificarErroMidia(erro, "confirmacao");
     // Resolvível com o MESMO uploadId (sem novo envio): sem resposta conclusiva, indisponível ou limite de requisições.
-    const pendente = f.incerta || f.tipo === "indisponivel" || f.tipo === "limite_requisicoes";
-    if (pendente) {
-      deps.pendencias.registrar({ produtoId, uploadId, kind, confirmacao, ultimaFalha: f });
+    if (f.incerta || f.tipo === "indisponivel" || f.tipo === "limite_requisicoes") {
+      await deps.pendencias.registrar({
+        produtoId,
+        uploadId,
+        kind,
+        confirmacao,
+        estado: "pendente",
+        criadoEm,
+      });
       return { estado: "confirmacao_pendente", uploadId, falha: f };
     }
-    deps.pendencias.remover(produtoId, uploadId);
+    await deps.pendencias.remover(uploadId);
     return { estado: "falhou", uploadId, falha: f };
   }
 }
 
+/** Nova tentativa depois de `confirmacao_nao_enviada` (falha de persistência): mesmo `uploadId`, sem novo envio. */
+export async function retomarConfirmacao(
+  retomar: ConfirmacaoARetomar,
+  deps: DependenciasEnvio,
+): Promise<ResultadoEnvio> {
+  return confirmarComRegistro(retomar, deps.sessao.geracao(), deps);
+}
+
 /**
- * Reconcilia uma confirmação pendente: 1) lê a galeria — se a mídia `uploadId` já estiver lá, foi confirmada;
- * 2) senão repete a confirmação com o MESMO `uploadId` e o mesmo corpo (idempotente). Nunca solicita novo upload nem
- * reenvia o arquivo. Falha temporária mantém a pendência.
+ * Reconcilia UMA pendência por ação do operador: 1) lê a galeria — se a mídia `uploadId` já estiver lá, foi
+ * confirmada (o registro é removido); 2) senão repete a confirmação com o MESMO `uploadId` e o MESMO corpo gravados
+ * (idempotente). Nunca pede nova URL nem reenvia o arquivo. Falha temporária mantém o registro.
  */
 export async function reconciliarEnvio(
   produtoId: string,
   uploadId: string,
   deps: DependenciasEnvio,
 ): Promise<ResultadoEnvio> {
-  const pendente = deps.pendencias.listar(produtoId).find((p) => p.uploadId === uploadId);
+  const geracao = deps.sessao.geracao();
+  const pendentes = await deps.pendencias.listar(produtoId);
+  const pendente = pendentes?.find((p) => p.uploadId === uploadId);
+  if (!pendente) {
+    return {
+      estado: "falhou",
+      uploadId,
+      falha:
+        pendentes === null
+          ? falha("persistencia_indisponivel", "reconciliacao")
+          : falha("nao_encontrado", "reconciliacao", {
+              mensagem: "Não há confirmação pendente com este identificador.",
+            }),
+    };
+  }
   let galeria: GaleriaProduto;
   try {
     galeria = await deps.api.listar(produtoId);
   } catch (erro) {
-    const f = { ...classificarErroMidia(erro, "reconciliacao"), incerta: true };
-    if (pendente) deps.pendencias.registrar({ ...pendente, ultimaFalha: f });
-    return { estado: "confirmacao_pendente", uploadId, falha: f };
+    return {
+      estado: "confirmacao_pendente",
+      uploadId,
+      falha: { ...classificarErroMidia(erro, "reconciliacao"), incerta: true },
+    };
   }
   const midia = galeria.midias.find((m) => m.id === uploadId);
   if (midia) {
-    deps.pendencias.remover(produtoId, uploadId);
+    await deps.pendencias.remover(uploadId);
     return { estado: "confirmado", uploadId, midia, galeria };
   }
-  return confirmar(
-    produtoId,
-    uploadId,
-    pendente?.kind ?? "image",
-    pendente?.confirmacao ?? {},
-    deps,
-  );
+  return confirmarComRegistro(pendente, geracao, deps);
 }
 
-/** Desiste EXPLICITAMENTE de uma pendência (o registro do backend expira sozinho; nada é apagado lá). */
-export function descartarPendencia(
-  produtoId: string,
+export type SituacaoVerificada =
+  | { uploadId: string; produtoId: string; situacao: "confirmada" }
+  /** A mídia não está na galeria: a confirmação pode ser repetida pelo operador (`reconciliarEnvio`). */
+  | {
+      uploadId: string;
+      produtoId: string;
+      situacao: "aguardando_confirmacao";
+      pendente: EnvioPendente;
+    }
+  /** A galeria não pôde ser consultada agora: o registro é mantido. */
+  | { uploadId: string; produtoId: string; situacao: "nao_verificada"; falha: FalhaMidia }
+  | { uploadId: string; produtoId: null; situacao: "corrompida" };
+
+/**
+ * Verificação na abertura do app (ou ao entrar): SÓ LEITURA da galeria — nenhum POST, nenhum upload. Com a sessão
+ * ativa, para cada pendência: mídia já na galeria → confirmada (registro removido); senão → aguardando o operador.
+ * Sem sessão ou com o armazenamento inacessível: `null`, nada é consultado.
+ */
+export async function verificarPendencias(
+  deps: DependenciasEnvio,
+): Promise<SituacaoVerificada[] | null> {
+  if (!deps.sessao.ativa()) return null;
+  const todas = await deps.pendencias.listarTodas();
+  if (!todas) return null;
+  const resultado: SituacaoVerificada[] = todas.corrompidos.map((uploadId) => ({
+    uploadId,
+    produtoId: null,
+    situacao: "corrompida" as const,
+  }));
+  const galerias = new Map<string, Promise<GaleriaProduto>>();
+  for (const pendente of todas.pendentes) {
+    const { produtoId, uploadId } = pendente;
+    if (!galerias.has(produtoId)) galerias.set(produtoId, deps.api.listar(produtoId));
+    try {
+      const galeria = await galerias.get(produtoId)!;
+      if (galeria.midias.some((m) => m.id === uploadId)) {
+        await deps.pendencias.remover(uploadId);
+        resultado.push({ uploadId, produtoId, situacao: "confirmada" });
+      } else {
+        resultado.push({ uploadId, produtoId, situacao: "aguardando_confirmacao", pendente });
+      }
+    } catch (erro) {
+      resultado.push({
+        uploadId,
+        produtoId,
+        situacao: "nao_verificada",
+        falha: classificarErroMidia(erro, "reconciliacao"),
+      });
+    }
+  }
+  return resultado;
+}
+
+/** Desiste EXPLICITAMENTE de uma pendência (ou registro corrompido). O registro do backend expira sozinho. */
+export async function descartarPendencia(
   uploadId: string,
   deps: DependenciasEnvio,
-): void {
-  deps.pendencias.remover(produtoId, uploadId);
+): Promise<boolean> {
+  return deps.pendencias.remover(uploadId);
 }

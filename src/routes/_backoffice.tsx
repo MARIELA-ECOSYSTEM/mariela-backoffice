@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { useVerificacaoConfirmacoesMidia } from "@/hooks/use-galeria";
 import { getToken } from "@/services/api/client";
 import { aguardarSessaoPreparada } from "@/services/auth/sessao-nativa";
 
@@ -22,6 +23,9 @@ export const Route = createFileRoute("/_backoffice")({
 
 function BackofficeLayout() {
   const { autenticado, carregando, falhaValidacao, revalidarSessao, logout } = useAuth();
+  // Fase 22.8.9.9.3 — confirmações de mídia pendentes de aberturas anteriores: verificadas SÓ por leitura da galeria,
+  // e só com a sessão ADMIN validada. Nenhum POST e nenhum upload acontecem aqui.
+  useVerificacaoConfirmacoesMidia(autenticado);
 
   if (carregando && !autenticado) {
     return (

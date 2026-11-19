@@ -10,6 +10,9 @@
 // `ambiente-isolado` (desenvolvimento), validada antes de qualquer outra coisa.
 mod ambiente;
 mod cofre;
+// Fase 22.8.9.9.3 — confirmações de upload de mídia pendentes (armazenamento durável SEPARADO de `operacoes.rs`;
+// `capabilities/confirmacoes-midia.json`).
+mod confirmacoes_midia;
 mod identidades;
 // Fase 22.8.8.8.2 (M8.2) — injetor de falhas do cofre: SOMENTE no ambiente isolado (inexistente no build oficial).
 #[cfg(feature = "ambiente-isolado")]
@@ -55,6 +58,10 @@ pub fn run() {
         .setup(|app| {
             let dados = app.path().app_local_data_dir().ok();
             app.manage(operacoes::ServicoOperacoes::novo(
+                dados.clone(),
+                ambiente::ATUAL.identifier,
+            ));
+            app.manage(confirmacoes_midia::ServicoConfirmacoesMidia::novo(
                 dados,
                 ambiente::ATUAL.identifier,
             ));
@@ -66,7 +73,10 @@ pub fn run() {
             sessao::sessao_apagar,
             operacoes::operacao_ler,
             operacoes::operacao_gravar,
-            operacoes::operacao_remover
+            operacoes::operacao_remover,
+            confirmacoes_midia::midia_confirmacao_listar,
+            confirmacoes_midia::midia_confirmacao_gravar,
+            confirmacoes_midia::midia_confirmacao_remover
         ])
         .run(contexto)
         .expect("erro ao iniciar a aplicação MARIELA Backoffice");

@@ -5,7 +5,10 @@ import { dependenciasEnvioPadrao } from "@/services/midia/dependencias-envio";
 import {
   enviarMidia,
   reconciliarEnvio,
+  retomarConfirmacao,
+  verificarPendencias,
   descartarPendencia,
+  type ConfirmacaoARetomar,
   type ParametrosEnvio,
   type ResultadoEnvio,
 } from "@/services/midia/envio-midia";
@@ -96,11 +99,47 @@ export function useReconciliarEnvio(produtoId: string) {
   });
 }
 
-/** Envios desta sessão do app aguardando reconciliação (só em memória). */
-export function enviosPendentes(produtoId: string) {
-  return dependenciasEnvioPadrao.pendencias.listar(produtoId);
+/**
+ * Fase 22.8.9.9.3 — nova tentativa da confirmação depois de `confirmacao_nao_enviada` (falha ao gravar o registro
+ * durável): mesmo `uploadId`, sem novo envio do arquivo.
+ */
+export function useRetomarConfirmacao(produtoId: string) {
+  const aplicar = useAplicarGaleria(produtoId);
+  return useMutation({
+    mutationFn: (retomar: ConfirmacaoARetomar) =>
+      retomarConfirmacao(retomar, dependenciasEnvioPadrao),
+    onSuccess: (resultado) => {
+      if (resultado.estado === "confirmado") aplicar(resultado.galeria);
+    },
+  });
 }
 
-export function descartarEnvioPendente(produtoId: string, uploadId: string): void {
-  descartarPendencia(produtoId, uploadId, dependenciasEnvioPadrao);
+/**
+ * Fase 22.8.9.9.3 — confirmações pendentes gravadas no armazenamento DURÁVEL (inclusive de aberturas anteriores do
+ * app), verificadas SÓ POR LEITURA da galeria (nenhum POST, nenhum upload): as que já estão na galeria são
+ * encerradas; as demais ficam aguardando o operador (`useReconciliarEnvio`). Só roda com sessão ativa.
+ */
+export function useVerificacaoConfirmacoesMidia(habilitada: boolean) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: ["midia", "confirmacoes-pendentes"],
+    queryFn: async () => {
+      const situacoes = (await verificarPendencias(dependenciasEnvioPadrao)) ?? [];
+      for (const s of situacoes) {
+        if (s.situacao === "confirmada" && s.produtoId) {
+          void queryClient.invalidateQueries({ queryKey: galeriaKeys.galeria(s.produtoId) });
+        }
+      }
+      return situacoes;
+    },
+    enabled: habilitada,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+/** Descarte EXPLÍCITO de uma pendência (ou registro corrompido). O registro do backend expira sozinho. */
+export function descartarEnvioPendente(uploadId: string): Promise<boolean> {
+  return descartarPendencia(uploadId, dependenciasEnvioPadrao);
 }
