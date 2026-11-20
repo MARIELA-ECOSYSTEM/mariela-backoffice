@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "MARIELA Backoffice",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "identifier": "com.mariela.backoffice",
   "build": {
     "beforeDevCommand": "bun run dev",
@@ -46,6 +46,9 @@
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico"
+      },
+      "wix": {
+        "upgradeCode": "7af59140-5c6a-5312-9ee6-325ab6011e8f"
       }
     }
   }

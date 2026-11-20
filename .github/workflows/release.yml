@@ -1,23 +1,105 @@
 name: Publicar release do MARIELA Backoffice (Windows)
 
 # Fluxo de publicação da Fase 53.4: cada push de uma tag `vX.Y.Z` compila o
-# instalador Windows e publica uma GitHub Release versionada. O Backoffice
-# consulta essa mesma release (via `GET /repos/.../releases/latest`, API
-# pública do GitHub — não um arquivo latest.json customizado) para saber se
+# instalador Windows (NSIS e MSI) e cria uma GitHub Release versionada. O
+# Backoffice consulta a release publicada (via `GET /repos/.../releases/latest`,
+# API pública do GitHub — não um arquivo latest.json customizado) para saber se
 # há uma versão nova, e oferece o link do instalador para download manual.
 # Não há assinatura/updater nativo do Tauri neste fluxo.
+#
+# Fase 22.8.9.9.11 — publicação CONTROLADA:
+#   1. `verificar` (só leitura): a tag aponta para um commit da `main`; a versão da
+#      tag confere com tauri.conf.json, Cargo.toml e Cargo.lock; as notas oficiais
+#      `release-notes/<tag>.md` existem; e a CI (`ci.yml`) concluiu com SUCESSO para
+#      o MESMO SHA da tag (push em `main`). Execução de outro SHA nunca autoriza.
+#   2. `publicar` (só depois de `verificar`): build do MESMO SHA com ferramentas
+#      fixadas (as mesmas da CI) e criação da release como RASCUNHO, com o corpo
+#      exatamente igual às notas oficiais (sem o texto automático do GitHub). A
+#      release só é anunciada aos usuários quando alguém a publica manualmente,
+#      depois da revisão final — rascunhos não aparecem em `releases/latest`.
 on:
   push:
     tags:
       - "v*.*.*"
 
-# Necessário para que a action possa criar a release e subir os artefatos.
-permissions:
-  contents: write
+# Nenhuma permissão por padrão; cada job declara só o que usa.
+permissions: {}
+
+# Uma publicação por tag de cada vez (nunca cancela uma em andamento).
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Mesmas versões da CI (`ci.yml`) e da validação local. Rust 1.100.0 = toolchain
+# com que os testes Rust da Fase 22.8.9.9.x foram executados (MSRV do crate: 1.77.2).
+env:
+  BUN_VERSION: "1.4.2"
+  NODE_VERSION: "24.19.0"
+  RUST_VERSION: "1.100.0"
 
 jobs:
+  verificar:
+    name: Verificar tag, versão, notas e CI verde do mesmo commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout do código (histórico completo, para conferir a main)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Instalar Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: A tag aponta para um commit da main
+        shell: bash
+        run: |
+          COMMIT=$(git rev-parse "${GITHUB_REF}^{commit}")
+          echo "Tag ${GITHUB_REF_NAME} → ${COMMIT} (evento: ${GITHUB_SHA})"
+          if [ "$COMMIT" != "$GITHUB_SHA" ]; then
+            echo "::error::A tag ${GITHUB_REF_NAME} aponta para ${COMMIT}, diferente do commit do evento (${GITHUB_SHA})."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::O commit ${GITHUB_SHA} da tag ${GITHUB_REF_NAME} não está na branch main."
+            exit 1
+          fi
+
+      - name: A versão da tag confere com os arquivos oficiais
+        run: node scripts/release/conferir-versao.mjs "${GITHUB_REF_NAME}"
+
+      - name: As notas oficiais da versão existem
+        shell: bash
+        run: |
+          NOTAS="release-notes/${GITHUB_REF_NAME}.md"
+          if [ ! -s "$NOTAS" ]; then
+            echo "::error::Notas oficiais ausentes ou vazias: ${NOTAS}. Crie o arquivo antes de criar a tag."
+            exit 1
+          fi
+          echo "Notas oficiais: ${NOTAS} ($(wc -c < "$NOTAS") bytes)."
+
+      # Só leitura da API de Actions com o token do próprio workflow (`actions: read`).
+      # Espera a CI do MESMO SHA terminar (até 40 min) e só aprova com `success`.
+      - name: A CI concluiu com sucesso para o MESMO commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/release/verificar-ci-do-commit.mjs "${GITHUB_SHA}"
+
   publicar:
-    runs-on: windows-latest
+    name: Build (NSIS e MSI) e release em rascunho
+    needs: verificar
+    # Imagem fixada (a v0.1.4 foi gerada em `windows-latest`, hoje `windows-2025`;
+    # a imagem usada aparece em "Set up job › Runner Image" no log da execução).
+    runs-on: windows-2025
+    timeout-minutes: 60
+    permissions:
+      contents: write
     # O GitHub Actions roda em ambiente limpo, sem o `.env.local` usado em
     # builds locais (gitignorado de propósito — nunca versionado). Essas duas
     # variáveis não são segredo: são a mesma configuração de produção já
@@ -28,44 +110,61 @@ jobs:
       VITE_USE_MOCK_API: "false"
       VITE_API_URL: https://mariela-backend.onrender.com/api/v1
     steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
+      - name: Checkout do código (o mesmo commit verificado)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
-      - name: Instalar Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Instalar Bun ${{ env.BUN_VERSION }}
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
 
-      - name: Instalar Rust estável
-        uses: dtolnay/rust-toolchain@stable
+      - name: Instalar Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Instalar dependências do frontend
+      - name: Instalar Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # branch 1.100.0
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Instalar dependências do frontend (lockfile congelado)
         run: bun install --frozen-lockfile
 
       - name: TypeScript
         run: bunx tsc --noEmit
 
-      # Garante que a tag publicada sempre corresponde exatamente à versão
-      # embutida no app (src-tauri/tauri.conf.json). Evita publicar uma
-      # release cuja tag diverge do binário/instalador gerado — a mesma
-      # inconsistência que a comparação semântica no app depende de nunca
-      # acontecer.
-      - name: Conferir que a tag corresponde à versão do app
+      - name: Testes unitários
+        run: bun test tests/unit
+
+      # Corpo da release = notas oficiais, sem alteração. Delimitador aleatório por
+      # execução, para que nenhum conteúdo do arquivo encerre a saída antes da hora.
+      - name: Ler as notas oficiais
+        id: notas
         shell: bash
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          APP_VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          echo "Tag: $TAG — tauri.conf.json: $APP_VERSION"
-          if [ "$TAG" != "$APP_VERSION" ]; then
-            echo "::error::A tag v$TAG não corresponde à versão $APP_VERSION em src-tauri/tauri.conf.json. Atualize a versão (tauri.conf.json, package.json, src-tauri/Cargo.toml) e crie a tag novamente."
-            exit 1
-          fi
+          NOTAS="release-notes/${GITHUB_REF_NAME}.md"
+          DELIM="NOTAS_$(openssl rand -hex 16)"
+          {
+            echo "corpo<<${DELIM}"
+            cat "$NOTAS"
+            echo
+            echo "${DELIM}"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: Build e publicação (Tauri)
-        uses: tauri-apps/tauri-action@v1
+      - name: Build e release em rascunho (Tauri)
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "MARIELA Backoffice ${{ github.ref_name }}"
-          generateReleaseNotes: true
-          releaseDraft: false
+          releaseBody: ${{ steps.notas.outputs.corpo }}
+          # `true` anexaria o texto automático do GitHub às notas oficiais.
+          generateReleaseNotes: false
+          # Rascunho: a release só é anunciada depois da revisão final (publicação manual).
+          releaseDraft: true
           prerelease: false
