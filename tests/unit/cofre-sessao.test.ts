@@ -561,6 +561,9 @@ describe("segurança e isolamento", () => {
     ]);
   });
 
+  // Fase 22.8.9.9.12 — lê o CONTEÚDO de todo o `src/` (266 arquivos). Numa 1ª execução em clone novo, a primeira
+  // leitura de cada arquivo é lenta (disco frio, antivírus): ~2 s medidos, 5,8 s num caso real — acima dos 5 s padrão
+  // do `bun test`. A quente, ~80 ms. O limite explícito só dá margem a essa leitura; a verificação continua integral.
   test("Fase 22.8.8.4 (M4): o ÚNICO importador do cliente do cofre é o serviço central `sessao-nativa.ts`", async () => {
     const { readdirSync, readFileSync, statSync } = await import("node:fs");
     const { join } = await import("node:path");
@@ -579,5 +582,5 @@ describe("segurança e isolamento", () => {
     expect(importadores.map((c) => c.split(/[\\/]/).slice(-3).join("/"))).toEqual([
       "services/auth/sessao-nativa.ts",
     ]);
-  });
+  }, 30_000);
 });
