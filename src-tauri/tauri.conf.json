@@ -41,14 +41,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.icns", "icons/icon.ico"],
     "windows": {
       "nsis": {
-        "installerIcon": "icons/icon.ico"
-      },
-      "wix": {
-        "upgradeCode": "7af59140-5c6a-5312-9ee6-325ab6011e8f"
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser"
       }
     }
   }

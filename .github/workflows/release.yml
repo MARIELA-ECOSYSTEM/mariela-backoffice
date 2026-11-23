@@ -1,7 +1,7 @@
 name: Publicar release do MARIELA Backoffice (Windows)
 
 # Fluxo de publicação da Fase 53.4: cada push de uma tag `vX.Y.Z` compila o
-# instalador Windows (NSIS e MSI) e cria uma GitHub Release versionada. O
+# instalador Windows e cria uma GitHub Release versionada. O
 # Backoffice consulta a release publicada (via `GET /repos/.../releases/latest`,
 # API pública do GitHub — não um arquivo latest.json customizado) para saber se
 # há uma versão nova, e oferece o link do instalador para download manual.
@@ -17,6 +17,10 @@ name: Publicar release do MARIELA Backoffice (Windows)
 #      exatamente igual às notas oficiais (sem o texto automático do GitHub). A
 #      release só é anunciada aos usuários quando alguém a publica manualmente,
 #      depois da revisão final — rascunhos não aparecem em `releases/latest`.
+#
+# Fase 22.8.9.9.23 — instalador ÚNICO: só NSIS (`-setup.exe`, por usuário, sem
+# administrador). O MSI deixou de ser gerado e anexado: `bundle.targets` = ["nsis"]
+# em tauri.conf.json e `--bundles nsis` no build abaixo (as duas travas juntas).
 on:
   push:
     tags:
@@ -92,7 +96,7 @@ jobs:
         run: node scripts/release/verificar-ci-do-commit.mjs "${GITHUB_SHA}"
 
   publicar:
-    name: Build (NSIS e MSI) e release em rascunho
+    name: Build (instalador NSIS) e release em rascunho
     needs: verificar
     # Imagem fixada (a v0.1.4 foi gerada em `windows-latest`, hoje `windows-2025`;
     # a imagem usada aparece em "Set up job › Runner Image" no log da execução).
@@ -160,6 +164,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          # Só o instalador NSIS (`-setup.exe`) — o único formato oficial.
+          args: --bundles nsis
           tagName: ${{ github.ref_name }}
           releaseName: "MARIELA Backoffice ${{ github.ref_name }}"
           releaseBody: ${{ steps.notas.outputs.corpo }}

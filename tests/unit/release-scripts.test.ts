@@ -88,6 +88,37 @@ describe("conferir-versao", () => {
   });
 });
 
+describe("instalador único (NSIS) — Fase 22.8.9.9.23", () => {
+  const ler = (r: string) => readFileSync(path.join(RAIZ, r), "utf8");
+  const conf = JSON.parse(ler("src-tauri/tauri.conf.json"));
+  const workflow = Bun.YAML.parse(ler(".github/workflows/release.yml")) as {
+    jobs: { publicar: { steps: { uses?: string; with?: Record<string, unknown> }[] } };
+  };
+
+  test("tauri.conf.json: só NSIS, por usuário; nenhuma configuração de MSI (WiX)", () => {
+    expect(conf.bundle.targets).toEqual(["nsis"]);
+    expect(conf.bundle.windows.nsis.installMode).toBe("currentUser");
+    expect(conf.bundle.windows).not.toHaveProperty("wix");
+  });
+
+  test("identidade e WebView2 preservados", () => {
+    expect(conf.identifier).toBe("com.mariela.backoffice");
+    // Sem `webviewInstallMode`: continua o padrão do Tauri (igual às versões anteriores).
+    expect(conf.bundle.windows).not.toHaveProperty("webviewInstallMode");
+  });
+
+  test("release.yml: o build da release gera só o pacote NSIS", () => {
+    const tauri = workflow.jobs.publicar.steps.find((p) =>
+      p.uses?.startsWith("tauri-apps/tauri-action@"),
+    );
+    expect(tauri?.with?.args).toBe("--bundles nsis");
+  });
+
+  test("o aviso de nova versão do app aponta para o `-setup.exe`", () => {
+    expect(ler("src/hooks/use-updater.ts")).toContain('asset.name.endsWith("-setup.exe")');
+  });
+});
+
 describe("verificar-ci-do-commit", () => {
   test("CI concluída com sucesso para o MESMO SHA, push em main: aprovado", () => {
     expect(ci.avaliarExecucoes([execucao()], SHA).estado).toBe("aprovado");
