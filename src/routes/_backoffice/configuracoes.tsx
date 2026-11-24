@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { CreditCard, Loader2, Palette, Ruler, Store, Tags } from "lucide-react";
+import { CreditCard, Loader2, MessageSquareText, Palette, Ruler, Store, Tags } from "lucide-react";
 import { Page } from "@/components/layout/page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Field } from "@/components/common/field";
 import { ErrorState } from "@/components/common/states";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ListaConfiguravel } from "@/components/configuracoes/lista-configuravel";
+import { MensagensWhatsappPadrao } from "@/components/configuracoes/mensagens-whatsapp-padrao";
 import { useAtualizarLoja, useConfiguracoes } from "@/hooks/use-configuracoes";
 import { mensagemDeErro } from "@/services/api/client";
 import { aplicarErrosDeCampo } from "@/lib/erros-formulario";
@@ -124,6 +125,7 @@ function ConfiguracoesPage() {
     { valor: "tamanhos", label: "Tamanhos", icone: Ruler },
     { valor: "cores", label: "Cores", icone: Palette },
     { valor: "pagamento", label: "Formas de pagamento", icone: CreditCard },
+    { valor: "whatsapp", label: "Mensagens de WhatsApp", icone: MessageSquareText },
   ] as const;
 
   return (
@@ -139,7 +141,7 @@ function ConfiguracoesPage() {
       {isPending ? (
         <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
           <div className="space-y-2">
-            {Array.from({ length: 5 }).map((_, index) => (
+            {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton key={index} className="h-10 rounded-lg" />
             ))}
           </div>
@@ -290,6 +292,10 @@ function ConfiguracoesPage() {
               itens={configuracoes.formasPagamento}
               placeholder="Ex.: Pix"
             />
+          </TabsContent>
+
+          <TabsContent value="whatsapp" className="mt-0 max-w-3xl">
+            <MensagensWhatsappPadrao mensagens={configuracoes.mensagensWhatsapp ?? []} />
           </TabsContent>
         </Tabs>
       )}

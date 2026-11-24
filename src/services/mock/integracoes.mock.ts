@@ -13,7 +13,8 @@ let sequenciaMensagem = 0;
  * `NOT_CONFIGURED`/`ERROR`) e o mesmo formato de payload de envio
  * (`{ tipo, id, mensagem? }`, sem telefone/API key) do backend real.
  */
-type StatusConexaoWhatsappMock = "CONNECTED" | "CONNECTING" | "QRCODE" | "DISCONNECTED" | "NOT_CONFIGURED" | "ERROR";
+type StatusConexaoWhatsappMock =
+  "CONNECTED" | "CONNECTING" | "QRCODE" | "DISCONNECTED" | "NOT_CONFIGURED" | "ERROR";
 
 let estadoConexao: StatusConexaoWhatsappMock = "DISCONNECTED";
 let consultasEmQrCode = 0;
@@ -114,7 +115,7 @@ function mascararTelefoneMock(telefone: string): string {
 
 const PREVIA_ANIVERSARIO_MOCK =
   "Olá, {{1}}! A equipe MARIELA deseja a você um feliz aniversário! Que seu novo ciclo seja cheio de coisas boas. " +
-  "Esperamos você na MARIELA! Para não receber mais mensagens, responda SAIR.";
+  "Esperamos você na MARIELA!";
 
 interface BloqueioMock {
   id: string;
@@ -164,7 +165,7 @@ function registerWhatsappOficialMocks(): void {
   registerMock("GET", "/integracoes/whatsapp/templates", () => ({
     data: [
       {
-        chave: "aniversario_v1",
+        chave: "aniversario_v2",
         categoria: "MARKETING",
         idioma: "pt_BR",
         usoPermitido: ["INDIVIDUAL", "CAMPANHA_ANIVERSARIO"],
@@ -174,7 +175,7 @@ function registerWhatsappOficialMocks(): void {
     ],
   }));
   registerMock("POST", "/integracoes/whatsapp/templates/:chave/previa", ({ params, body }) => {
-    if (params["chave"] !== "aniversario_v1") {
+    if (params["chave"] !== "aniversario_v2") {
       throw new ApiError({
         statusCode: 422,
         code: "WHATSAPP_TEMPLATE_INDISPONIVEL",
@@ -274,7 +275,11 @@ export function registerIntegracoesMocks(): void {
   registerMock("GET", "/integracoes/whatsapp/status", () => ({ data: statusWhatsappMock() }));
 
   registerMock("POST", "/integracoes/whatsapp/conectar", () => {
-    if (estadoConexao === "DISCONNECTED" || estadoConexao === "NOT_CONFIGURED" || estadoConexao === "ERROR") {
+    if (
+      estadoConexao === "DISCONNECTED" ||
+      estadoConexao === "NOT_CONFIGURED" ||
+      estadoConexao === "ERROR"
+    ) {
       estadoConexao = "QRCODE";
       consultasEmQrCode = 0;
     }

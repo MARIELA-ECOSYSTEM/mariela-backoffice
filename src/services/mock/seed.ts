@@ -542,6 +542,32 @@ export function seedConfiguracoes(): Configuracoes {
     tamanhos: [...TAMANHOS],
     cores: [...CORES],
     formasPagamento: [...FORMAS_PAGAMENTO],
+    // Fase 22.8.9.10.7.3 — mesmo conjunto inicial do backend (`MENSAGENS_WHATSAPP_INICIAIS`).
+    mensagensWhatsapp: [
+      ["Saudação", "Olá! Aqui é da MARIELA. Como podemos ajudar você hoje?"],
+      [
+        "Agradecimento pela compra",
+        "Olá! Muito obrigada pela sua compra na MARIELA. Foi um prazer atender você. Qualquer dúvida, estamos à disposição.",
+      ],
+      [
+        "Pedido pronto para retirada",
+        "Olá! Seu pedido já está pronto para retirada na MARIELA. Estamos esperando por você.",
+      ],
+      [
+        "Aviso de pagamento",
+        "Olá! Passando para lembrar do pagamento pendente na MARIELA. Se você já fez o pagamento, por favor desconsidere esta mensagem.",
+      ],
+      [
+        "Aviso de pedido",
+        "Olá! Temos uma atualização sobre o seu pedido na MARIELA. Fale com a gente para saber os detalhes.",
+      ],
+      ["Atendimento personalizado", "Olá! Aqui é da equipe MARIELA."],
+    ].map(([titulo, conteudo], i) => ({
+      id: `00000000-0000-4000-8000-00000000000${i + 1}`,
+      titulo: titulo!,
+      conteudo: conteudo!,
+      atualizadoEm: iso(1),
+    })),
     atualizadoEm: iso(1),
   };
 }

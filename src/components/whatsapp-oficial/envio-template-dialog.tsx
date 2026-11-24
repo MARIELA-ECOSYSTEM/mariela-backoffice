@@ -17,6 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ErrorState } from "@/components/common/states";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MensagemPreProntaPainel } from "./mensagem-pre-pronta-painel";
 import {
   useAtualizarAposEnvio,
   useBloqueioClienteWhatsapp,
@@ -37,6 +39,9 @@ import {
 import { formatarDataHora } from "@/utils/format";
 import { BloqueioClientePainel } from "./bloqueio-cliente-painel";
 import { AprovacaoTemplateBadge, Aviso, EstadoMensagemBadge, Rotulo } from "./comum";
+
+/** Fase 22.8.9.10.7.3 — `modelo` = envio oficial por template; `texto` = mensagem pré-pronta (só edição/prévia). */
+type ModoEnvio = "modelo" | "texto";
 
 export interface ClienteEnvioOficial {
   id: string;
@@ -64,6 +69,7 @@ export function EnvioTemplateDialog({
   const bloqueio = useBloqueioClienteWhatsapp(cliente?.id ?? null);
   const atualizarAposEnvio = useAtualizarAposEnvio();
 
+  const [modo, setModo] = useState<ModoEnvio>("modelo");
   const [templateChave, setTemplateChave] = useState<string | null>(null);
   const [pendente, setPendente] = useState<EnvioPendente | null>(null);
   const [resultado, setResultado] = useState<DesfechoVerificacao | null>(null);
@@ -76,6 +82,7 @@ export function EnvioTemplateDialog({
   );
 
   useEffect(() => {
+    setModo("modelo");
     setTemplateChave(null);
     setResultado(null);
     setPendente(cliente ? lerEnvioPendente(cliente.id) : null);
@@ -89,6 +96,7 @@ export function EnvioTemplateDialog({
   const bloqueado = bloqueio.data?.bloqueado === true;
   const semTelefone = bloqueio.data?.telefoneMascarado === null;
   const podeEnviar =
+    modo === "modelo" &&
     selecionado !== null &&
     templateDisponivel(selecionado, "INDIVIDUAL") &&
     previa.isSuccess &&
@@ -108,7 +116,8 @@ export function EnvioTemplateDialog({
   }
 
   async function confirmarEnvio() {
-    if (!cliente || !selecionado || emAndamento.current) return;
+    // Só o modo "modelo" envia (o texto pré-pronto não tem rota de envio no backend oficial).
+    if (!cliente || !selecionado || modo !== "modelo" || emAndamento.current) return;
     emAndamento.current = true;
     setEnviando(true);
     try {
@@ -165,86 +174,103 @@ export function EnvioTemplateDialog({
           {resultado ? <ResultadoEnvio resultado={resultado} /> : null}
 
           {!resultado && pendente === null ? (
-            <>
-              {templates.isPending ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 aria-hidden className="size-4 animate-spin" /> Carregando modelos…
-                </div>
-              ) : templates.isError ? (
-                <ErrorState
-                  error={templates.error}
-                  onRetry={() => void templates.refetch()}
-                  fallback="Não foi possível carregar os modelos."
-                />
-              ) : individuais.length === 0 ? (
-                <Aviso tom="informacao">Nenhum modelo do catálogo permite envio individual.</Aviso>
-              ) : (
-                <div className="space-y-1.5">
-                  <Rotulo>Modelo de mensagem</Rotulo>
-                  <Select value={templateChave ?? ""} onValueChange={(v) => setTemplateChave(v)}>
-                    <SelectTrigger aria-label="Modelo de mensagem">
-                      <SelectValue placeholder="Escolha um modelo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {individuais.map((t) => (
-                        <SelectItem
-                          key={t.chave}
-                          value={t.chave}
-                          disabled={!templateDisponivel(t, "INDIVIDUAL")}
-                        >
-                          {t.chave} · {t.categoria === "MARKETING" ? "Marketing" : "Utilidade"} ·{" "}
-                          {ROTULO_APROVACAO_TEMPLATE[t.estadoAprovacao]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {individuais.every((t) => !templateDisponivel(t, "INDIVIDUAL")) ? (
-                    <Aviso tom="informacao">
-                      Nenhum modelo está com aprovação confirmada pelo provedor agora. Sem essa
-                      confirmação, o backend não envia.
-                    </Aviso>
-                  ) : null}
-                </div>
-              )}
-
-              {selecionado ? (
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <Rotulo>Prévia com os dados do cliente</Rotulo>
-                    <AprovacaoTemplateBadge estado={selecionado.estadoAprovacao} />
+            <Tabs value={modo} onValueChange={(v) => setModo(v as ModoEnvio)}>
+              <TabsList aria-label="Tipo de mensagem">
+                <TabsTrigger value="modelo">Modelo aprovado</TabsTrigger>
+                <TabsTrigger value="texto">Mensagem pré-pronta</TabsTrigger>
+              </TabsList>
+              <TabsContent value="texto" className="mt-4">
+                {cliente ? (
+                  <MensagemPreProntaPainel
+                    nomeCliente={cliente.nome}
+                    telefoneMascarado={bloqueio.data?.telefoneMascarado}
+                  />
+                ) : null}
+              </TabsContent>
+              <TabsContent value="modelo" className="mt-4 space-y-4">
+                {templates.isPending ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 aria-hidden className="size-4 animate-spin" /> Carregando modelos…
                   </div>
-                  {previa.isPending ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 aria-hidden className="size-4 animate-spin" /> Gerando prévia…
-                    </div>
-                  ) : previa.isError ? (
-                    <ErrorState
-                      error={previa.error}
-                      onRetry={() => void previa.refetch()}
-                      fallback="Não foi possível gerar a prévia."
-                    />
-                  ) : (
-                    <p
-                      data-testid="previa-template"
-                      className="whitespace-pre-wrap rounded-lg border border-success/25 bg-success/[0.06] px-3 py-2.5 text-sm text-foreground"
-                    >
-                      {previa.data.texto}
-                    </p>
-                  )}
-                  {selecionado.categoria === "MARKETING" ? (
-                    <p className="text-xs text-muted-foreground">
-                      Modelo de marketing: envie só para quem aceitou receber mensagens da loja.
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
+                ) : templates.isError ? (
+                  <ErrorState
+                    error={templates.error}
+                    onRetry={() => void templates.refetch()}
+                    fallback="Não foi possível carregar os modelos."
+                  />
+                ) : individuais.length === 0 ? (
+                  <Aviso tom="informacao">
+                    Nenhum modelo do catálogo permite envio individual.
+                  </Aviso>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Rotulo>Modelo de mensagem</Rotulo>
+                    <Select value={templateChave ?? ""} onValueChange={(v) => setTemplateChave(v)}>
+                      <SelectTrigger aria-label="Modelo de mensagem">
+                        <SelectValue placeholder="Escolha um modelo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {individuais.map((t) => (
+                          <SelectItem
+                            key={t.chave}
+                            value={t.chave}
+                            disabled={!templateDisponivel(t, "INDIVIDUAL")}
+                          >
+                            {t.chave} · {t.categoria === "MARKETING" ? "Marketing" : "Utilidade"} ·{" "}
+                            {ROTULO_APROVACAO_TEMPLATE[t.estadoAprovacao]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {individuais.every((t) => !templateDisponivel(t, "INDIVIDUAL")) ? (
+                      <Aviso tom="informacao">
+                        Nenhum modelo está com aprovação confirmada pelo provedor agora. Sem essa
+                        confirmação, o backend não envia.
+                      </Aviso>
+                    ) : null}
+                  </div>
+                )}
 
-              {bloqueado ? (
-                <Aviso tom="erro" titulo="Contato bloqueado">
-                  Este número pediu para não receber mensagens de WhatsApp. O envio não é permitido.
-                </Aviso>
-              ) : null}
-            </>
+                {selecionado ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <Rotulo>Prévia com os dados do cliente</Rotulo>
+                      <AprovacaoTemplateBadge estado={selecionado.estadoAprovacao} />
+                    </div>
+                    {previa.isPending ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 aria-hidden className="size-4 animate-spin" /> Gerando prévia…
+                      </div>
+                    ) : previa.isError ? (
+                      <ErrorState
+                        error={previa.error}
+                        onRetry={() => void previa.refetch()}
+                        fallback="Não foi possível gerar a prévia."
+                      />
+                    ) : (
+                      <p
+                        data-testid="previa-template"
+                        className="whitespace-pre-wrap rounded-lg border border-success/25 bg-success/[0.06] px-3 py-2.5 text-sm text-foreground"
+                      >
+                        {previa.data.texto}
+                      </p>
+                    )}
+                    {selecionado.categoria === "MARKETING" ? (
+                      <p className="text-xs text-muted-foreground">
+                        Modelo de marketing: envie só para quem aceitou receber mensagens da loja.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {bloqueado ? (
+                  <Aviso tom="erro" titulo="Contato bloqueado">
+                    Este número pediu para não receber mensagens de WhatsApp. O envio não é
+                    permitido.
+                  </Aviso>
+                ) : null}
+              </TabsContent>
+            </Tabs>
           ) : null}
 
           {cliente ? <BloqueioClientePainel clienteId={cliente.id} /> : null}
@@ -262,6 +288,16 @@ export function EnvioTemplateDialog({
                 <RefreshCw aria-hidden className="size-4" />
               )}
               Verificar resultado
+            </Button>
+          ) : !resultado && modo === "texto" ? (
+            // Fase 22.8.9.10.7.3 — o backend oficial não envia texto: nunca habilitado neste modo.
+            <Button
+              type="button"
+              disabled
+              title="Envio de texto livre ainda não disponível no WhatsApp oficial"
+            >
+              <Send aria-hidden className="size-4" />
+              Enviar texto (indisponível)
             </Button>
           ) : !resultado ? (
             <Button type="button" disabled={!podeEnviar} onClick={() => void confirmarEnvio()}>

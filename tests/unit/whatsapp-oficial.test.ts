@@ -849,10 +849,12 @@ describe("Mock API do WhatsApp oficial não simula envio", () => {
     )!;
     const { data: previa } = await mock<{ texto: string }>(
       "POST",
-      "/integracoes/whatsapp/templates/aniversario_v1/previa",
+      "/integracoes/whatsapp/templates/aniversario_v2/previa",
       { clienteId: cliente.id },
     );
     expect(previa.texto).toContain(`Olá, ${cliente.nome.split(" ")[0]}!`);
+    // Fase 22.8.9.10.7.3 — o texto não promete mais que responder "SAIR" bloqueia algo.
+    expect(previa.texto.toUpperCase()).not.toContain("SAIR");
     const { data: b } = await mock<{ numeroMascarado: string }>(
       "POST",
       `/integracoes/whatsapp/clientes/${cliente.id}/bloqueio`,

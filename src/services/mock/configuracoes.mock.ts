@@ -2,7 +2,13 @@ import { registerMock } from "./mock-transport";
 import { ApiError } from "@/types/api";
 import type { ApiFieldError } from "@/types/api";
 import { agora, clonar, db } from "./db";
-import type { Configuracoes, DadosLoja, ListaConfiguravel } from "@/types/configuracoes";
+import {
+  LIMITES_MENSAGEM_PADRAO_WHATSAPP,
+  type Configuracoes,
+  type DadosLoja,
+  type ListaConfiguravel,
+  type SalvarMensagemPadraoWhatsapp,
+} from "@/types/configuracoes";
 
 const LISTAS: ListaConfiguravel[] = ["categorias", "tamanhos", "cores", "formasPagamento"];
 
@@ -50,6 +56,54 @@ export function registerConfiguracoesMocks(): void {
     db.configuracoes[lista].push(valor);
     db.configuracoes.atualizadoEm = agora();
     return { data: clonar(db.configuracoes) as Configuracoes };
+  });
+
+  // Fase 22.8.9.10.7.3 — mensagens padrão de WhatsApp (mesmas regras do backend).
+  const MENSAGENS = "/configuracoes/whatsapp/mensagens-padrao";
+  const mensagens = () => (db.configuracoes.mensagensWhatsapp ??= []);
+
+  function validarMensagem(body: unknown, idAtual: string | null): SalvarMensagemPadraoWhatsapp {
+    const b = (body ?? {}) as Partial<SalvarMensagemPadraoWhatsapp>;
+    const titulo = String(b.titulo ?? "").trim();
+    const conteudo = String(b.conteudo ?? "").trim();
+    const errors: ApiFieldError[] = [];
+    if (!titulo) errors.push({ field: "titulo", message: "Informe um título." });
+    else if (titulo.length > LIMITES_MENSAGEM_PADRAO_WHATSAPP.titulo)
+      errors.push({ field: "titulo", message: "Título longo demais." });
+    if (!conteudo) errors.push({ field: "conteudo", message: "Informe o texto da mensagem." });
+    else if (conteudo.length > LIMITES_MENSAGEM_PADRAO_WHATSAPP.conteudo)
+      errors.push({ field: "conteudo", message: "Mensagem longa demais." });
+    if (errors.length) throw ApiError.validation("Dados inválidos.", errors);
+    if (
+      mensagens().some((m) => m.id !== idAtual && m.titulo.toLowerCase() === titulo.toLowerCase())
+    )
+      throw ApiError.conflict(`Já existe uma mensagem padrão com o título "${titulo}".`);
+    return { titulo, conteudo };
+  }
+
+  registerMock("POST", MENSAGENS, ({ body }) => {
+    const dados = validarMensagem(body, null);
+    if (mensagens().length >= LIMITES_MENSAGEM_PADRAO_WHATSAPP.quantidade)
+      throw ApiError.validation("Limite de mensagens padrão atingido.");
+    mensagens().push({ id: crypto.randomUUID(), ...dados, atualizadoEm: agora() });
+    db.configuracoes.atualizadoEm = agora();
+    return { data: clonar(db.configuracoes) };
+  });
+
+  registerMock("PUT", `${MENSAGENS}/:id`, ({ params, body }) => {
+    const alvo = mensagens().find((m) => m.id === params["id"]);
+    if (!alvo) throw ApiError.notFound("Mensagem padrão não encontrada.");
+    Object.assign(alvo, validarMensagem(body, alvo.id), { atualizadoEm: agora() });
+    db.configuracoes.atualizadoEm = agora();
+    return { data: clonar(db.configuracoes) };
+  });
+
+  registerMock("DELETE", `${MENSAGENS}/:id`, ({ params }) => {
+    const indice = mensagens().findIndex((m) => m.id === params["id"]);
+    if (indice < 0) throw ApiError.notFound("Mensagem padrão não encontrada.");
+    mensagens().splice(indice, 1);
+    db.configuracoes.atualizadoEm = agora();
+    return { data: clonar(db.configuracoes) };
   });
 
   registerMock("DELETE", "/configuracoes/:lista/:valor", ({ params }) => {

@@ -1,5 +1,13 @@
 import { apiClient } from "./client";
-import type { Configuracoes, DadosLoja, ListaConfiguravel } from "@/types/configuracoes";
+import type {
+  Configuracoes,
+  DadosLoja,
+  ListaConfiguravel,
+  SalvarMensagemPadraoWhatsapp,
+} from "@/types/configuracoes";
+
+/** Fase 22.8.9.10.7.3 — mensagens padrão de WhatsApp (ADMIN), persistidas na configuração global do backend. */
+const MENSAGENS_PADRAO = "/configuracoes/whatsapp/mensagens-padrao";
 
 export const configuracoesApi = {
   async obter(): Promise<Configuracoes> {
@@ -17,6 +25,26 @@ export const configuracoesApi = {
   async removerItem(lista: ListaConfiguravel, valor: string): Promise<Configuracoes> {
     const { data } = await apiClient.delete<Configuracoes>(
       `/configuracoes/${lista}/${encodeURIComponent(valor)}`,
+    );
+    return data;
+  },
+  async criarMensagemPadrao(payload: SalvarMensagemPadraoWhatsapp): Promise<Configuracoes> {
+    const { data } = await apiClient.post<Configuracoes>(MENSAGENS_PADRAO, payload);
+    return data;
+  },
+  async atualizarMensagemPadrao(
+    id: string,
+    payload: SalvarMensagemPadraoWhatsapp,
+  ): Promise<Configuracoes> {
+    const { data } = await apiClient.put<Configuracoes>(
+      `${MENSAGENS_PADRAO}/${encodeURIComponent(id)}`,
+      payload,
+    );
+    return data;
+  },
+  async excluirMensagemPadrao(id: string): Promise<Configuracoes> {
+    const { data } = await apiClient.delete<Configuracoes>(
+      `${MENSAGENS_PADRAO}/${encodeURIComponent(id)}`,
     );
     return data;
   },

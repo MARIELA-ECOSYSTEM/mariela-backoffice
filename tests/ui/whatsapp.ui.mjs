@@ -63,7 +63,21 @@ const CLIENTES = [
 const mascara = (tel) => `+55 ${tel.slice(0, 2)} ${tel[2]}****-${tel.slice(-4)}`;
 
 const PREVIA =
-  "Olá, {{1}}! A equipe MARIELA deseja a você um feliz aniversário! Para não receber mais mensagens, responda SAIR.";
+  "Olá, {{1}}! A equipe MARIELA deseja a você um feliz aniversário! Esperamos você na MARIELA!";
+
+/** Fase 22.8.9.10.7.3 — mensagens padrão iniciais do backend falso. */
+const MENSAGENS_PADRAO = [
+  {
+    id: "00000000-0000-4000-8000-000000000001",
+    titulo: "Saudação",
+    conteudo: "Olá! Aqui é da MARIELA. Como podemos ajudar você hoje?",
+  },
+  {
+    id: "00000000-0000-4000-8000-000000000003",
+    titulo: "Pedido pronto para retirada",
+    conteudo: "Olá! Seu pedido já está pronto para retirada na MARIELA.",
+  },
+];
 
 // ─── Backend FALSO (contrato do backend, em memória) ─────────────────────────────────────────────────────────────────
 
@@ -95,6 +109,34 @@ function criarBackend() {
   const comportamentosLiberar = [];
   const travas = { envio: null };
   let seq = 0;
+  const mensagensPadrao = MENSAGENS_PADRAO.map((m) => ({ ...m }));
+  const configuracao = () => ({
+    loja: {
+      nome: "Loja Fictícia",
+      logo: "",
+      telefone: "",
+      whatsapp: "",
+      email: "loja@ficticio.test",
+      endereco: {
+        cep: "",
+        logradouro: "",
+        numero: "",
+        complemento: "",
+        bairro: "",
+        cidade: "",
+        estado: "",
+      },
+    },
+    categorias: [],
+    tamanhos: [],
+    cores: [],
+    formasPagamento: [],
+    mensagensWhatsapp: mensagensPadrao.map((m) => ({
+      ...m,
+      atualizadoEm: new Date().toISOString(),
+    })),
+    atualizadoEm: new Date().toISOString(),
+  });
 
   const json = (route, status, corpo) =>
     route.fulfill({ status, contentType: "application/json", body: JSON.stringify(corpo) });
@@ -167,6 +209,35 @@ function criarBackend() {
       });
     }
     if (metodo === "GET" && caminho === "/clientes") return json(route, 200, { data: CLIENTES });
+
+    // Fase 22.8.9.10.7.3 — configuração (mensagens padrão), com as mesmas regras do backend.
+    if (metodo === "GET" && caminho === "/configuracoes")
+      return json(route, 200, { data: configuracao() });
+    if (caminho.startsWith("/configuracoes/whatsapp/mensagens-padrao")) {
+      const id = caminho.split("/")[4];
+      const alvo = id ? mensagensPadrao.find((x) => x.id === id) : null;
+      if (id && !alvo) return erro(route, 404, "NOT_FOUND", "Mensagem padrão não encontrada.");
+      if (metodo === "DELETE") {
+        mensagensPadrao.splice(mensagensPadrao.indexOf(alvo), 1);
+        return json(route, 200, { data: configuracao() });
+      }
+      const titulo = String(corpo?.titulo ?? "").trim();
+      const conteudo = String(corpo?.conteudo ?? "").trim();
+      if (!titulo || !conteudo) return erro(route, 400, "VALIDATION_ERROR", "Dados inválidos.");
+      if (
+        mensagensPadrao.some((x) => x !== alvo && x.titulo.toLowerCase() === titulo.toLowerCase())
+      ) {
+        return erro(
+          route,
+          409,
+          "CONFLICT",
+          `Já existe uma mensagem padrão com o título "${titulo}".`,
+        );
+      }
+      if (metodo === "POST") mensagensPadrao.push({ id: crypto.randomUUID(), titulo, conteudo });
+      else Object.assign(alvo, { titulo, conteudo });
+      return json(route, metodo === "POST" ? 201 : 200, { data: configuracao() });
+    }
     if (metodo === "GET" && caminho === "/integracoes/whatsapp/templates")
       return json(route, 200, { data: templates });
 
@@ -330,6 +401,7 @@ function criarBackend() {
   return {
     chamadas,
     mensagens,
+    mensagensPadrao,
     bloqueios,
     templates,
     comportamentosEnvio,
@@ -900,6 +972,151 @@ describe("regressão", () => {
     assert.ok(!s.backend.chamadas.some(([, c]) => c.startsWith("/integracoes/whatsapp/templates")));
     await dialogo(s.pagina).getByRole("button", { name: "Cancelar" }).click();
     await s.pagina.getByRole("button", { name: "Aniversariantes (Evolution)" }).waitFor();
+    await s.encerrar();
+  });
+});
+
+// ─── Fase 22.8.9.10.7.3 — mensagens pré-prontas ────────────────────────────────────────────────────────────────────
+
+describe("mensagens pré-prontas (Fase 22.8.9.10.7.3)", () => {
+  const rotasDeEnvio = (s) =>
+    s.backend.chamadas.filter(
+      ([mt, c]) =>
+        mt !== "GET" &&
+        (c === "/integracoes/whatsapp/envios" || c === "/integracoes/whatsapp/mensagens"),
+    );
+
+  test("dialog: escolher, editar e revisar — destinatário fixo do cadastro; NADA é enviado (envio de texto indisponível); cancelar fecha sem requisição", async () => {
+    const s = await novaSessao();
+    await s.abrirClientes();
+    await abrirEnvioOficial(s);
+    const d = dialogo(s.pagina);
+    await d.getByRole("tab", { name: "Mensagem pré-pronta" }).click();
+    await d.getByTestId("painel-mensagem-pre-pronta").waitFor();
+    assert.equal(
+      await d.getByTestId("destinatario-pre-pronta").innerText(),
+      "Ana Fictícia · +55 83 9****-0001",
+    );
+    // Nenhum campo de telefone: o único campo editável é o texto.
+    assert.equal(await d.getByRole("textbox").count(), 0, "nada editável antes de escolher");
+
+    await escolherOpcao(s.pagina, "Mensagem padrão", "Pedido pronto para retirada");
+    const texto = d.getByRole("textbox", { name: "Texto da mensagem" });
+    assert.equal(
+      await texto.inputValue(),
+      "Olá! Seu pedido já está pronto para retirada na MARIELA.",
+    );
+    assert.equal(await d.getByRole("textbox").count(), 1, "só o texto é editável");
+    await texto.fill("Olá, Ana! Seu pedido chegou.\nPode retirar até sexta.");
+    assert.equal(
+      await d.getByTestId("previa-pre-pronta").innerText(),
+      "Olá, Ana! Seu pedido chegou.\nPode retirar até sexta.",
+    );
+
+    const enviar = d.getByRole("button", { name: "Enviar texto (indisponível)" });
+    assert.equal(await enviar.isDisabled(), true);
+    await enviar.click({ force: true }).catch(() => {});
+    await d.getByTestId("aviso-texto-livre").waitFor();
+    assert.deepEqual(rotasDeEnvio(s), [], "nenhum envio, nem pela rota oficial nem pela Evolution");
+    assert.equal(
+      s.backend.mensagensPadrao.find((m) => m.titulo === "Pedido pronto para retirada").conteudo,
+      "Olá! Seu pedido já está pronto para retirada na MARIELA.",
+      "editar no dialog não altera a mensagem padrão salva",
+    );
+
+    // A aba do modelo aprovado continua intacta.
+    await d.getByRole("tab", { name: "Modelo aprovado" }).click();
+    await escolherOpcao(s.pagina, "Modelo de mensagem", /aniversario_v1/);
+    await d.getByTestId("previa-template").waitFor();
+
+    await d.getByRole("button", { name: "Cancelar" }).click();
+    await d.waitFor({ state: "detached" });
+    assert.deepEqual(rotasDeEnvio(s), []);
+    assert.ok(
+      !s.backend.chamadas.some(([mt, c]) => mt !== "GET" && c.startsWith("/configuracoes")),
+      "o dialog nunca grava configuração",
+    );
+    await s.encerrar();
+  });
+
+  test("Configurações: criar (prévia; duplo clique = 1 POST), validar, editar, título repetido (409), excluir com confirmação; o dialog passa a oferecer a nova", async () => {
+    const s = await novaSessao();
+    await s.pagina.goto(`${BASE}/configuracoes`);
+    await s.pagina.getByRole("tab", { name: "Mensagens de WhatsApp" }).click({ timeout: 60_000 });
+    const lista = s.pagina.getByRole("list", { name: "Mensagens padrão de WhatsApp" });
+    await lista.getByText("Saudação").waitFor();
+    const chamadasConfig = (metodo) =>
+      s.backend.chamadas.filter(
+        ([mt, c]) => mt === metodo && c.startsWith("/configuracoes/whatsapp/mensagens-padrao"),
+      );
+
+    // Validação local: nada vai ao backend.
+    await s.pagina.getByRole("button", { name: "Nova mensagem" }).click();
+    let ed = dialogo(s.pagina);
+    await ed.getByRole("button", { name: "Salvar mensagem" }).click();
+    await ed.getByText("Informe um título.").waitFor();
+    await ed.getByText("Informe o texto da mensagem.").waitFor();
+    assert.equal(chamadasConfig("POST").length, 0);
+
+    await ed.getByLabel("Título").fill("Troca disponível");
+    await ed.getByLabel("Mensagem").fill("Olá! Sua troca já está disponível.");
+    assert.equal(
+      await ed.getByTestId("previa-mensagem-padrao").innerText(),
+      "Olá! Sua troca já está disponível.",
+    );
+    await ed.getByRole("button", { name: "Salvar mensagem" }).dblclick();
+    await ed.waitFor({ state: "detached" });
+    await lista.getByText("Troca disponível").waitFor();
+    assert.equal(chamadasConfig("POST").length, 1, "duplo clique = um único POST");
+    assert.deepEqual(chamadasConfig("POST")[0][3], {
+      titulo: "Troca disponível",
+      conteudo: "Olá! Sua troca já está disponível.",
+    });
+
+    // Título repetido (o backend responde 409): erro exibido, editor continua aberto.
+    await s.pagina.getByRole("button", { name: "Nova mensagem" }).click();
+    ed = dialogo(s.pagina);
+    await ed.getByLabel("Título").fill("SAUDAÇÃO");
+    await ed.getByLabel("Mensagem").fill("Outro texto");
+    await ed.getByRole("button", { name: "Salvar mensagem" }).click();
+    await ed.getByText(/Já existe uma mensagem padrão/).waitFor();
+    await ed.getByRole("button", { name: "Cancelar" }).click();
+    await ed.waitFor({ state: "detached" });
+
+    // Editar.
+    await s.pagina.getByRole("button", { name: "Editar Troca disponível" }).click();
+    ed = dialogo(s.pagina);
+    assert.equal(await ed.getByLabel("Título").inputValue(), "Troca disponível");
+    await ed.getByLabel("Mensagem").fill("Olá! Sua troca foi liberada.");
+    await ed.getByRole("button", { name: "Salvar mensagem" }).click();
+    await ed.waitFor({ state: "detached" });
+    const put = chamadasConfig("PUT");
+    assert.equal(put.length, 1);
+    assert.deepEqual(put[0][3], {
+      titulo: "Troca disponível",
+      conteudo: "Olá! Sua troca foi liberada.",
+    });
+    await lista.getByText("Olá! Sua troca foi liberada.").waitFor();
+
+    // Excluir exige confirmação: cancelar não exclui.
+    await s.pagina.getByRole("button", { name: "Excluir Saudação" }).click();
+    await s.pagina.getByRole("alertdialog").getByRole("button", { name: "Cancelar" }).click();
+    assert.equal(chamadasConfig("DELETE").length, 0);
+    await s.pagina.getByRole("button", { name: "Excluir Saudação" }).click();
+    await s.pagina.getByRole("alertdialog").getByRole("button", { name: "Excluir" }).click();
+    await lista.getByText("Saudação", { exact: true }).waitFor({ state: "detached" });
+    assert.equal(chamadasConfig("DELETE").length, 1);
+
+    // O dialog de envio usa o que está salvo.
+    await s.abrirClientes();
+    await abrirEnvioOficial(s);
+    const d = dialogo(s.pagina);
+    await d.getByRole("tab", { name: "Mensagem pré-pronta" }).click();
+    await d.getByRole("combobox", { name: "Mensagem padrão" }).click();
+    await s.pagina.getByRole("option", { name: "Troca disponível" }).waitFor();
+    assert.equal(await s.pagina.getByRole("option", { name: "Saudação" }).count(), 0);
+    await s.pagina.keyboard.press("Escape");
+    assert.equal(s.backend.envios().length, 0);
     await s.encerrar();
   });
 });
