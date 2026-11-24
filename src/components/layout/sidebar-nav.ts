@@ -7,6 +7,7 @@ import {
   Landmark,
   LayoutDashboard,
   Megaphone,
+  MessageCircle,
   Plug,
   Settings,
   ShoppingBag,
@@ -67,6 +68,9 @@ export const NAV_GRUPOS: NavGrupo[] = [
   },
   {
     titulo: "Integrações",
-    itens: [{ label: "Integrações", to: "/integracoes", icon: Plug }],
+    itens: [
+      { label: "Integrações", to: "/integracoes", icon: Plug },
+      { label: "WhatsApp oficial", to: "/whatsapp", icon: MessageCircle },
+    ],
   },
 ];

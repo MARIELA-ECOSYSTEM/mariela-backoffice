@@ -23,6 +23,11 @@ export interface ApiResponse<T> {
   meta?: ApiMeta;
   /** Contagens dos filtros referentes ao conjunto COMPLETO (não à página). */
   facets?: ApiFacets;
+  /**
+   * Fase 22.8.9.10.6 — status HTTP da resposta de sucesso (não enumerável; ausente na Mock API). Usado onde o contrato
+   * distingue 200 (repetição) de 201 (criação).
+   */
+  readonly httpStatus?: number;
 }
 
 /** Resposta paginada com facets — contrato usado pelas listagens. */

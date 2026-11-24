@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AvatarPessoa } from "@/components/common/pessoa-card";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { BotaoWhatsapp } from "@/components/cadastros/botao-whatsapp";
+import { BotaoWhatsappOficial } from "@/components/whatsapp-oficial/botao-whatsapp-oficial";
 import { useVendasDoCliente } from "@/hooks/use-cadastros";
 import { formatarData, formatarMoeda } from "@/utils/format";
 import { formatarTelefone, idade, numeroWhatsapp, rotuloUltimaCompra } from "@/utils/cliente";
@@ -30,10 +31,13 @@ export function ClienteDetalhe({
   cliente,
   onOpenChange,
   onEnviarMensagem,
+  onEnviarOficial,
 }: {
   cliente: Cliente | null;
   onOpenChange: (aberto: boolean) => void;
   onEnviarMensagem: (cliente: Cliente) => void;
+  /** Fase 22.8.9.10.6 — envio pelo WhatsApp oficial (Meta). Sem ela, só o botão da Evolution aparece. */
+  onEnviarOficial?: (cliente: Cliente) => void;
 }) {
   const vendas = useVendasDoCliente(cliente?.id ?? null);
   const anos = idade(cliente?.dataNascimento ?? null);
@@ -52,11 +56,20 @@ export function ClienteDetalhe({
               <AvatarPessoa nome={cliente.nome} foto={cliente.foto} className="size-16" />
               <div className="space-y-1.5">
                 <CodigoBadge codigo={cliente.codigo} />
-                <div>
+                <div className="flex flex-wrap gap-2">
+                  {onEnviarOficial ? (
+                    <BotaoWhatsappOficial
+                      nome={cliente.nome}
+                      temTelefone={numeroWhatsapp(cliente) !== ""}
+                      variante="botao"
+                      onClick={() => onEnviarOficial(cliente)}
+                    />
+                  ) : null}
                   <BotaoWhatsapp
                     nome={cliente.nome}
                     numero={numeroWhatsapp(cliente)}
                     variante="botao"
+                    legado={onEnviarOficial !== undefined}
                     onClick={() => onEnviarMensagem(cliente)}
                   />
                 </div>

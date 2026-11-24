@@ -20,6 +20,7 @@ import { Route as BackofficeFornecedoresRouteImport } from './routes/_backoffice
 import { Route as BackofficeIntegracoesRouteImport } from './routes/_backoffice/integracoes'
 import { Route as BackofficeRelatoriosRouteImport } from './routes/_backoffice/relatorios'
 import { Route as BackofficeVendedoresRouteImport } from './routes/_backoffice/vendedores'
+import { Route as BackofficeWhatsappRouteImport } from './routes/_backoffice/whatsapp'
 import { Route as BackofficeCaixaIndexRouteImport } from './routes/_backoffice/caixa.index'
 import { Route as BackofficeCaixaIdRouteImport } from './routes/_backoffice/caixa.$id'
 import { Route as BackofficeCampanhasIndexRouteImport } from './routes/_backoffice/campanhas/index'
@@ -88,6 +89,11 @@ const BackofficeRelatoriosRoute = BackofficeRelatoriosRouteImport.update({
 const BackofficeVendedoresRoute = BackofficeVendedoresRouteImport.update({
   id: '/vendedores',
   path: '/vendedores',
+  getParentRoute: () => BackofficeRoute,
+} as any)
+const BackofficeWhatsappRoute = BackofficeWhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
   getParentRoute: () => BackofficeRoute,
 } as any)
 const BackofficeCaixaIndexRoute = BackofficeCaixaIndexRouteImport.update({
@@ -182,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/integracoes': typeof BackofficeIntegracoesRoute
   '/relatorios': typeof BackofficeRelatoriosRoute
   '/vendedores': typeof BackofficeVendedoresRoute
+  '/whatsapp': typeof BackofficeWhatsappRoute
   '/caixa/$id': typeof BackofficeCaixaIdRoute
   '/campanhas/$id': typeof BackofficeCampanhasIdRoute
   '/colecoes/$id': typeof BackofficeColecoesIdRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByTo {
   '/integracoes': typeof BackofficeIntegracoesRoute
   '/relatorios': typeof BackofficeRelatoriosRoute
   '/vendedores': typeof BackofficeVendedoresRoute
+  '/whatsapp': typeof BackofficeWhatsappRoute
   '/caixa/$id': typeof BackofficeCaixaIdRoute
   '/campanhas/$id': typeof BackofficeCampanhasIdRoute
   '/colecoes/$id': typeof BackofficeColecoesIdRoute
@@ -238,6 +246,7 @@ export interface FileRoutesById {
   '/_backoffice/integracoes': typeof BackofficeIntegracoesRoute
   '/_backoffice/relatorios': typeof BackofficeRelatoriosRoute
   '/_backoffice/vendedores': typeof BackofficeVendedoresRoute
+  '/_backoffice/whatsapp': typeof BackofficeWhatsappRoute
   '/_backoffice/caixa/$id': typeof BackofficeCaixaIdRoute
   '/_backoffice/campanhas/$id': typeof BackofficeCampanhasIdRoute
   '/_backoffice/colecoes/$id': typeof BackofficeColecoesIdRoute
@@ -267,6 +276,7 @@ export interface FileRouteTypes {
     | '/integracoes'
     | '/relatorios'
     | '/vendedores'
+    | '/whatsapp'
     | '/caixa/$id'
     | '/campanhas/$id'
     | '/colecoes/$id'
@@ -294,6 +304,7 @@ export interface FileRouteTypes {
     | '/integracoes'
     | '/relatorios'
     | '/vendedores'
+    | '/whatsapp'
     | '/caixa/$id'
     | '/campanhas/$id'
     | '/colecoes/$id'
@@ -322,6 +333,7 @@ export interface FileRouteTypes {
     | '/_backoffice/integracoes'
     | '/_backoffice/relatorios'
     | '/_backoffice/vendedores'
+    | '/_backoffice/whatsapp'
     | '/_backoffice/caixa/$id'
     | '/_backoffice/campanhas/$id'
     | '/_backoffice/colecoes/$id'
@@ -422,6 +434,13 @@ declare module '@tanstack/react-router' {
       path: '/vendedores'
       fullPath: '/vendedores'
       preLoaderRoute: typeof BackofficeVendedoresRouteImport
+      parentRoute: typeof BackofficeRoute
+    }
+    '/_backoffice/whatsapp': {
+      id: '/_backoffice/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof BackofficeWhatsappRouteImport
       parentRoute: typeof BackofficeRoute
     }
     '/_backoffice/caixa/': {
@@ -541,6 +560,7 @@ interface BackofficeRouteChildren {
   BackofficeIntegracoesRoute: typeof BackofficeIntegracoesRoute
   BackofficeRelatoriosRoute: typeof BackofficeRelatoriosRoute
   BackofficeVendedoresRoute: typeof BackofficeVendedoresRoute
+  BackofficeWhatsappRoute: typeof BackofficeWhatsappRoute
   BackofficeCaixaIdRoute: typeof BackofficeCaixaIdRoute
   BackofficeCampanhasIdRoute: typeof BackofficeCampanhasIdRoute
   BackofficeColecoesIdRoute: typeof BackofficeColecoesIdRoute
@@ -567,6 +587,7 @@ const BackofficeRouteChildren: BackofficeRouteChildren = {
   BackofficeIntegracoesRoute: BackofficeIntegracoesRoute,
   BackofficeRelatoriosRoute: BackofficeRelatoriosRoute,
   BackofficeVendedoresRoute: BackofficeVendedoresRoute,
+  BackofficeWhatsappRoute: BackofficeWhatsappRoute,
   BackofficeCaixaIdRoute: BackofficeCaixaIdRoute,
   BackofficeCampanhasIdRoute: BackofficeCampanhasIdRoute,
   BackofficeColecoesIdRoute: BackofficeColecoesIdRoute,

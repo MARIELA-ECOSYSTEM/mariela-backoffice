@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Cake, CalendarHeart, Pencil, Phone, Plus, Trash2 } from "lucide-react";
+import { Cake, CalendarHeart, Pencil, Phone, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "@/components/layout/page";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,12 @@ import {
   DialogMensagemWhatsapp,
   type AlvoMensagemWhatsapp,
 } from "@/components/cadastros/dialog-mensagem-whatsapp";
+import { BotaoWhatsappOficial } from "@/components/whatsapp-oficial/botao-whatsapp-oficial";
+import { CampanhaAniversarioDialog } from "@/components/whatsapp-oficial/campanha-aniversario-dialog";
+import {
+  EnvioTemplateDialog,
+  type ClienteEnvioOficial,
+} from "@/components/whatsapp-oficial/envio-template-dialog";
 import {
   useAtualizarCliente,
   useClientes,
@@ -82,6 +88,9 @@ function ClientesPage() {
   const [paraExcluir, setParaExcluir] = useState<Cliente | null>(null);
   const [detalhe, setDetalhe] = useState<Cliente | null>(null);
   const [alvoMensagem, setAlvoMensagem] = useState<AlvoMensagemWhatsapp | null>(null);
+  // Fase 22.8.9.10.6 — WhatsApp OFICIAL (Meta), ao lado do fluxo da Evolution (mantido durante a transição).
+  const [alvoOficial, setAlvoOficial] = useState<ClienteEnvioOficial | null>(null);
+  const [campanhaOficialAberta, setCampanhaOficialAberta] = useState(false);
 
   const grupos = useMemo<GrupoFacetaDef<Cliente>[]>(
     () => [
@@ -212,9 +221,13 @@ function ClientesPage() {
       descricao="Base de clientes com contato, aniversário e histórico de compras."
       acoes={
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => setCampanhaOficialAberta(true)}>
+            <ShieldCheck aria-hidden className="size-4" />
+            Campanha de aniversário (oficial)
+          </Button>
           <Button variant="outline" onClick={() => setAniversariantesAberto(true)}>
             <Cake aria-hidden className="size-4" />
-            Aniversariantes
+            Aniversariantes (Evolution)
           </Button>
           <Button onClick={abrirNovo}>
             <Plus aria-hidden className="size-4" />
@@ -319,20 +332,28 @@ function ClientesPage() {
               ]}
               observacao={cliente.observacao}
               acaoRapida={
-                <BotaoWhatsapp
-                  nome={cliente.nome}
-                  numero={numeroWhatsapp(cliente)}
-                  onClick={() =>
-                    setAlvoMensagem({
-                      id: cliente.id,
-                      nome: cliente.nome,
-                      telefone: cliente.telefone,
-                      entidade: "CLIENTE",
-                      tipoMensagem: "geral",
-                      papel: "Cliente",
-                    })
-                  }
-                />
+                <>
+                  <BotaoWhatsappOficial
+                    nome={cliente.nome}
+                    temTelefone={numeroWhatsapp(cliente) !== ""}
+                    onClick={() => setAlvoOficial({ id: cliente.id, nome: cliente.nome })}
+                  />
+                  <BotaoWhatsapp
+                    nome={cliente.nome}
+                    numero={numeroWhatsapp(cliente)}
+                    legado
+                    onClick={() =>
+                      setAlvoMensagem({
+                        id: cliente.id,
+                        nome: cliente.nome,
+                        telefone: cliente.telefone,
+                        entidade: "CLIENTE",
+                        tipoMensagem: "geral",
+                        papel: "Cliente",
+                      })
+                    }
+                  />
+                </>
               }
               onVisualizar={() => setDetalhe(cliente)}
               acoes={[
@@ -384,6 +405,19 @@ function ClientesPage() {
         clientes={clientes ?? []}
       />
 
+      <CampanhaAniversarioDialog
+        open={campanhaOficialAberta}
+        onOpenChange={setCampanhaOficialAberta}
+        clientes={clientes ?? []}
+      />
+
+      <EnvioTemplateDialog
+        cliente={alvoOficial}
+        onOpenChange={(aberto) => {
+          if (!aberto) setAlvoOficial(null);
+        }}
+      />
+
       <DialogMensagemWhatsapp
         alvo={alvoMensagem}
         onOpenChange={(aberto) => {
@@ -423,6 +457,7 @@ function ClientesPage() {
             papel: "Cliente",
           })
         }
+        onEnviarOficial={(cliente) => setAlvoOficial({ id: cliente.id, nome: cliente.nome })}
       />
     </Page>
   );

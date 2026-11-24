@@ -116,6 +116,13 @@ jobs:
         if: ${{ !cancelled() }}
         run: node --test --test-concurrency=1 tests/ui/galeria.ui.mjs
 
+      # Fase 22.8.9.10.6 — WhatsApp OFICIAL (Meta, envio por modelo): envio individual, prévia, idempotência, resultado
+      # desconhecido, histórico, bloqueios, liberação de reenvio e campanha de aniversário. Backend falso em memória na
+      # própria origem (porta 5320); qualquer requisição externa é abortada e reprova o teste. Nada fala com a Meta.
+      - name: Testes de interface (WhatsApp oficial)
+        if: ${{ !cancelled() }}
+        run: node --test --test-concurrency=1 tests/ui/whatsapp.ui.mjs
+
       # Fase 22.8.9.9.7 — Content Security Policy do app desktop, no BUNDLE DE PRODUÇÃO. O próprio teste gera o bundle
       # com `bun --no-env-file run build:desktop` (o MESMO comando do `beforeBuildCommand` do Tauri; é o único build deste
       # job — o `bun run build` do job `validacao` é outro alvo e roda noutra máquina, não há artefato a reaproveitar),

@@ -142,6 +142,11 @@ async function httpRequest<T>(request: ApiRequest): Promise<ApiResponse<T>> {
       });
     }
 
+    // Fase 22.8.9.10.6 — status HTTP de sucesso disponível a quem precisa distinguir 200 (repetição idempotente) de
+    // 201 (criação). Propriedade NÃO enumerável: o objeto continua igual para quem compara, copia ou serializa.
+    if (payload !== null && typeof payload === "object") {
+      Object.defineProperty(payload, "httpStatus", { value: response.status, enumerable: false });
+    }
     return payload as ApiResponse<T>;
   } catch (error) {
     if (error instanceof ApiError) throw error;
