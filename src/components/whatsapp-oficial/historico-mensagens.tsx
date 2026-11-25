@@ -152,7 +152,7 @@ export function HistoricoMensagens({
               <TableRow>
                 <TableHead>Data</TableHead>
                 <TableHead>Cliente</TableHead>
-                <TableHead>Modelo</TableHead>
+                <TableHead>Modelo / tipo</TableHead>
                 <TableHead>Origem</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -170,7 +170,7 @@ export function HistoricoMensagens({
                       {m.destinatario.telefoneMascarado}
                     </span>
                   </TableCell>
-                  <TableCell>{m.template.chave}</TableCell>
+                  <TableCell>{m.template ? m.template.chave : "Texto livre"}</TableCell>
                   <TableCell>
                     {ROTULO_ORIGEM_MENSAGEM[m.origem]}
                     {m.campanha ? (

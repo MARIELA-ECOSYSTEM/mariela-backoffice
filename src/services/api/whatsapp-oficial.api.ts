@@ -2,7 +2,9 @@ import { apiClient, type RequestOptions } from "./client";
 import type { ApiMeta, ApiResponse } from "@/types/api";
 import type {
   BloqueioWhatsapp,
+  ElegibilidadeTextoWhatsapp,
   EnviarTemplatePayload,
+  EnviarTextoPayload,
   FiltrosBloqueiosWhatsapp,
   FiltrosMensagensWhatsapp,
   LiberarReenvioPayload,
@@ -20,6 +22,8 @@ import type {
  *   GET    /integracoes/whatsapp/templates
  *   POST   /integracoes/whatsapp/templates/:chave/previa     { clienteId }
  *   POST   /integracoes/whatsapp/envios                      { idempotencyKey, destinatario, template, campanha? }
+ *   POST   /integracoes/whatsapp/envios/texto                { idempotencyKey, destinatario, texto }  (Fase 22.8.9.10.7.4)
+ *   GET    /integracoes/whatsapp/clientes/:id/texto-livre    (elegibilidade do texto livre, Fase 22.8.9.10.7.4)
  *   GET    /integracoes/whatsapp/mensagens                   ?clienteId&estado&campanhaAno&page&limit
  *   GET    /integracoes/whatsapp/mensagens/:id
  *   POST   /integracoes/whatsapp/mensagens/:id/liberar-reenvio { motivo, confirmoRiscoDeDuplicidade? }
@@ -29,8 +33,8 @@ import type {
  *   GET    /integracoes/whatsapp/bloqueios                   ?somenteAtivos&page&limit
  *   DELETE /integracoes/whatsapp/bloqueios/:id               { motivo }
  *
- * Nunca envia telefone, texto livre ou valores de parâmetros: o destinatário é resolvido pelo backend a partir do
- * cadastro do cliente. As rotas da Evolution (`whatsapp.api.ts`) seguem intactas e separadas.
+ * Nunca envia telefone nem valores de parâmetros: o destinatário é resolvido pelo backend a partir do cadastro do
+ * cliente. Texto livre só pela rota própria, com a janela de 24 h conferida pelo backend. As rotas da Evolution (`whatsapp.api.ts`) seguem intactas e separadas.
  */
 export interface TransporteApi {
   get: <T>(path: string, options?: RequestOptions) => Promise<ApiResponse<T>>;
@@ -59,6 +63,24 @@ export function criarWhatsappOficialApi(transporte: TransporteApi = apiClient) {
     /** 201 = mensagem criada por esta requisição; 200 = repetição da MESMA chave (nada é reenviado). */
     async enviar(payload: EnviarTemplatePayload): Promise<ResultadoEnvioTemplate> {
       const resposta = await transporte.post<MensagemWhatsapp>(`${BASE}/envios`, payload);
+      const status = resposta.httpStatus;
+      return {
+        mensagem: resposta.data,
+        repetida: status === 200 ? true : status === 201 ? false : null,
+      };
+    },
+
+    /** Fase 22.8.9.10.7.4 — o backend decide se o texto livre pode ser enviado AGORA a este cliente. */
+    async elegibilidadeTexto(clienteId: string): Promise<ElegibilidadeTextoWhatsapp> {
+      const { data } = await transporte.get<ElegibilidadeTextoWhatsapp>(
+        `${BASE}/clientes/${seg(clienteId)}/texto-livre`,
+      );
+      return data;
+    },
+
+    /** Fase 22.8.9.10.7.4 — 201 = criada por esta requisição; 200 = repetição da MESMA chave (nada é reenviado). */
+    async enviarTexto(payload: EnviarTextoPayload): Promise<ResultadoEnvioTemplate> {
+      const resposta = await transporte.post<MensagemWhatsapp>(`${BASE}/envios/texto`, payload);
       const status = resposta.httpStatus;
       return {
         mensagem: resposta.data,

@@ -107,7 +107,7 @@ function criarBackend() {
    * `{ tipo: "gravar-e-abortar" }` (processa e a resposta se perde), `{ tipo: "abortar" }`. */
   const comportamentosEnvio = [];
   const comportamentosLiberar = [];
-  const travas = { envio: null };
+  const travas = { envio: null, texto: null };
   let seq = 0;
   const mensagensPadrao = MENSAGENS_PADRAO.map((m) => ({ ...m }));
   const configuracao = () => ({
@@ -144,15 +144,43 @@ function criarBackend() {
     json(route, status, { statusCode: status, code, message, errors: [] });
   const publica = ({ _hash, ...m }) => m;
 
+  /**
+   * Fase 22.8.9.10.7.4 — elegibilidade do texto livre por cliente (o backend real decide pela janela de 24 h). Padrão:
+   * FECHADA (nenhuma mensagem recebida). `comportamentosElegibilidade`: `{ tipo: "erro", status, code }` (FIFO).
+   */
+  const janelas = new Map();
+  const comportamentosElegibilidade = [];
+  const comportamentosTexto = [];
+  const elegibilidade = (clienteId) => {
+    const c = CLIENTES.find((x) => x.id === clienteId);
+    const aberta = janelas.get(clienteId);
+    const expira = new Date(Date.now() + 20 * 3600_000).toISOString();
+    return {
+      permitido: Boolean(aberta),
+      motivo: aberta ? null : "SEM_MENSAGEM_RECEBIDA",
+      mensagem: aberta
+        ? "O cliente escreveu nas últimas 24 horas: o texto livre pode ser enviado."
+        : "Não há mensagem recebida deste cliente nas últimas 24 horas. Pelas regras do WhatsApp, texto livre só pode ser enviado depois que o cliente escreve; use um modelo aprovado.",
+      telefoneMascarado: mascara(c.telefone),
+      ultimaMensagemRecebidaEm: aberta ? new Date(Date.now() - 3600_000).toISOString() : null,
+      janelaExpiraEm: aberta ? expira : null,
+      limiteCaracteres: 4096,
+      verificadoEm: new Date().toISOString(),
+    };
+  };
+
   function criarMensagem(corpo) {
     seq += 1;
     const c = CLIENTES.find((x) => x.id === corpo.destinatario.id);
     const agora = new Date().toISOString();
+    const texto = typeof corpo.texto === "string";
     const m = {
       id: `66000000000000000000${String(seq).padStart(4, "0")}`,
       idempotencyKey: corpo.idempotencyKey,
+      tipo: texto ? "TEXTO" : "TEMPLATE",
       destinatario: { tipo: "CLIENTE", id: c.id, telefoneMascarado: mascara(c.telefone) },
-      template: { chave: corpo.template, categoria: "MARKETING" },
+      template: texto ? null : { chave: corpo.template, categoria: "MARKETING" },
+      texto: texto ? corpo.texto : null,
       estado: "aceita",
       erro: null,
       origem: corpo.campanha ? "CAMPANHA_ANIVERSARIO" : "INDIVIDUAL",
@@ -164,7 +192,9 @@ function criarBackend() {
       entregueEm: null,
       lidaEm: null,
       falhaEm: null,
-      _hash: JSON.stringify([corpo.destinatario.id, corpo.template, corpo.campanha?.tipo ?? null]),
+      _hash: texto
+        ? JSON.stringify(["TEXTO", corpo.destinatario.id, corpo.texto])
+        : JSON.stringify([corpo.destinatario.id, corpo.template, corpo.campanha?.tipo ?? null]),
     };
     mensagens.push(m);
     return m;
@@ -296,6 +326,47 @@ function criarBackend() {
       return json(route, 201, { data: publica(nova) });
     }
 
+    // Fase 22.8.9.10.7.4 — texto livre (mesmas regras do backend: só id do cliente + texto; janela; idempotência).
+    m = caminho.match(/^\/integracoes\/whatsapp\/clientes\/([^/]+)\/texto-livre$/);
+    if (m && metodo === "GET") {
+      const c = comportamentosElegibilidade.shift();
+      if (c?.tipo === "erro") return erro(route, c.status, c.code, c.message ?? "Erro fictício.");
+      return json(route, 200, { data: elegibilidade(m[1]) });
+    }
+    if (metodo === "POST" && caminho === "/integracoes/whatsapp/envios/texto") {
+      if (travas.texto) await travas.texto;
+      const c = comportamentosTexto.shift();
+      if (c?.tipo === "erro") return erro(route, c.status, c.code, c.message ?? "Erro fictício.");
+      if (c?.tipo === "abortar") return route.abort("failed");
+      const extras = Object.keys(corpo).filter(
+        (k) => !["idempotencyKey", "destinatario", "texto"].includes(k),
+      );
+      if (extras.length > 0 || !String(corpo.texto ?? "").trim())
+        return erro(route, 400, "VALIDATION_ERROR", "Dados inválidos.");
+      const hash = JSON.stringify(["TEXTO", corpo.destinatario.id, corpo.texto]);
+      const existente = mensagens.find((x) => x.idempotencyKey === corpo.idempotencyKey);
+      if (existente) {
+        if (existente._hash !== hash)
+          return erro(
+            route,
+            409,
+            "WHATSAPP_IDEMPOTENCIA_CONFLITO",
+            "Chave usada para outra mensagem.",
+          );
+        return json(route, 200, { data: publica(existente) });
+      }
+      if (!janelas.get(corpo.destinatario.id))
+        return erro(
+          route,
+          422,
+          "WHATSAPP_JANELA_FECHADA",
+          elegibilidade(corpo.destinatario.id).mensagem,
+        );
+      const nova = criarMensagem(corpo);
+      if (c?.tipo === "gravar-e-abortar") return route.abort("failed");
+      return json(route, 201, { data: publica(nova) });
+    }
+
     if (metodo === "GET" && caminho === "/integracoes/whatsapp/mensagens") {
       let lista = [...mensagens].reverse();
       if (query.clienteId) lista = lista.filter((x) => x.destinatario.id === query.clienteId);
@@ -398,8 +469,19 @@ function criarBackend() {
     chamadas
       .filter(([mt, c]) => mt === "POST" && c === "/integracoes/whatsapp/envios")
       .map(([, , , b]) => b);
+  const enviosTexto = () =>
+    chamadas
+      .filter(([mt, c]) => mt === "POST" && c === "/integracoes/whatsapp/envios/texto")
+      .map(([, , , b]) => b);
+  const consultasElegibilidade = () =>
+    chamadas.filter(([mt, c]) => mt === "GET" && c.endsWith("/texto-livre")).length;
   return {
     chamadas,
+    janelas,
+    comportamentosElegibilidade,
+    comportamentosTexto,
+    enviosTexto,
+    consultasElegibilidade,
     mensagens,
     mensagensPadrao,
     bloqueios,
@@ -986,7 +1068,7 @@ describe("mensagens pré-prontas (Fase 22.8.9.10.7.3)", () => {
         (c === "/integracoes/whatsapp/envios" || c === "/integracoes/whatsapp/mensagens"),
     );
 
-  test("dialog: escolher, editar e revisar — destinatário fixo do cadastro; NADA é enviado (envio de texto indisponível); cancelar fecha sem requisição", async () => {
+  test("dialog: escolher, editar e revisar — destinatário fixo do cadastro; janela FECHADA no backend = envio desabilitado, nada enviado; cancelar fecha sem requisição", async () => {
     const s = await novaSessao();
     await s.abrirClientes();
     await abrirEnvioOficial(s);
@@ -1013,11 +1095,18 @@ describe("mensagens pré-prontas (Fase 22.8.9.10.7.3)", () => {
       "Olá, Ana! Seu pedido chegou.\nPode retirar até sexta.",
     );
 
-    const enviar = d.getByRole("button", { name: "Enviar texto (indisponível)" });
+    // Fase 22.8.9.10.7.4 — janela fechada segundo o backend: explicação clara e botão desabilitado.
+    const disponibilidade = d.getByTestId("disponibilidade-texto");
+    await disponibilidade.getByText("Texto livre indisponível agora").waitFor();
+    await disponibilidade
+      .getByText(/texto livre só pode ser enviado depois que o cliente escreve/)
+      .waitFor();
+    const enviar = d.getByRole("button", { name: "Confirmar envio do texto" });
     assert.equal(await enviar.isDisabled(), true);
     await enviar.click({ force: true }).catch(() => {});
-    await d.getByTestId("aviso-texto-livre").waitFor();
+    await dormir(300);
     assert.deepEqual(rotasDeEnvio(s), [], "nenhum envio, nem pela rota oficial nem pela Evolution");
+    assert.equal(s.backend.enviosTexto().length, 0);
     assert.equal(
       s.backend.mensagensPadrao.find((m) => m.titulo === "Pedido pronto para retirada").conteudo,
       "Olá! Seu pedido já está pronto para retirada na MARIELA.",
@@ -1117,6 +1206,260 @@ describe("mensagens pré-prontas (Fase 22.8.9.10.7.3)", () => {
     assert.equal(await s.pagina.getByRole("option", { name: "Saudação" }).count(), 0);
     await s.pagina.keyboard.press("Escape");
     assert.equal(s.backend.envios().length, 0);
+    await s.encerrar();
+  });
+});
+
+// ─── Fase 22.8.9.10.7.4 — envio do texto editado (janela de 24 h decidida pelo backend) ─────────────────────────────
+
+describe("texto livre editado (Fase 22.8.9.10.7.4)", () => {
+  const TEXTO_PADRAO = "Olá! Seu pedido já está pronto para retirada na MARIELA.";
+
+  async function abrirTexto(s, nome = "Ana Fictícia") {
+    await s.abrirClientes();
+    await abrirEnvioOficial(s, nome);
+    const d = dialogo(s.pagina);
+    await d.getByRole("tab", { name: "Mensagem pré-pronta" }).click();
+    await d.getByTestId("painel-mensagem-pre-pronta").waitFor();
+    await escolherOpcao(s.pagina, "Mensagem padrão", "Pedido pronto para retirada");
+    return d;
+  }
+
+  test("janela aberta: editar → prévia → duplo clique = 1 POST só com chave, id do cliente e texto; elegibilidade reconsultada no clique; sucesso; padrão salvo intacto", async () => {
+    const s = await novaSessao();
+    s.backend.janelas.set(ANA, true);
+    let liberar;
+    s.backend.travas.texto = new Promise((r) => (liberar = r));
+    const d = await abrirTexto(s);
+    await d
+      .getByTestId("disponibilidade-texto")
+      .getByText(/pode ser enviado/)
+      .waitFor();
+    await d.getByText(/Disponível até/).waitFor();
+    await d
+      .getByRole("textbox", { name: "Texto da mensagem" })
+      .fill("  Olá, Ana! Seu pedido chegou.\nPode retirar até sexta.  ");
+    assert.equal(
+      await d.getByTestId("previa-pre-pronta").innerText(),
+      "Olá, Ana! Seu pedido chegou.\nPode retirar até sexta.",
+    );
+    const consultasAntes = s.backend.consultasElegibilidade();
+    const enviar = d.getByRole("button", { name: "Confirmar envio do texto" });
+    assert.equal(await enviar.isDisabled(), false);
+    await enviar.dblclick();
+
+    // Em andamento: indicador, nada editável, nenhum segundo POST.
+    await d.getByRole("button", { name: "Enviando…" }).waitFor();
+    assert.equal(await d.getByRole("button", { name: "Enviando…" }).isDisabled(), true);
+    assert.equal(await d.getByRole("textbox", { name: "Texto da mensagem" }).isDisabled(), true);
+    await esperarAte(async () => s.backend.enviosTexto().length === 1, "POST do texto no ar");
+    assert.ok(
+      s.backend.consultasElegibilidade() > consultasAntes,
+      "elegibilidade conferida de novo no clique",
+    );
+    liberar();
+    s.backend.travas.texto = null;
+
+    await d.getByTestId("resultado-envio").waitFor();
+    await d.getByText("Aceita pelo WhatsApp").waitFor();
+    assert.equal(
+      await d.getByTestId("resultado-texto").innerText(),
+      "Olá, Ana! Seu pedido chegou.\nPode retirar até sexta.",
+    );
+    await dormir(500);
+    const envios = s.backend.enviosTexto();
+    assert.equal(envios.length, 1, "duplo clique = um único envio");
+    assert.deepEqual(Object.keys(envios[0]).sort(), ["destinatario", "idempotencyKey", "texto"]);
+    assert.deepEqual(envios[0].destinatario, { tipo: "CLIENTE", id: ANA });
+    assert.match(envios[0].idempotencyKey, UUID_V4);
+    assert.equal(envios[0].texto, "Olá, Ana! Seu pedido chegou.\nPode retirar até sexta.");
+    assert.equal(s.backend.envios().length, 0, "a rota de template não é usada");
+    assert.equal(
+      await registroLocal(s.pagina, ANA),
+      null,
+      "resposta conclusiva: nenhum registro local",
+    );
+    assert.equal(
+      s.backend.mensagensPadrao.find((m) => m.titulo === "Pedido pronto para retirada").conteudo,
+      TEXTO_PADRAO,
+    );
+    assert.ok(
+      !s.backend.chamadas.some(([mt, c]) => mt !== "GET" && c.startsWith("/configuracoes")),
+    );
+
+    // Histórico e detalhe mostram o texto livre.
+    await d.getByRole("button", { name: "Fechar" }).click();
+    await s.abrirWhatsapp("Histórico");
+    const linha = s.pagina.locator(`[data-mensagem-id="${s.backend.mensagens[0].id}"]`);
+    await linha.getByText("Texto livre").waitFor();
+    await linha.getByRole("button", { name: /Detalhes/ }).click();
+    await dialogo(s.pagina).getByText("Texto livre (janela de 24 h)").waitFor();
+    assert.equal(
+      await dialogo(s.pagina).getByTestId("detalhe-texto").innerText(),
+      "Olá, Ana! Seu pedido chegou.\nPode retirar até sexta.",
+    );
+    await s.encerrar();
+  });
+
+  test("texto vazio/só espaços: envio desabilitado mesmo com a janela aberta", async () => {
+    const s = await novaSessao();
+    s.backend.janelas.set(ANA, true);
+    const d = await abrirTexto(s);
+    await d
+      .getByTestId("disponibilidade-texto")
+      .getByText(/pode ser enviado/)
+      .waitFor();
+    await d.getByRole("textbox", { name: "Texto da mensagem" }).fill("   \n  ");
+    assert.equal(
+      await d.getByRole("button", { name: "Confirmar envio do texto" }).isDisabled(),
+      true,
+    );
+    assert.equal(await d.getByTestId("previa-pre-pronta").innerText(), "(texto vazio)");
+    assert.equal(s.backend.enviosTexto().length, 0);
+    await s.encerrar();
+  });
+
+  test("backend indisponível na consulta: erro claro e envio desabilitado; ao tentar de novo, habilita", async () => {
+    const s = await novaSessao();
+    s.backend.janelas.set(ANA, true);
+    s.backend.comportamentosElegibilidade.push({
+      tipo: "erro",
+      status: 503,
+      code: "SERVICE_UNAVAILABLE",
+      message: "Serviço indisponível.",
+    });
+    const d = await abrirTexto(s);
+    await d.getByTestId("disponibilidade-texto").getByText("Serviço indisponível.").waitFor();
+    assert.equal(
+      await d.getByRole("button", { name: "Confirmar envio do texto" }).isDisabled(),
+      true,
+    );
+    await d
+      .getByTestId("disponibilidade-texto")
+      .getByRole("button", { name: /Tentar novamente/ })
+      .click();
+    await d
+      .getByTestId("disponibilidade-texto")
+      .getByText(/pode ser enviado/)
+      .waitFor();
+    assert.equal(
+      await d.getByRole("button", { name: "Confirmar envio do texto" }).isDisabled(),
+      false,
+    );
+    assert.equal(s.backend.enviosTexto().length, 0);
+    await s.encerrar();
+  });
+
+  test("a janela fecha com o dialog aberto: a reconsulta no clique impede o envio (nenhum POST)", async () => {
+    const s = await novaSessao();
+    s.backend.janelas.set(ANA, true);
+    const d = await abrirTexto(s);
+    await d
+      .getByTestId("disponibilidade-texto")
+      .getByText(/pode ser enviado/)
+      .waitFor();
+    s.backend.janelas.delete(ANA);
+    await d.getByRole("button", { name: "Confirmar envio do texto" }).click();
+    await d.getByTestId("recusa-texto-livre").waitFor();
+    await d
+      .getByTestId("disponibilidade-texto")
+      .getByText("Texto livre indisponível agora")
+      .waitFor();
+    assert.equal(s.backend.enviosTexto().length, 0);
+    assert.equal(await registroLocal(s.pagina, ANA), null);
+    await s.encerrar();
+  });
+
+  test("recusa do backend no envio (janela fechada): 'nada foi enviado', sem registro local nem verificação", async () => {
+    const s = await novaSessao();
+    s.backend.janelas.set(ANA, true);
+    s.backend.comportamentosTexto.push({
+      tipo: "erro",
+      status: 422,
+      code: "WHATSAPP_JANELA_FECHADA",
+      message: "Já passaram 24 horas desde a última mensagem do cliente.",
+    });
+    const d = await abrirTexto(s);
+    await d
+      .getByTestId("disponibilidade-texto")
+      .getByText(/pode ser enviado/)
+      .waitFor();
+    await d.getByRole("button", { name: "Confirmar envio do texto" }).click();
+    await d.getByText("Envio recusado — nada foi enviado").waitFor();
+    await d.getByText("Já passaram 24 horas desde a última mensagem do cliente.").waitFor();
+    assert.equal(await registroLocal(s.pagina, ANA), null);
+    assert.equal(await d.getByRole("button", { name: "Verificar resultado" }).count(), 0);
+    await s.encerrar();
+  });
+
+  test("resultado indeterminado: aviso sem sugerir reenvio; nada repetido sozinho; 'Verificar resultado' acha o registro SEM novo POST", async () => {
+    const s = await novaSessao();
+    s.backend.janelas.set(ANA, true);
+    s.backend.comportamentosTexto.push({ tipo: "gravar-e-abortar" });
+    const d = await abrirTexto(s);
+    await d
+      .getByTestId("disponibilidade-texto")
+      .getByText(/pode ser enviado/)
+      .waitFor();
+    await d.getByRole("textbox", { name: "Texto da mensagem" }).fill("Texto com resposta perdida");
+    await d.getByRole("button", { name: "Confirmar envio do texto" }).click();
+    await d.getByText("Resultado desconhecido").waitFor();
+    await d
+      .getByTestId("aviso-envio-pendente")
+      .getByText(/Um envio de texto livre/)
+      .waitFor();
+    assert.equal(
+      await d.getByRole("button", { name: "Confirmar envio do texto" }).count(),
+      0,
+      "sem novo envio",
+    );
+    const local = JSON.parse(await registroLocal(s.pagina, ANA));
+    assert.equal(local.tipo, "TEXTO");
+    assert.equal(local.texto, "Texto com resposta perdida");
+    assert.equal(local.idempotencyKey, s.backend.enviosTexto()[0].idempotencyKey);
+    await dormir(1500);
+    assert.equal(s.backend.enviosTexto().length, 1, "nenhuma repetição automática");
+
+    await d.getByRole("button", { name: "Verificar resultado" }).click();
+    await d.getByText("Esta solicitação já estava registrada").waitFor();
+    assert.equal(s.backend.enviosTexto().length, 1, "encontrada no histórico: nenhum POST novo");
+    assert.equal(await registroLocal(s.pagina, ANA), null);
+    await s.encerrar();
+  });
+
+  test("rede caiu antes do backend: a verificação repete o MESMO texto com a MESMA chave e o backend cria UMA vez", async () => {
+    const s = await novaSessao();
+    s.backend.janelas.set(ANA, true);
+    s.backend.comportamentosTexto.push({ tipo: "abortar" });
+    const d = await abrirTexto(s);
+    await d
+      .getByTestId("disponibilidade-texto")
+      .getByText(/pode ser enviado/)
+      .waitFor();
+    await d.getByRole("button", { name: "Confirmar envio do texto" }).click();
+    await d.getByText("Resultado desconhecido").waitFor();
+    await d.getByRole("button", { name: "Verificar resultado" }).click();
+    await d.getByText("Aceita pelo WhatsApp").waitFor();
+    const envios = s.backend.enviosTexto();
+    assert.equal(envios.length, 2);
+    assert.deepEqual(envios[0], envios[1]);
+    assert.equal(s.backend.mensagens.length, 1);
+    await s.encerrar();
+  });
+
+  test("regressão: com a janela aberta, o envio por modelo aprovado continua pela rota de template", async () => {
+    const s = await novaSessao();
+    s.backend.janelas.set(ANA, true);
+    await s.abrirClientes();
+    await abrirEnvioOficial(s);
+    const d = dialogo(s.pagina);
+    await escolherOpcao(s.pagina, "Modelo de mensagem", /aniversario_v1/);
+    await d.getByTestId("previa-template").waitFor();
+    await d.getByRole("button", { name: "Confirmar envio" }).click();
+    await d.getByText("Aceita pelo WhatsApp").waitFor();
+    assert.equal(s.backend.envios().length, 1);
+    assert.equal(s.backend.enviosTexto().length, 0);
+    assert.equal(s.backend.consultasElegibilidade(), 0, "a aba de modelo não consulta a janela");
     await s.encerrar();
   });
 });

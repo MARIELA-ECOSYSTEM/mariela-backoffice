@@ -30,18 +30,27 @@ export type CodigoErroEnvioWhatsapp =
   | "LIMITE_TAXA"
   | "CREDENCIAL_INVALIDA"
   | "RECUSADA"
+  | "JANELA_FECHADA"
   | "INDETERMINADO";
+
+/** Fase 22.8.9.10.7.4 — `TEMPLATE`: modelo aprovado; `TEXTO`: texto livre na janela de 24 h. */
+export type TipoMensagemWhatsapp = "TEMPLATE" | "TEXTO";
 
 export type OrigemMensagemWhatsapp = "INDIVIDUAL" | "CAMPANHA_ANIVERSARIO";
 export type TipoCampanhaWhatsapp = "ANIVERSARIO";
 export type CategoriaTemplateWhatsapp = "MARKETING" | "UTILITY";
 
-/** Resposta pública de uma mensagem (sem texto nem valores de parâmetros; telefone mascarado). */
+/**
+ * Resposta pública de uma mensagem (telefone mascarado; nunca valores de parâmetros de template). `template` só em
+ * `TEMPLATE`; `texto` só em `TEXTO` (o texto livre que o operador enviou).
+ */
 export interface MensagemWhatsapp {
   id: string;
   idempotencyKey: string;
+  tipo: TipoMensagemWhatsapp;
   destinatario: { tipo: "CLIENTE"; id: string; telefoneMascarado: string };
-  template: { chave: string; categoria: string };
+  template: { chave: string; categoria: string } | null;
+  texto: string | null;
   estado: EstadoMensagemWhatsapp;
   /** Erro já sanitizado pelo backend (código interno estável + mensagem legível). */
   erro: { codigo: CodigoErroEnvioWhatsapp; mensagem: string } | null;
@@ -91,6 +100,39 @@ export interface EnviarTemplatePayload {
   template: string;
   campanha?: { tipo: TipoCampanhaWhatsapp };
 }
+
+/**
+ * Fase 22.8.9.10.7.4 — corpo de `POST /integracoes/whatsapp/envios/texto`: só a chave, o id do cliente cadastrado e o
+ * texto. Nunca telefone, `waId`, dados de janela ou credenciais (o backend recusa qualquer campo extra).
+ */
+export interface EnviarTextoPayload {
+  idempotencyKey: string;
+  destinatario: { tipo: "CLIENTE"; id: string };
+  texto: string;
+}
+
+export type MotivoTextoLivreIndisponivel =
+  | "PROVEDOR_NAO_CONFIGURADO"
+  | "WEBHOOK_NAO_CONFIGURADO"
+  | "TELEFONE_INVALIDO"
+  | "CONTATO_BLOQUEADO"
+  | "SEM_MENSAGEM_RECEBIDA"
+  | "JANELA_EXPIRADA";
+
+/** `GET /integracoes/whatsapp/clientes/:id/texto-livre` — decidido SÓ pelo backend; a interface apenas exibe. */
+export interface ElegibilidadeTextoWhatsapp {
+  permitido: boolean;
+  motivo: MotivoTextoLivreIndisponivel | null;
+  mensagem: string;
+  telefoneMascarado: string | null;
+  ultimaMensagemRecebidaEm: string | null;
+  janelaExpiraEm: string | null;
+  limiteCaracteres: number;
+  verificadoEm: string;
+}
+
+/** Limite do texto livre na Cloud API (o backend confere de novo). */
+export const LIMITE_TEXTO_LIVRE_WHATSAPP = 4096;
 
 /** Resultado do envio: `repetida` = HTTP 200 (a mesma chave já existia; nada foi reenviado); `false` = 201. */
 export interface ResultadoEnvioTemplate {

@@ -189,6 +189,25 @@ function registerWhatsappOficialMocks(): void {
   registerMock("POST", "/integracoes/whatsapp/envios", () => {
     throw naoConfigurado();
   });
+  // Fase 22.8.9.10.7.4 — texto livre: no mock não há provedor nem webhook, então nunca é permitido (nada é enviado).
+  registerMock("GET", "/integracoes/whatsapp/clientes/:id/texto-livre", ({ params }) => {
+    const status = statusCliente(params["id"] ?? "");
+    return {
+      data: {
+        permitido: false,
+        motivo: "PROVEDOR_NAO_CONFIGURADO",
+        mensagem: "O WhatsApp oficial não está configurado neste servidor.",
+        telefoneMascarado: status.telefoneMascarado,
+        ultimaMensagemRecebidaEm: null,
+        janelaExpiraEm: null,
+        limiteCaracteres: 4096,
+        verificadoEm: new Date().toISOString(),
+      },
+    };
+  });
+  registerMock("POST", "/integracoes/whatsapp/envios/texto", () => {
+    throw naoConfigurado();
+  });
   registerMock("GET", "/integracoes/whatsapp/mensagens", ({ query }) => {
     const limit = Number(query["limit"] ?? 20);
     const page = Number(query["page"] ?? 1);

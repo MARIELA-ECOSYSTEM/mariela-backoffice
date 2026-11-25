@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import type { UseQueryResult } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -11,35 +11,43 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ErrorState } from "@/components/common/states";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
-import { LIMITES_MENSAGEM_PADRAO_WHATSAPP as LIMITES } from "@/types/configuracoes";
+import {
+  LIMITE_TEXTO_LIVRE_WHATSAPP,
+  type ElegibilidadeTextoWhatsapp,
+} from "@/types/whatsapp-oficial";
+import { formatarDataHora } from "@/utils/format";
 import { Aviso, Rotulo } from "./comum";
 
 /**
- * Fase 22.8.9.10.7.3 — mensagem pré-pronta no dialog do WhatsApp oficial: o operador escolhe uma mensagem padrão
- * (Configurações → Mensagens de WhatsApp), o texto vai para um campo EDITÁVEL e a prévia mostra destinatário e texto
- * final.
+ * Fase 22.8.9.10.7.3 / 22.8.9.10.7.4 — mensagem pré-pronta no dialog do WhatsApp oficial: o operador escolhe uma
+ * mensagem padrão (Configurações → Mensagens de WhatsApp), edita o texto e vê a prévia do texto final.
  *
- * O ENVIO deste texto não existe: o backend oficial só aceita modelos aprovados pela Meta (`POST /envios` recebe a
- * chave do modelo, nunca texto). Este painel não chama nenhuma rota de envio, nem a Meta, nem a Evolution — o botão
- * de confirmação do dialog fica desabilitado neste modo, com a explicação abaixo.
+ * O texto editado vive SÓ no dialog (estado controlado pelo pai): nada aqui grava nas Configurações. A disponibilidade
+ * do envio é a que o BACKEND informou (`GET /clientes/:id/texto-livre`) — a interface nunca presume a janela de 24 h
+ * aberta; sem resposta do backend, o envio fica indisponível.
  */
 export function MensagemPreProntaPainel({
   nomeCliente,
   telefoneMascarado,
+  mensagemId,
+  texto,
+  onEscolher,
+  onTexto,
+  elegibilidade,
+  desabilitado,
 }: {
   nomeCliente: string;
   telefoneMascarado: string | null | undefined;
+  mensagemId: string | null;
+  texto: string;
+  onEscolher: (id: string, conteudo: string) => void;
+  onTexto: (texto: string) => void;
+  elegibilidade: UseQueryResult<ElegibilidadeTextoWhatsapp>;
+  desabilitado: boolean;
 }) {
   const configuracoes = useConfiguracoes();
-  const [mensagemId, setMensagemId] = useState<string | null>(null);
-  const [texto, setTexto] = useState("");
   const mensagens = configuracoes.data?.mensagensWhatsapp ?? [];
-
-  function escolher(id: string) {
-    const m = mensagens.find((item) => item.id === id);
-    setMensagemId(id);
-    setTexto(m?.conteudo ?? "");
-  }
+  const tamanho = texto.trim().length;
 
   return (
     <div className="space-y-4" data-testid="painel-mensagem-pre-pronta">
@@ -52,6 +60,8 @@ export function MensagemPreProntaPainel({
           Número do cadastro do cliente — não pode ser alterado aqui.
         </p>
       </div>
+
+      <DisponibilidadeTextoLivre elegibilidade={elegibilidade} />
 
       {configuracoes.isPending ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -74,7 +84,13 @@ export function MensagemPreProntaPainel({
       ) : (
         <div className="space-y-1.5">
           <Rotulo>Mensagem padrão</Rotulo>
-          <Select value={mensagemId ?? ""} onValueChange={escolher}>
+          <Select
+            value={mensagemId ?? ""}
+            disabled={desabilitado}
+            onValueChange={(id) =>
+              onEscolher(id, mensagens.find((item) => item.id === id)?.conteudo ?? "")
+            }
+          >
             <SelectTrigger aria-label="Mensagem padrão">
               <SelectValue placeholder="Escolha uma mensagem" />
             </SelectTrigger>
@@ -97,12 +113,13 @@ export function MensagemPreProntaPainel({
               aria-label="Texto da mensagem"
               value={texto}
               rows={6}
-              maxLength={LIMITES.conteudo}
-              onChange={(e) => setTexto(e.target.value)}
+              maxLength={LIMITE_TEXTO_LIVRE_WHATSAPP}
+              disabled={desabilitado}
+              onChange={(e) => onTexto(e.target.value)}
             />
             <p className="text-right text-xs text-muted-foreground">
-              {texto.trim().length}/{LIMITES.conteudo} · a edição vale só para esta conversa; a
-              mensagem padrão salva não muda.
+              {tamanho}/{LIMITE_TEXTO_LIVRE_WHATSAPP} · a edição vale só para este envio; a mensagem
+              padrão salva não muda.
             </p>
           </div>
           <div className="space-y-1.5">
@@ -116,17 +133,64 @@ export function MensagemPreProntaPainel({
           </div>
         </>
       ) : null}
-
-      <Aviso
-        tom="informacao"
-        titulo="Envio de texto editável indisponível"
-        testId="aviso-texto-livre"
-      >
-        O WhatsApp oficial do MARIELA só envia, hoje, modelos aprovados pela Meta. O envio de texto
-        livre exige uma extensão do backend (dentro da janela de atendimento de 24 h aberta por uma
-        mensagem do cliente) e ainda não existe — nada é enviado a partir desta aba. Para enviar
-        agora, use a aba “Modelo aprovado”.
-      </Aviso>
     </div>
+  );
+}
+
+/** Situação do envio de texto livre exatamente como o backend informou. */
+function DisponibilidadeTextoLivre({
+  elegibilidade,
+}: {
+  elegibilidade: UseQueryResult<ElegibilidadeTextoWhatsapp>;
+}) {
+  if (elegibilidade.isPending) {
+    return (
+      <div
+        className="flex items-center gap-2 text-sm text-muted-foreground"
+        data-testid="disponibilidade-texto"
+        data-situacao="consultando"
+      >
+        <Loader2 aria-hidden className="size-4 animate-spin" /> Verificando se o texto livre pode
+        ser enviado…
+      </div>
+    );
+  }
+  if (elegibilidade.isError) {
+    return (
+      <div data-testid="disponibilidade-texto" data-situacao="erro">
+        <ErrorState
+          error={elegibilidade.error}
+          onRetry={() => void elegibilidade.refetch()}
+          fallback="Não foi possível confirmar com o servidor se o texto livre pode ser enviado. O envio fica indisponível até a confirmação."
+        />
+      </div>
+    );
+  }
+  const e = elegibilidade.data;
+  if (e.permitido) {
+    return (
+      <div
+        data-testid="disponibilidade-texto"
+        data-situacao="permitido"
+        className="flex items-start gap-2 rounded-lg border border-success/25 bg-success/[0.06] px-3 py-2.5 text-sm text-foreground"
+      >
+        <CheckCircle2 aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
+        <span>
+          {e.mensagem}
+          {e.janelaExpiraEm ? (
+            <span className="block text-xs text-muted-foreground">
+              Disponível até {formatarDataHora(e.janelaExpiraEm)} (confirmado de novo no envio).
+            </span>
+          ) : null}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <Aviso tom="informacao" titulo="Texto livre indisponível agora" testId="disponibilidade-texto">
+      <span data-situacao="indisponivel" data-motivo={e.motivo ?? ""}>
+        {e.mensagem}
+      </span>
+    </Aviso>
   );
 }

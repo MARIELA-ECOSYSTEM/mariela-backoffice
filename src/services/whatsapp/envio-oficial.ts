@@ -11,8 +11,10 @@
  *      automática diante de qualquer resultado desconhecido e NENHUMA repetição automática.
  */
 import { ApiError } from "@/types/api";
+import { LIMITE_TEXTO_LIVRE_WHATSAPP } from "@/types/whatsapp-oficial";
 import type {
   EnviarTemplatePayload,
+  EnviarTextoPayload,
   EstadoAprovacaoTemplateWhatsapp,
   EstadoMensagemWhatsapp,
   MensagemWhatsapp,
@@ -215,6 +217,8 @@ export function classificarFalhaEnvio(erro: unknown): FalhaEnvio {
 
 export const PREFIXO_ENVIO_PENDENTE = "mariela.backoffice.whatsapp-envio-pendente.v1.";
 const TAMANHO_MAXIMO_REGISTRO = 1024;
+/** Fase 22.8.9.10.7.4 — o registro de texto livre carrega o texto (até 4096 caracteres, escapados em JSON). */
+const TAMANHO_MAXIMO_REGISTRO_TEXTO = 32 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const CHAVE_TEMPLATE = /^[A-Za-z0-9_.-]{1,64}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -233,6 +237,27 @@ export interface EnvioPendente {
   criadoEm: string;
 }
 
+/**
+ * Fase 22.8.9.10.7.4 — texto livre sem resposta conclusiva. Guarda o TEXTO exato: repetir a mesma chave com outro
+ * texto seria recusado (409), e é só com o mesmo pedido que o backend devolve o registro sem reenviar. Fica só neste
+ * computador e é apagado com a resposta conclusiva.
+ */
+export interface EnvioTextoPendente {
+  versao: 1;
+  tipo: "TEXTO";
+  clienteId: string;
+  texto: string;
+  idempotencyKey: string;
+  criadoEm: string;
+}
+
+/** Um único envio sem confirmação por cliente, de qualquer tipo: enquanto existir, nenhum envio novo é oferecido. */
+export type IntencaoPendente = EnvioPendente | EnvioTextoPendente;
+
+export function ehTextoPendente(p: IntencaoPendente): p is EnvioTextoPendente {
+  return (p as { tipo?: unknown }).tipo === "TEXTO";
+}
+
 export type AcessoStorage = () => Storage | null;
 
 export const storageDoNavegador: AcessoStorage = () => {
@@ -246,14 +271,14 @@ export const storageDoNavegador: AcessoStorage = () => {
 export function lerEnvioPendente(
   clienteId: string,
   storage: AcessoStorage = storageDoNavegador,
-): EnvioPendente | null {
+): IntencaoPendente | null {
   let bruto: string | null = null;
   try {
     bruto = storage()?.getItem(PREFIXO_ENVIO_PENDENTE + clienteId) ?? null;
   } catch {
     return null;
   }
-  if (bruto === null || bruto.length > TAMANHO_MAXIMO_REGISTRO) return null;
+  if (bruto === null || bruto.length > TAMANHO_MAXIMO_REGISTRO_TEXTO) return null;
   let d: unknown;
   try {
     d = JSON.parse(bruto);
@@ -262,6 +287,24 @@ export function lerEnvioPendente(
   }
   if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
   const r = d as Record<string, unknown>;
+  const comum =
+    r["versao"] === 1 &&
+    r["clienteId"] === clienteId &&
+    typeof r["idempotencyKey"] === "string" &&
+    UUID.test(r["idempotencyKey"]) &&
+    typeof r["criadoEm"] === "string" &&
+    DATA.test(r["criadoEm"]);
+  if (r["tipo"] === "TEXTO") {
+    const texto = r["texto"];
+    const okTexto =
+      comum &&
+      typeof texto === "string" &&
+      texto.trim() !== "" &&
+      texto.length <= LIMITE_TEXTO_LIVRE_WHATSAPP &&
+      Object.keys(r).length === 6;
+    return okTexto ? (r as unknown as EnvioTextoPendente) : null;
+  }
+  if (bruto.length > TAMANHO_MAXIMO_REGISTRO) return null;
   const ok =
     r["versao"] === 1 &&
     r["clienteId"] === clienteId &&
@@ -277,7 +320,7 @@ export function lerEnvioPendente(
 
 /** `false` = não foi possível gravar (armazenamento indisponível). O envio pode seguir: o histórico do backend é a fonte. */
 export function gravarEnvioPendente(
-  p: EnvioPendente,
+  p: IntencaoPendente,
   storage: AcessoStorage = storageDoNavegador,
 ): boolean {
   if (!ID.test(p.clienteId)) return false;
@@ -328,10 +371,49 @@ export function novoEnvioPendente(
   };
 }
 
+/** Fase 22.8.9.10.7.4 — intenção de texto livre: chave nova, texto exatamente como será enviado (já aparado). */
+export function novoEnvioTextoPendente(
+  clienteId: string,
+  texto: string,
+  gerarChave: () => string = () => crypto.randomUUID(),
+  agora: () => Date = () => new Date(),
+): EnvioTextoPendente {
+  return {
+    versao: 1,
+    tipo: "TEXTO",
+    clienteId,
+    texto: texto.trim(),
+    idempotencyKey: gerarChave(),
+    criadoEm: agora().toISOString(),
+  };
+}
+
+export function payloadDoTextoPendente(p: EnvioTextoPendente): EnviarTextoPayload {
+  return {
+    idempotencyKey: p.idempotencyKey,
+    destinatario: { tipo: "CLIENTE", id: p.clienteId },
+    texto: p.texto,
+  };
+}
+
+/** O que a interface valida ANTES de pedir (o backend valida de novo e é a autoridade). */
+export function problemaNoTextoLivre(texto: string): string | null {
+  const limpo = texto.trim();
+  if (limpo === "") return "Escreva a mensagem.";
+  if (limpo.length > LIMITE_TEXTO_LIVRE_WHATSAPP)
+    return `A mensagem pode ter no máximo ${LIMITE_TEXTO_LIVRE_WHATSAPP} caracteres.`;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(limpo))
+    return "A mensagem contém caracteres inválidos.";
+  return null;
+}
+
 // ─── Envio de UMA intenção (com registro) e verificação de pendência ─────────────────────────────────────────────────
 
 export interface ApiEnvioOficial {
   enviar: (payload: EnviarTemplatePayload) => Promise<ResultadoEnvioTemplate>;
+  /** Fase 22.8.9.10.7.4 — obrigatório para verificar um texto livre pendente. */
+  enviarTexto?: (payload: EnviarTextoPayload) => Promise<ResultadoEnvioTemplate>;
   listarMensagens: (filtros: {
     clienteId: string;
     page: number;
@@ -353,9 +435,28 @@ export async function enviarIntencao(
   pendente: EnvioPendente,
   storage: AcessoStorage = storageDoNavegador,
 ): Promise<DesfechoEnvio> {
+  return enviarRegistrando(pendente, storage, () => api.enviar(payloadDoPendente(pendente)));
+}
+
+/** Fase 22.8.9.10.7.4 — mesmo protocolo de `enviarIntencao`, para texto livre (`POST /envios/texto`). */
+export async function enviarIntencaoTexto(
+  api: Required<Pick<ApiEnvioOficial, "enviarTexto">>,
+  pendente: EnvioTextoPendente,
+  storage: AcessoStorage = storageDoNavegador,
+): Promise<DesfechoEnvio> {
+  return enviarRegistrando(pendente, storage, () =>
+    api.enviarTexto(payloadDoTextoPendente(pendente)),
+  );
+}
+
+async function enviarRegistrando(
+  pendente: IntencaoPendente,
+  storage: AcessoStorage,
+  chamar: () => Promise<ResultadoEnvioTemplate>,
+): Promise<DesfechoEnvio> {
   gravarEnvioPendente(pendente, storage);
   try {
-    const { mensagem, repetida } = await api.enviar(payloadDoPendente(pendente));
+    const { mensagem, repetida } = await chamar();
     removerEnvioPendente(pendente.clienteId, storage);
     return { tipo: "registrada", mensagem, repetida };
   } catch (erro) {
@@ -377,7 +478,7 @@ export type DesfechoVerificacao =
  */
 export async function verificarEnvioPendente(
   api: ApiEnvioOficial,
-  pendente: EnvioPendente,
+  pendente: IntencaoPendente,
   storage: AcessoStorage = storageDoNavegador,
 ): Promise<DesfechoVerificacao> {
   try {
@@ -395,7 +496,15 @@ export async function verificarEnvioPendente(
     // Sem a leitura, não há conclusão: segue para a repetição idempotente (mesma chave), que é segura.
     void erro;
   }
-  const desfecho = await enviarIntencao(api, pendente, storage);
+  let desfecho: DesfechoEnvio;
+  if (ehTextoPendente(pendente)) {
+    const enviarTexto = api.enviarTexto;
+    if (!enviarTexto)
+      throw new Error("API sem envio de texto: a verificação não pode repetir o pedido.");
+    desfecho = await enviarIntencaoTexto({ enviarTexto }, pendente, storage);
+  } else {
+    desfecho = await enviarIntencao(api, pendente, storage);
+  }
   if (desfecho.tipo === "falha" && desfecho.falha.tipo === "recusada") {
     return { tipo: "nao_enviada", falha: desfecho.falha };
   }
@@ -421,7 +530,7 @@ export type SituacaoItemCampanha =
   | { tipo: "registrada"; mensagem: MensagemWhatsapp; repetida: boolean | null }
   | { tipo: "falha"; falha: FalhaEnvio }
   /** Havia um envio anterior sem confirmação para este cliente: nada é enviado com chave nova. */
-  | { tipo: "pendencia_anterior"; pendente: EnvioPendente }
+  | { tipo: "pendencia_anterior"; pendente: IntencaoPendente }
   | { tipo: "nao_executado" };
 
 export type MotivoFimCampanha = "concluida" | "interrompida" | "pausada";

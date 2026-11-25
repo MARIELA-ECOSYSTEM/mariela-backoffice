@@ -97,8 +97,10 @@ function mensagem(extra: Partial<MensagemWhatsapp> = {}): MensagemWhatsapp {
   return {
     id: "6600000000000000000000a1",
     idempotencyKey: CHAVE,
+    tipo: "TEMPLATE",
     destinatario: { tipo: "CLIENTE", id: CLIENTE, telefoneMascarado: "+55 83 9****-0000" },
     template: { chave: "aniversario_v1", categoria: "MARKETING" },
+    texto: null,
     estado: "aceita",
     erro: null,
     origem: "INDIVIDUAL",
@@ -881,5 +883,213 @@ describe("Mock API do WhatsApp oficial não simula envio", () => {
       { somenteAtivos: "false" },
     );
     expect(historico.some((x) => x.ativo === false)).toBe(true); // o histórico do bloqueio é preservado
+  });
+
+  test("Fase 22.8.9.10.7.4 — texto livre no mock: nunca permitido, envio sempre recusado", async () => {
+    const cliente = db.clientes[0]!;
+    const { data: e } = await mock<{ permitido: boolean; motivo: string }>(
+      "GET",
+      `/integracoes/whatsapp/clientes/${cliente.id}/texto-livre`,
+    );
+    expect(e).toMatchObject({ permitido: false, motivo: "PROVEDOR_NAO_CONFIGURADO" });
+    const erro = await mock("POST", "/integracoes/whatsapp/envios/texto", {
+      idempotencyKey: CHAVE,
+      destinatario: { tipo: "CLIENTE", id: cliente.id },
+      texto: "Olá",
+    }).catch((x: unknown) => x);
+    expect((erro as ApiErrorT).code).toBe("WHATSAPP_NOT_CONFIGURED");
+  });
+});
+
+// ─── Fase 22.8.9.10.7.4 — texto livre na janela de 24 h ─────────────────────────────────────────────────────────────
+
+describe("texto livre: cliente de API", () => {
+  const api = criarWhatsappOficialApi(apiClient);
+
+  test("elegibilidade: GET na rota do cliente, sem corpo; o resultado do backend vem sem alteração", async () => {
+    const elegibilidade = {
+      permitido: true,
+      motivo: null,
+      mensagem: "pode",
+      telefoneMascarado: "+55 83 9****-0000",
+      ultimaMensagemRecebidaEm: "2026-11-24T10:00:00.000Z",
+      janelaExpiraEm: "2026-11-25T09:50:00.000Z",
+      limiteCaracteres: 4096,
+      verificadoEm: "2026-11-24T12:00:00.000Z",
+    };
+    respostas = [{ status: 200, corpo: { data: elegibilidade } }];
+    expect(await api.elegibilidadeTexto(CLIENTE)).toEqual(elegibilidade);
+    expect(requisicoes.map((r) => `${r.metodo} ${r.caminho}`)).toEqual([
+      `GET /integracoes/whatsapp/clientes/${CLIENTE}/texto-livre`,
+    ]);
+  });
+
+  test("envio: corpo SÓ com chave, id do cliente e texto (sem telefone, waId ou janela); 201/200", async () => {
+    const payload = {
+      idempotencyKey: CHAVE,
+      destinatario: { tipo: "CLIENTE" as const, id: CLIENTE },
+      texto: "Olá!",
+    };
+    respostas = [
+      { status: 201, corpo: { data: mensagem({ tipo: "TEXTO", template: null, texto: "Olá!" }) } },
+      { status: 200, corpo: { data: mensagem({ tipo: "TEXTO", template: null, texto: "Olá!" }) } },
+    ];
+    expect((await api.enviarTexto(payload)).repetida).toBe(false);
+    expect((await api.enviarTexto(payload)).repetida).toBe(true);
+    expect(requisicoes[0]?.caminho).toBe("/integracoes/whatsapp/envios/texto");
+    expect(requisicoes[0]?.corpo).toEqual(payload);
+    expect(Object.keys(requisicoes[0]?.corpo as object).sort()).toEqual([
+      "destinatario",
+      "idempotencyKey",
+      "texto",
+    ]);
+    const corpo = JSON.stringify(requisicoes[0]?.corpo);
+    for (const proibido of ["telefone", "waId", "janela", "token"])
+      expect(corpo).not.toContain(proibido);
+  });
+});
+
+describe("texto livre: validação, registro local, envio e verificação", () => {
+  test("validação local: vazio, só espaços, controle e acima de 4096 recusados; texto aparado", () => {
+    expect(envio.problemaNoTextoLivre("")).not.toBeNull();
+    expect(envio.problemaNoTextoLivre("   \n ")).not.toBeNull();
+    expect(envio.problemaNoTextoLivre("oi\u0000")).not.toBeNull();
+    expect(envio.problemaNoTextoLivre("a".repeat(4097))).not.toBeNull();
+    expect(envio.problemaNoTextoLivre(`  ${"a".repeat(4096)}  `)).toBeNull();
+    expect(envio.problemaNoTextoLivre("Olá!\nTudo bem? 😀")).toBeNull();
+    expect(envio.novoEnvioTextoPendente(CLIENTE, "  Olá  ", () => CHAVE).texto).toBe("Olá");
+  });
+
+  test("registro local do texto: grava e lê o MESMO pedido; corrompido/adulterado é ignorado", () => {
+    const s = new StorageMemoria();
+    const p = envio.novoEnvioTextoPendente(
+      CLIENTE,
+      "Olá, tudo bem?",
+      () => CHAVE,
+      () => new Date("2026-11-24T12:00:00Z"),
+    );
+    expect(envio.gravarEnvioPendente(p, () => s)).toBe(true);
+    const lido = envio.lerEnvioPendente(CLIENTE, () => s);
+    expect(lido).toEqual(p);
+    expect(lido && envio.ehTextoPendente(lido)).toBe(true);
+    const k = envio.PREFIXO_ENVIO_PENDENTE + CLIENTE;
+    for (const ruim of [
+      { ...p, texto: "" },
+      { ...p, texto: "a".repeat(4097) },
+      { ...p, telefone: "83999990000" },
+      { ...p, idempotencyKey: "nao-e-uuid" },
+      { ...p, clienteId: CLIENTE_2 },
+    ]) {
+      s.setItem(k, JSON.stringify(ruim));
+      expect(envio.lerEnvioPendente(CLIENTE, () => s)).toBeNull();
+    }
+  });
+
+  function apiTexto(
+    respostasTexto: (() => Promise<{ mensagem: MensagemWhatsapp; repetida: boolean | null }>)[],
+    historico: MensagemWhatsapp[] = [],
+  ) {
+    const enviados: unknown[] = [];
+    const fila = [...respostasTexto];
+    return {
+      enviados,
+      enviar: async () => {
+        throw new Error("template não esperado");
+      },
+      enviarTexto: (p: unknown) => {
+        enviados.push(p);
+        const f = fila.shift();
+        if (!f) throw new Error("envio não esperado");
+        return f();
+      },
+      listarMensagens: async () => ({ data: historico }),
+    };
+  }
+  const msgTexto = () => mensagem({ tipo: "TEXTO", template: null, texto: "Olá" });
+
+  test("sucesso: registro gravado ANTES e removido com a resposta; resultado do backend sem alteração", async () => {
+    const s = new StorageMemoria();
+    const p = envio.novoEnvioTextoPendente(CLIENTE, "Olá", () => CHAVE);
+    let naHora: unknown = null;
+    const api = apiTexto([
+      async () => {
+        naHora = envio.lerEnvioPendente(CLIENTE, () => s);
+        return { mensagem: msgTexto(), repetida: false };
+      },
+    ]);
+    const d = await envio.enviarIntencaoTexto(api, p, () => s);
+    expect(naHora).toEqual(p);
+    expect(d).toMatchObject({ tipo: "registrada", repetida: false, mensagem: { tipo: "TEXTO" } });
+    expect(envio.lerEnvioPendente(CLIENTE, () => s)).toBeNull();
+  });
+
+  test("recusa explícita (janela fechada) remove o registro: nada foi enviado", async () => {
+    const s = new StorageMemoria();
+    const p = envio.novoEnvioTextoPendente(CLIENTE, "Olá", () => CHAVE);
+    const api = apiTexto([
+      async () => Promise.reject(erroApi(422, "WHATSAPP_JANELA_FECHADA", "janela fechada")),
+    ]);
+    const d = await envio.enviarIntencaoTexto(api, p, () => s);
+    expect(d.tipo === "falha" && d.falha).toMatchObject({
+      tipo: "recusada",
+      codigo: "WHATSAPP_JANELA_FECHADA",
+    });
+    expect(envio.lerEnvioPendente(CLIENTE, () => s)).toBeNull();
+  });
+
+  test("timeout/rede/5xx: resultado DESCONHECIDO, registro mantido; a verificação repete o MESMO texto e a MESMA chave", async () => {
+    for (const falha of [
+      erroApi(408, "TIMEOUT"),
+      erroApi(0, "NETWORK_ERROR"),
+      erroApi(502, "HTTP_ERROR"),
+    ]) {
+      const s = new StorageMemoria();
+      const p = envio.novoEnvioTextoPendente(CLIENTE, "Olá", () => CHAVE);
+      const api = apiTexto([
+        async () => Promise.reject(falha),
+        async () => ({ mensagem: msgTexto(), repetida: true }),
+      ]);
+      const d1 = await envio.enviarIntencaoTexto(api, p, () => s);
+      expect(d1.tipo === "falha" && d1.falha.tipo).toBe("desconhecido");
+      const guardado = envio.lerEnvioPendente(CLIENTE, () => s)!;
+      expect(guardado).toEqual(p);
+      const d2 = await envio.verificarEnvioPendente(api, guardado, () => s);
+      expect(d2).toMatchObject({ tipo: "registrada", repetida: true });
+      expect(api.enviados).toEqual([
+        { idempotencyKey: CHAVE, destinatario: { tipo: "CLIENTE", id: CLIENTE }, texto: "Olá" },
+        { idempotencyKey: CHAVE, destinatario: { tipo: "CLIENTE", id: CLIENTE }, texto: "Olá" },
+      ]);
+    }
+  });
+
+  test("verificação: a chave já está no histórico → nenhum novo POST", async () => {
+    const s = new StorageMemoria();
+    const p = envio.novoEnvioTextoPendente(CLIENTE, "Olá", () => CHAVE);
+    envio.gravarEnvioPendente(p, () => s);
+    const api = apiTexto([], [msgTexto()]);
+    const d = await envio.verificarEnvioPendente(api, p, () => s);
+    expect(d).toMatchObject({ tipo: "encontrada" });
+    expect(api.enviados).toHaveLength(0);
+    expect(envio.lerEnvioPendente(CLIENTE, () => s)).toBeNull();
+  });
+
+  test("texto pendente bloqueia a campanha para o mesmo cliente (nenhuma chave nova)", async () => {
+    const s = new StorageMemoria();
+    envio.gravarEnvioPendente(
+      envio.novoEnvioTextoPendente(CLIENTE, "Olá", () => CHAVE),
+      () => s,
+    );
+    const enviados: unknown[] = [];
+    const r = await envio.executarCampanha({
+      api: { enviar: async (p) => (enviados.push(p), { mensagem: mensagem(), repetida: false }) },
+      itens: [{ clienteId: CLIENTE, nome: "Ana" }],
+      template: "aniversario_v2",
+      deveParar: () => false,
+      aoAtualizar: () => {},
+      esperar: async () => {},
+      storage: () => s,
+    });
+    expect(r.situacoes[CLIENTE]?.tipo).toBe("pendencia_anterior");
+    expect(enviados).toHaveLength(0);
   });
 });

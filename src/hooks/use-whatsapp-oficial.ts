@@ -23,6 +23,8 @@ export const whatsappOficialKeys = {
     ["whatsapp-oficial", "bloqueios", "lista", f] as const,
   bloqueioCliente: (clienteId: string) =>
     ["whatsapp-oficial", "bloqueios", "cliente", clienteId] as const,
+  elegibilidadeTexto: (clienteId: string) =>
+    ["whatsapp-oficial", "texto-livre", clienteId] as const,
 };
 
 export function useTemplatesWhatsapp(opcoes: { habilitado?: boolean } = {}) {
@@ -44,6 +46,23 @@ export function usePreviaTemplateWhatsapp(chave: string | null, clienteId: strin
     staleTime: 0,
     gcTime: 0,
     retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Fase 22.8.9.10.7.4 — elegibilidade do texto livre, SEMPRE lida do backend (sem cache entre aberturas do dialog).
+ * A janela muda com o tempo: o resultado é reconsultado periodicamente e de novo no momento do envio.
+ */
+export function useElegibilidadeTextoWhatsapp(clienteId: string | null, habilitado: boolean) {
+  return useQuery({
+    queryKey: whatsappOficialKeys.elegibilidadeTexto(clienteId ?? ""),
+    queryFn: () => whatsappOficialApi.elegibilidadeTexto(clienteId ?? ""),
+    enabled: clienteId !== null && habilitado,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+    refetchInterval: 60_000,
     refetchOnWindowFocus: false,
   });
 }
@@ -142,5 +161,6 @@ export function useAtualizarAposEnvio() {
   return () => {
     void queryClient.invalidateQueries({ queryKey: whatsappOficialKeys.mensagens });
     void queryClient.invalidateQueries({ queryKey: whatsappOficialKeys.bloqueios });
+    void queryClient.invalidateQueries({ queryKey: ["whatsapp-oficial", "texto-livre"] });
   };
 }

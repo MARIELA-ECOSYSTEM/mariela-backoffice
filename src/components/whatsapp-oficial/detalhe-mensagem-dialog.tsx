@@ -78,10 +78,16 @@ export function DetalheMensagemDialog({
               <Campo rotulo="Estado">
                 <EstadoMensagemBadge estado={m.estado} />
               </Campo>
-              <Campo rotulo="Modelo">
-                {m.template.chave}
-                <span className="block text-xs text-muted-foreground">{m.template.categoria}</span>
-              </Campo>
+              {m.template ? (
+                <Campo rotulo="Modelo">
+                  {m.template.chave}
+                  <span className="block text-xs text-muted-foreground">
+                    {m.template.categoria}
+                  </span>
+                </Campo>
+              ) : (
+                <Campo rotulo="Tipo">Texto livre (janela de 24 h)</Campo>
+              )}
               <Campo rotulo="Origem">{ROTULO_ORIGEM_MENSAGEM[m.origem]}</Campo>
               <Campo rotulo="Criada em">{formatarDataHora(m.criadoEm)}</Campo>
               <Campo rotulo="Atualizada em">{formatarDataHora(m.atualizadoEm)}</Campo>
@@ -92,6 +98,17 @@ export function DetalheMensagemDialog({
                 </Campo>
               ) : null}
             </div>
+
+            {m.texto !== null ? (
+              <Campo rotulo="Texto enviado">
+                <span
+                  data-testid="detalhe-texto"
+                  className="block whitespace-pre-wrap rounded-lg border border-border bg-surface/60 px-3 py-2.5 text-sm"
+                >
+                  {m.texto}
+                </span>
+              </Campo>
+            ) : null}
 
             <div className="grid gap-3 sm:grid-cols-4">
               <Campo rotulo="Aceita">{m.aceitaEm ? formatarDataHora(m.aceitaEm) : "—"}</Campo>
