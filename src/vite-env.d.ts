@@ -15,4 +15,6 @@ interface ImportMetaEnv {
   readonly VITE_USE_MOCK_API?: string;
   readonly VITE_MOCK_LOGIN?: string;
   readonly VITE_MOCK_SENHA?: string;
+  /** Fase 22.8.9.10.7.7 — rótulo da faixa de homologação local (ausente em produção e no desktop). */
+  readonly VITE_AMBIENTE_HOMOLOGACAO?: string;
 }

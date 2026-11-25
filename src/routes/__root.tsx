@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
+import { FaixaAmbiente } from "@/components/layout/faixa-ambiente";
 import { AuthProvider } from "@/hooks/use-auth";
 import { useRealtimeSync } from "@/hooks/use-realtime";
 
@@ -135,6 +136,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <RealtimeBridge />
+      <FaixaAmbiente />
       <AuthProvider>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
