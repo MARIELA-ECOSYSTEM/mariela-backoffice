@@ -1,4 +1,4 @@
-import type { Caixa, CaixaStatus } from "@/types/caixa";
+import type { Caixa, CaixaStatus, ResumoCaixa, ResumoFormaPagamentoCaixa } from "@/types/caixa";
 
 /** Badge do status do caixa — roxo (aberto) é a identidade da marca. */
 export const VARIANTE_STATUS_CAIXA: Record<CaixaStatus, "default" | "outline"> = {
@@ -18,6 +18,50 @@ export const LABEL_DIFERENCA: Record<SituacaoDiferenca, string> = {
   sobra: "Sobra de caixa",
   falta: "Falta de caixa",
 };
+
+export interface ConferenciaFechamento {
+  /**
+   * `true` quando o servidor informa o dinheiro físico (`dinheiroEsperado`, Fase 22.8.9.12). `false` num servidor
+   * anterior, que ainda confere o saldo de TODAS as formas — a tela então mostra esse saldo com o rótulo antigo, para
+   * a prévia continuar igual ao que o servidor vai gravar.
+   */
+  regraDinheiroFisico: boolean;
+  /** Valor contra o qual o contado é conferido — o mesmo que o servidor usa no fechamento. */
+  esperado: number;
+  informado: number;
+  informadoInvalido: boolean;
+  /** `informado − esperado` (0 enquanto o valor digitado for inválido). */
+  diferenca: number;
+  situacao: SituacaoDiferenca;
+  exigeObservacao: boolean;
+  /** Formas que NÃO movimentam a gaveta (PIX, cartões, outras): só informativas. */
+  outrasFormas: ResumoFormaPagamentoCaixa[];
+}
+
+/**
+ * Fase 22.8.9.12 — conferência do fechamento: o dinheiro CONTADO na gaveta contra o dinheiro físico esperado. PIX e
+ * cartões nunca entram na diferença; aparecem à parte, em `outrasFormas`. Mesmo cálculo do backend (`fechar`), que é a
+ * autoridade: aqui é só a prévia.
+ */
+export function conferenciaDoFechamento(resumo: ResumoCaixa, valorDigitado: string): ConferenciaFechamento {
+  const regraDinheiroFisico = typeof resumo.dinheiroEsperado === "number";
+  const esperado = regraDinheiroFisico ? resumo.dinheiroEsperado! : resumo.saldoEsperado;
+  const informado = Number(valorDigitado.replace(",", "."));
+  // Etapa 18.6 — sem piso zero: o Caixa pode fechar negativo, então só se exige um número válido.
+  const informadoInvalido = valorDigitado.trim() === "" || !Number.isFinite(informado);
+  const diferenca = informadoInvalido ? 0 : Number((informado - esperado).toFixed(2));
+  const situacao = situacaoDiferenca(diferenca);
+  return {
+    regraDinheiroFisico,
+    esperado,
+    informado,
+    informadoInvalido,
+    diferenca,
+    situacao,
+    exigeObservacao: !informadoInvalido && situacao !== "conferido",
+    outrasFormas: (resumo.porFormaPagamento ?? []).filter((item) => !item.dinheiroFisico),
+  };
+}
 
 export type OrdenacaoCaixa =
   | "data-desc"

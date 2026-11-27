@@ -318,7 +318,8 @@ export function registerCaixasMocks(): void {
         { field: "valorInformado", message: "Informe o valor contado no caixa." },
       ]);
 
-    const esperado = calcularResumoCaixa(caixa).saldoEsperado;
+    // Fase 22.8.9.12 — como o backend: confere o dinheiro físico da gaveta, não o saldo de todas as formas.
+    const esperado = calcularResumoCaixa(caixa).dinheiroEsperado ?? 0;
     const diferenca = arredondar(valorInformado - esperado);
     const observacao = payload.observacao?.trim() ?? "";
     if (Math.abs(diferenca) >= 0.005 && !observacao)

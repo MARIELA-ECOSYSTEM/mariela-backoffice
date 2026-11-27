@@ -1,4 +1,9 @@
-import type { Caixa, MovimentacaoCaixa, ResumoCaixa } from "@/types/caixa";
+import type {
+  Caixa,
+  MovimentacaoCaixa,
+  ResumoCaixa,
+  ResumoFormaPagamentoCaixa,
+} from "@/types/caixa";
 import type { ParcelaVenda, VendaDetalhe } from "@/types/venda";
 import { agora, db, gerarId } from "./db";
 
@@ -18,6 +23,51 @@ export function movimentacoesDoCaixa(caixaId: string): MovimentacaoCaixa[] {
   return db.caixasMovimentacoes
     .filter((item) => item.caixaId === caixaId)
     .sort((a, b) => b.dataHora.localeCompare(a.dataHora));
+}
+
+/** Mesma normalização de forma de pagamento do backend (`normalizarFormaPagamento`). */
+function normalizarForma(forma: string): string {
+  return forma
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Fase 22.8.9.12 — espelho de `gaveta.util.ts` do backend: só "Dinheiro" movimenta a gaveta; PIX, cartões e
+ * qualquer forma desconhecida ficam só no resumo informativo por forma.
+ */
+export function resumoDaGaveta(
+  movimentacoes: Pick<MovimentacaoCaixa, "formaPagamento" | "valor" | "sentido">[],
+  valorInicial: number,
+): Pick<ResumoCaixa, "dinheiroEsperado" | "porFormaPagamento"> {
+  const grupos = new Map<string, ResumoFormaPagamentoCaixa>();
+  let dinheiro = valorInicial;
+  for (const item of movimentacoes) {
+    const chave = normalizarForma(item.formaPagamento);
+    const sinal = item.sentido === "entrada" ? 1 : -1;
+    if (chave === "dinheiro") dinheiro += sinal * item.valor;
+    const grupo = grupos.get(chave) ?? {
+      forma: item.formaPagamento.trim(),
+      dinheiroFisico: chave === "dinheiro",
+      entradas: 0,
+      saidas: 0,
+      saldo: 0,
+    };
+    if (sinal > 0) grupo.entradas = arredondar(grupo.entradas + item.valor);
+    else grupo.saidas = arredondar(grupo.saidas + item.valor);
+    grupo.saldo = arredondar(grupo.entradas - grupo.saidas);
+    grupos.set(chave, grupo);
+  }
+  return {
+    dinheiroEsperado: arredondar(dinheiro),
+    porFormaPagamento: [...grupos.values()].sort(
+      (a, b) =>
+        Number(b.dinheiroFisico) - Number(a.dinheiroFisico) || a.forma.localeCompare(b.forma, "pt-BR"),
+    ),
+  };
 }
 
 /** Resumo SEMPRE derivado das movimentações — nunca de um campo editável. */
@@ -52,6 +102,7 @@ export function calcularResumoCaixa(caixa: Caixa): ResumoCaixa {
       movimentacoes.filter((item) => item.tipo === "venda").map((item) => item.vendaId),
     ).size,
     quantidadeMovimentacoes: movimentacoes.length,
+    ...resumoDaGaveta(movimentacoes, caixa.abertura.valorInicial),
   };
 }
 

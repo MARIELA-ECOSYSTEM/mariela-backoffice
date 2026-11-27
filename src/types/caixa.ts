@@ -149,10 +149,28 @@ export interface ResumoCaixa {
   saidasManuais: number;
   devolucoes: number;
   totalSaidas: number;
-  /** abertura + entradas − saídas. */
+  /** abertura + entradas − saídas, somando TODAS as formas de pagamento. */
   saldoEsperado: number;
   quantidadeVendas: number;
   quantidadeMovimentacoes: number;
+  /**
+   * Fase 22.8.9.12 — dinheiro FÍSICO esperado na gaveta: abertura + movimentos em "Dinheiro". É a base do
+   * `valorEsperado`/`diferenca` do fechamento. Ausente num servidor anterior a esta fase (que ainda conferia o saldo
+   * de todas as formas) — ver `conferenciaDoFechamento`.
+   */
+  dinheiroEsperado?: number;
+  /** Fase 22.8.9.12 — totais informativos por forma de pagamento (não entram no dinheiro físico). */
+  porFormaPagamento?: ResumoFormaPagamentoCaixa[];
+}
+
+export interface ResumoFormaPagamentoCaixa {
+  forma: FormaPagamento;
+  /** `true` só para "Dinheiro": a única forma que movimenta a gaveta. */
+  dinheiroFisico: boolean;
+  entradas: number;
+  saidas: number;
+  /** `entradas − saidas`. */
+  saldo: number;
 }
 
 export interface Caixa {

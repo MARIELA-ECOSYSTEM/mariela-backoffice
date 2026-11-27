@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { formatarMoeda } from "@/utils/format";
-import { LABEL_DIFERENCA, situacaoDiferenca } from "@/utils/caixa";
+import { LABEL_DIFERENCA, conferenciaDoFechamento } from "@/utils/caixa";
 import type { Caixa, FechamentoCaixaPayload } from "@/types/caixa";
 
 function Linha({ rotulo, valor, forte }: { rotulo: string; valor: string; forte?: boolean }) {
@@ -26,7 +26,12 @@ function Linha({ rotulo, valor, forte }: { rotulo: string; valor: string; forte?
   );
 }
 
-/** Conferência física e registro da diferença — encerra o caixa como histórico. */
+/**
+ * Conferência física e registro da diferença — encerra o caixa como histórico.
+ *
+ * Fase 22.8.9.12 — a conferência é do DINHEIRO da gaveta: o contado é comparado com o dinheiro físico esperado
+ * (abertura + movimentos em dinheiro). PIX e cartões aparecem à parte, só como informação, e nunca viram falta.
+ */
 export function FechamentoCaixaDialog({
   caixa,
   open,
@@ -51,16 +56,20 @@ export function FechamentoCaixaDialog({
     setConfirmando(false);
   }, [open]);
 
-  const esperado = caixa.resumo.saldoEsperado;
-  const informado = Number(valorInformado.replace(",", "."));
-  // Etapa 18.6 — sem piso zero: o Caixa pode fechar negativo (Etapas
-  // 18.2-18.4), então `valorInformado` precisa aceitar número negativo. Só
-  // exigimos que o campo tenha sido preenchido com um número válido.
-  const informadoInvalido = valorInformado.trim() === "" || !Number.isFinite(informado);
-  const diferenca = informadoInvalido ? 0 : Number((informado - esperado).toFixed(2));
-  const situacao = situacaoDiferenca(diferenca);
-  const exigeObservacao = !informadoInvalido && situacao !== "conferido";
+  const conferencia = conferenciaDoFechamento(caixa.resumo, valorInformado);
+  const {
+    regraDinheiroFisico,
+    esperado,
+    informado,
+    informadoInvalido,
+    diferenca,
+    situacao,
+    exigeObservacao,
+  } = conferencia;
   const invalido = informadoInvalido || (exigeObservacao && observacao.trim().length < 3);
+  const sufixo = regraDinheiroFisico ? " em dinheiro" : "";
+  const rotuloEsperado = regraDinheiroFisico ? "Dinheiro esperado na gaveta" : "Saldo esperado";
+  const rotuloContado = regraDinheiroFisico ? "Dinheiro contado na gaveta" : "Valor contado no caixa";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -77,7 +86,50 @@ export function FechamentoCaixaDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <section className="rounded-lg border border-border/70 px-4 py-3">
+          {regraDinheiroFisico ? (
+            <section
+              aria-label="Dinheiro na gaveta"
+              className="rounded-lg border border-border/70 px-4 py-3"
+            >
+              <p className="mb-2 text-sm font-medium text-foreground/80">Dinheiro na gaveta</p>
+              <dl className="space-y-1">
+                <Linha rotulo="Valor de abertura" valor={formatarMoeda(caixa.resumo.valorAbertura)} />
+                <Linha
+                  rotulo="Movimentos em dinheiro"
+                  valor={formatarMoeda(esperado - caixa.resumo.valorAbertura)}
+                />
+                <Linha rotulo={rotuloEsperado} valor={formatarMoeda(esperado)} forte />
+              </dl>
+            </section>
+          ) : null}
+
+          {regraDinheiroFisico ? (
+            <section
+              aria-label="Outras formas de pagamento"
+              className="rounded-lg border border-border/70 px-4 py-3"
+            >
+              <p className="text-sm font-medium text-foreground/80">Outras formas de pagamento</p>
+              <p className="mb-2 text-xs text-muted-foreground">
+                Só para conferência: estes valores não ficam na gaveta e não entram na diferença.
+              </p>
+              {conferencia.outrasFormas.length > 0 ? (
+                <dl className="space-y-1">
+                  {conferencia.outrasFormas.map((item) => (
+                    <Linha key={item.forma} rotulo={item.forma} valor={formatarMoeda(item.saldo)} />
+                  ))}
+                </dl>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhum valor em outras formas neste caixa.
+                </p>
+              )}
+            </section>
+          ) : null}
+
+          <section
+            aria-label="Resumo do sistema"
+            className="rounded-lg border border-border/70 px-4 py-3"
+          >
             <p className="mb-2 text-sm font-medium text-foreground/80">Resumo do sistema</p>
             <dl className="space-y-1">
               <Linha rotulo="Valor de abertura" valor={formatarMoeda(caixa.resumo.valorAbertura)} />
@@ -91,14 +143,18 @@ export function FechamentoCaixaDialog({
               <Linha rotulo="Saídas manuais" valor={formatarMoeda(caixa.resumo.saidasManuais)} />
               <Linha rotulo="Devoluções" valor={formatarMoeda(caixa.resumo.devolucoes)} />
               <Linha rotulo="Total de saídas" valor={formatarMoeda(caixa.resumo.totalSaidas)} />
-              <Linha rotulo="Saldo esperado" valor={formatarMoeda(esperado)} forte />
+              <Linha
+                rotulo={regraDinheiroFisico ? "Saldo de todas as formas" : "Saldo esperado"}
+                valor={formatarMoeda(caixa.resumo.saldoEsperado)}
+                forte={!regraDinheiroFisico}
+              />
             </dl>
           </section>
 
           <section className="space-y-3">
             <p className="text-sm font-medium text-foreground/80">Conferência física</p>
             <div className="space-y-2">
-              <Label htmlFor="fechamento-valor">Valor contado no caixa *</Label>
+              <Label htmlFor="fechamento-valor">{rotuloContado} *</Label>
               <Input
                 id="fechamento-valor"
                 inputMode="decimal"
@@ -125,10 +181,12 @@ export function FechamentoCaixaDialog({
                   <AlertTriangle aria-hidden className="size-4" />
                 )}
                 {situacao === "conferido"
-                  ? "Caixa conferido"
+                  ? regraDinheiroFisico
+                    ? "Dinheiro conferido"
+                    : "Caixa conferido"
                   : situacao === "sobra"
-                    ? `Sobra de ${formatarMoeda(diferenca)}`
-                    : `Falta de ${formatarMoeda(Math.abs(diferenca))}`}
+                    ? `Sobra de ${formatarMoeda(diferenca)}${sufixo}`
+                    : `Falta de ${formatarMoeda(Math.abs(diferenca))}${sufixo}`}
               </p>
             ) : null}
 
@@ -151,12 +209,29 @@ export function FechamentoCaixaDialog({
           </section>
 
           {confirmando ? (
-            <section className="rounded-lg bg-secondary/60 px-4 py-3">
+            <section
+              aria-label="Confirmar fechamento"
+              className="rounded-lg bg-secondary/60 px-4 py-3"
+            >
               <p className="mb-2 text-sm font-medium">Confirmar fechamento?</p>
               <dl className="space-y-1">
-                <Linha rotulo="Valor esperado" valor={formatarMoeda(esperado)} />
-                <Linha rotulo="Valor informado" valor={formatarMoeda(informado)} />
-                <Linha rotulo={LABEL_DIFERENCA[situacao]} valor={formatarMoeda(diferenca)} forte />
+                <Linha
+                  rotulo={regraDinheiroFisico ? rotuloEsperado : "Valor esperado"}
+                  valor={formatarMoeda(esperado)}
+                />
+                <Linha
+                  rotulo={regraDinheiroFisico ? "Dinheiro contado" : "Valor informado"}
+                  valor={formatarMoeda(informado)}
+                />
+                <Linha
+                  rotulo={
+                    regraDinheiroFisico && situacao !== "conferido"
+                      ? `${LABEL_DIFERENCA[situacao]} (diferença física)`
+                      : LABEL_DIFERENCA[situacao]
+                  }
+                  valor={formatarMoeda(diferenca)}
+                  forte
+                />
               </dl>
             </section>
           ) : null}
