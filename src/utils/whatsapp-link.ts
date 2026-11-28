@@ -83,3 +83,16 @@ export function preencherNome(texto: string, nome: string): string {
   const primeiro = nome.trim().split(/\s+/)[0] ?? "";
   return texto.replaceAll("{{nome}}", primeiro).replaceAll("{nome}", primeiro);
 }
+
+/**
+ * Fase 2 (aniversariantes) — a mensagem padrão de aniversário das Configurações. As mensagens padrão não têm tipo (só
+ * título e conteúdo), então vale a primeira cujo TÍTULO contém "aniversário" (sem diferenciar maiúsculas nem acento).
+ * Nenhuma → `undefined` (quem chama usa a sugestão da loja).
+ */
+export function encontrarMensagemPadraoAniversario<T extends { titulo: string }>(
+  padroes: readonly T[],
+): T | undefined {
+  return padroes.find((item) =>
+    item.titulo.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().includes("aniversario"),
+  );
+}

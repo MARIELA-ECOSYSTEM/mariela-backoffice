@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Cake, CalendarDays, Clock, Loader2, MessageCircle, Send, Users } from "lucide-react";
-import { toast } from "sonner";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Cake, CalendarDays, Clock, Users } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,12 +10,12 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
 import { AvatarPessoa } from "@/components/common/pessoa-card";
-import { useEnviarMensagemWhatsapp } from "@/hooks/use-whatsapp";
-import { mensagemDeErro } from "@/services/api/client";
-import { MENSAGEM_ANIVERSARIO_LOTE, montarMensagemLote } from "@/services/whatsapp/messages";
+import { BotaoWhatsapp } from "@/components/cadastros/botao-whatsapp";
+import {
+  DialogMensagemWhatsapp,
+  type AlvoMensagemWhatsapp,
+} from "@/components/cadastros/dialog-mensagem-whatsapp";
 import {
   PERIODOS_ANIVERSARIO,
   aniversarioNoPeriodo,
@@ -27,6 +26,7 @@ import {
   numeroWhatsapp,
   type PeriodoAniversario,
 } from "@/utils/cliente";
+import { normalizarTelefoneWhatsapp } from "@/utils/whatsapp-link";
 import type { Cliente } from "@/types/cliente";
 
 const ICONES: Record<PeriodoAniversario, typeof Cake> = {
@@ -37,9 +37,11 @@ const ICONES: Record<PeriodoAniversario, typeof Cake> = {
 };
 
 /**
- * Dialog de aniversariantes: abas por período com contagem dinâmica, seleção
- * múltipla de clientes e mensagem personalizável enviada em lote via
- * POST /integracoes/whatsapp/mensagens (um envio por cliente selecionado).
+ * Dialog de aniversariantes: abas por período com contagem dinâmica e, para cada cliente, um botão "Abrir WhatsApp".
+ *
+ * Fase 2 (`wa.me`) — o botão abre o diálogo compartilhado da Fase 1 (`DialogMensagemWhatsapp`) com a mensagem de
+ * aniversário (a padrão das Configurações, se houver) e o nome da cliente; ela revisa, edita e abre a conversa. Uma
+ * conversa por clique: sem envio automático, sem lote, sem fila e sem chamada de envio ao backend.
  */
 export function AniversariantesDialog({
   open,
@@ -51,12 +53,7 @@ export function AniversariantesDialog({
   clientes: Cliente[];
 }) {
   const [periodo, setPeriodo] = useState<PeriodoAniversario>("hoje");
-  const [selecionados, setSelecionados] = useState<string[]>([]);
-  const [mensagem, setMensagem] = useState(MENSAGEM_ANIVERSARIO_LOTE);
-  const enviar = useEnviarMensagemWhatsapp();
-  // Guarda síncrona via ref: impede um duplo clique real em "Enviar" disparar
-  // o laço de envios em lote duas vezes (mesmo padrão da Etapa 20).
-  const enviandoRef = useRef(false);
+  const [alvo, setAlvo] = useState<AlvoMensagemWhatsapp | null>(null);
 
   const porPeriodo = useMemo(() => {
     const mapa = {} as Record<PeriodoAniversario, Cliente[]>;
@@ -73,46 +70,11 @@ export function AniversariantesDialog({
   }, [clientes]);
 
   const lista = useMemo(() => porPeriodo[periodo] ?? [], [porPeriodo, periodo]);
-  const elegiveis = useMemo(() => lista.filter((c) => numeroWhatsapp(c) !== ""), [lista]);
-  const todosSelecionados = elegiveis.length > 0 && selecionados.length === elegiveis.length;
 
   useEffect(() => {
-    if (open) {
-      setPeriodo("hoje");
-      setMensagem(MENSAGEM_ANIVERSARIO_LOTE);
-    }
+    if (open) setPeriodo("hoje");
+    else setAlvo(null);
   }, [open]);
-
-  useEffect(() => {
-    setSelecionados([]);
-  }, [periodo, open]);
-
-  function alternar(id: string) {
-    setSelecionados((atual) =>
-      atual.includes(id) ? atual.filter((item) => item !== id) : [...atual, id],
-    );
-  }
-
-  async function enviarSelecionados() {
-    const alvos = elegiveis.filter((cliente) => selecionados.includes(cliente.id));
-    if (alvos.length === 0 || enviandoRef.current) return;
-    enviandoRef.current = true;
-    try {
-      for (const cliente of alvos) {
-        await enviar.mutateAsync({
-          tipo: "CLIENTE",
-          id: cliente.id,
-          mensagem: montarMensagemLote(mensagem, cliente.nome),
-        });
-      }
-      onOpenChange(false);
-      toast.success(alvos.length === 1 ? "Mensagem enviada." : `${alvos.length} mensagens enviadas.`);
-    } catch (err) {
-      toast.error(mensagemDeErro(err, "Não foi possível enviar as mensagens."));
-    } finally {
-      enviandoRef.current = false;
-    }
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -125,7 +87,8 @@ export function AniversariantesDialog({
             <div className="min-w-0">
               <DialogTitle className="font-display text-3xl">Mensagens de Aniversário</DialogTitle>
               <DialogDescription>
-                Envie mensagens personalizadas para os aniversariantes via WhatsApp.
+                Escolha uma aniversariante, revise a mensagem e abra a conversa no WhatsApp. Nada é
+                enviado por aqui: você envia no próprio WhatsApp.
               </DialogDescription>
             </div>
           </div>
@@ -145,109 +108,78 @@ export function AniversariantesDialog({
           </TabsList>
         </Tabs>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <section className="overflow-hidden rounded-xl border border-border">
-            <header className="flex items-center justify-between gap-2 border-b border-border bg-surface/60 px-3 py-2.5">
-              <p className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <Users aria-hidden className="size-4 text-primary" />
-                Aniversariantes ({lista.length})
-              </p>
-              {elegiveis.length > 0 ? (
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                  <Checkbox
-                    checked={todosSelecionados}
-                    onCheckedChange={(marcado) =>
-                      setSelecionados(marcado === true ? elegiveis.map((c) => c.id) : [])
-                    }
-                  />
-                  Selecionar todos
-                </label>
-              ) : null}
-            </header>
+        <section className="overflow-hidden rounded-xl border border-border">
+          <header className="flex items-center gap-2 border-b border-border bg-surface/60 px-3 py-2.5">
+            <Users aria-hidden className="size-4 text-primary" />
+            <p className="text-sm font-medium text-foreground">Aniversariantes ({lista.length})</p>
+          </header>
 
-            {lista.length === 0 ? (
-              <div className="flex h-56 flex-col items-center justify-center gap-3 text-muted-foreground">
-                <Cake aria-hidden className="size-9 opacity-50" />
-                <p className="text-sm">Nenhum aniversariante encontrado</p>
-              </div>
-            ) : (
-              <ul className="max-h-72 space-y-1 overflow-y-auto p-2">
-                {lista.map((cliente) => {
-                  const anos = idade(cliente.dataNascimento);
-                  const telefone = formatarTelefone(cliente.telefone);
-                  const semTelefone = numeroWhatsapp(cliente) === "";
-                  return (
-                    <li key={cliente.id}>
-                      <label
-                        className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${
-                          selecionados.includes(cliente.id)
-                            ? "border-primary/40 bg-primary-soft/40"
-                            : "border-transparent hover:bg-surface/60"
-                        } ${semTelefone ? "opacity-60" : "cursor-pointer"}`}
-                      >
-                        <Checkbox
-                          checked={selecionados.includes(cliente.id)}
-                          disabled={semTelefone}
-                          onCheckedChange={() => alternar(cliente.id)}
-                        />
-                        <AvatarPessoa nome={cliente.nome} foto={cliente.foto} className="size-9" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-foreground">
-                            {cliente.nome}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {anos === null ? "Idade não informada" : `${anos} anos`} ·{" "}
-                            {diaMesNascimento(cliente.dataNascimento)} ·{" "}
-                            {telefone || "sem telefone"}
-                          </p>
-                        </div>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-
-          <section className="overflow-hidden rounded-xl border border-border">
-            <header className="flex items-center gap-2 border-b border-border bg-surface/60 px-3 py-2.5">
-              <MessageCircle aria-hidden className="size-4 text-primary" />
-              <p className="text-sm font-medium text-foreground">Mensagem Personalizada</p>
-            </header>
-            <div className="space-y-3 p-3">
-              <Textarea
-                aria-label="Mensagem de aniversário"
-                rows={9}
-                maxLength={1000}
-                value={mensagem}
-                onChange={(evento) => setMensagem(evento.target.value)}
-                className="resize-none bg-primary-soft/25"
-              />
-              <p className="rounded-lg border border-primary/15 bg-primary-soft/30 px-3 py-2 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">💡 Dica:</span> A mensagem será
-                personalizada com o nome de cada cliente automaticamente.
-              </p>
+          {lista.length === 0 ? (
+            <div className="flex h-56 flex-col items-center justify-center gap-3 text-muted-foreground">
+              <Cake aria-hidden className="size-9 opacity-50" />
+              <p className="text-sm">Nenhum aniversariante encontrado</p>
             </div>
-          </section>
-        </div>
+          ) : (
+            <ul aria-label="Aniversariantes" className="max-h-80 space-y-1 overflow-y-auto p-2">
+              {lista.map((cliente) => {
+                const anos = idade(cliente.dataNascimento);
+                const telefone = formatarTelefone(cliente.telefone);
+                const whatsapp = normalizarTelefoneWhatsapp(numeroWhatsapp(cliente));
+                return (
+                  <li
+                    key={cliente.id}
+                    data-cliente-id={cliente.id}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-surface/60"
+                  >
+                    <AvatarPessoa nome={cliente.nome} foto={cliente.foto} className="size-9" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">{cliente.nome}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {anos === null ? "Idade não informada" : `${anos} anos`} ·{" "}
+                        {diaMesNascimento(cliente.dataNascimento)} · {telefone || "sem telefone"}
+                      </p>
+                      {whatsapp.valido ? null : (
+                        <p className="flex items-center gap-1 text-xs text-warning">
+                          <AlertTriangle aria-hidden className="size-3.5 shrink-0" />
+                          Sem WhatsApp válido: {whatsapp.motivo}
+                        </p>
+                      )}
+                    </div>
+                    <BotaoWhatsapp
+                      nome={cliente.nome}
+                      numero={numeroWhatsapp(cliente)}
+                      variante="botao"
+                      rotulo="Abrir WhatsApp"
+                      onClick={() =>
+                        setAlvo({
+                          id: cliente.id,
+                          nome: cliente.nome,
+                          telefone: cliente.telefone,
+                          entidade: "CLIENTE",
+                          tipoMensagem: "aniversario",
+                          papel: "Aniversariante",
+                        })
+                      }
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            onClick={() => void enviarSelecionados()}
-            disabled={enviar.isPending || selecionados.length === 0 || !mensagem.trim()}
-          >
-            {enviar.isPending ? (
-              <Loader2 aria-hidden className="size-4 animate-spin" />
-            ) : (
-              <Send aria-hidden className="size-4" />
-            )}
-            {enviar.isPending ? "Enviando…" : `Enviar (${selecionados.length})`}
+            Fechar
           </Button>
         </DialogFooter>
+
+        <DialogMensagemWhatsapp
+          alvo={alvo}
+          onOpenChange={(aberto) => {
+            if (!aberto) setAlvo(null);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

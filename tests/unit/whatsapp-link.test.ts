@@ -4,6 +4,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import {
+  encontrarMensagemPadraoAniversario,
   montarLinkWhatsapp,
   normalizarTelefoneWhatsapp,
   preencherNome,
@@ -171,5 +172,29 @@ describe("preencherNome", () => {
 
   test("sem placeholder, o texto fica igual", () => {
     expect(preencherNome("Bom dia!", "Ana")).toBe("Bom dia!");
+  });
+});
+
+describe("encontrarMensagemPadraoAniversario (Fase 2)", () => {
+  const p = (id: string, titulo: string) => ({ id, titulo, conteudo: `texto ${id}` });
+
+  test("acha pelo título, sem diferenciar maiúsculas nem acento; vale a primeira", () => {
+    const padroes = [p("1", "Saudação"), p("2", "FELIZ ANIVERSARIO"), p("3", "Aniversário VIP")];
+    expect(encontrarMensagemPadraoAniversario(padroes)?.id).toBe("2");
+    expect(encontrarMensagemPadraoAniversario([p("4", "Mensagem de aniversário")])?.id).toBe("4");
+  });
+
+  test("sem mensagem de aniversário (ou lista vazia) → undefined", () => {
+    expect(encontrarMensagemPadraoAniversario([p("1", "Saudação"), p("2", "Pedido pronto")])).toBe(
+      undefined,
+    );
+    expect(encontrarMensagemPadraoAniversario([])).toBe(undefined);
+  });
+
+  test("com {nome}, o conteúdo da padrão de aniversário recebe o primeiro nome", () => {
+    const padrao = encontrarMensagemPadraoAniversario([
+      { id: "1", titulo: "Aniversário", conteudo: "Parabéns, {nome}! 🎂" },
+    ])!;
+    expect(preencherNome(padrao.conteudo, "Bia Souza")).toBe("Parabéns, Bia! 🎂");
   });
 });

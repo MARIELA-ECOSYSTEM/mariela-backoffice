@@ -1049,7 +1049,7 @@ describe("regressão", () => {
     await dialogo(s.pagina).getByLabel("Mensagem", { exact: true }).waitFor();
     assert.ok(!s.backend.chamadas.some(([, c]) => c.startsWith("/integracoes/whatsapp/templates")));
     await dialogo(s.pagina).getByRole("button", { name: "Cancelar" }).click();
-    await s.pagina.getByRole("button", { name: "Aniversariantes (Evolution)" }).waitFor();
+    await s.pagina.getByRole("button", { name: "Aniversariantes", exact: true }).waitFor();
     await s.encerrar();
   });
 });
@@ -1156,6 +1156,141 @@ describe("WhatsApp via link wa.me (Fase 1)", () => {
     assert.equal(await dialogo(s.pagina).count(), 0, "o diálogo não abre");
     assert.deepEqual(await aberturas(s), []);
     assert.deepEqual(escritasWhatsapp(s), []);
+    await s.encerrar();
+  });
+
+  // ─── Fase 2 — aniversariantes pelo link wa.me ───────────────────────────────────────────────────────────────────
+
+  /** Abre "Aniversariantes" e devolve o diálogo da lista + quantas chamadas ao backend havia antes de abrir. */
+  async function abrirAniversariantes(s) {
+    await s.abrirClientes();
+    const antes = s.backend.chamadas.length;
+    await s.pagina.getByRole("button", { name: "Aniversariantes", exact: true }).click();
+    const lista = s.pagina.getByRole("dialog", { name: "Mensagens de Aniversário" });
+    await lista.getByRole("list", { name: "Aniversariantes" }).waitFor();
+    return { lista, antes };
+  }
+  const mensagemAniversario = (s) =>
+    s.pagina.getByRole("dialog", { name: "Mensagem de aniversário" });
+  /** Chamadas ao backend desde `antes` que tocam WhatsApp (Evolution ou oficial) — qualquer método. */
+  const chamadasWhatsappDesde = (s, antes) =>
+    s.backend.chamadas.slice(antes).filter(([, c]) => c.startsWith("/integracoes/whatsapp"));
+
+  test("aniversariantes: lista mantida; um botão por cliente abre o diálogo da cliente certa com a mensagem de aniversário e o nome; edição usada no link; uma conversa por clique; nada enviado", async () => {
+    const s = await novaSessao();
+    await capturarAberturas(s);
+    const { lista, antes } = await abrirAniversariantes(s);
+
+    await lista.getByRole("tab", { name: /Hoje \(3\)/ }).waitFor();
+    for (const nome of ["Ana Fictícia", "Bia Fictícia", "Cris Fictícia"]) {
+      await lista.getByText(nome, { exact: true }).waitFor();
+    }
+    // Sem seleção múltipla nem envio em lote.
+    assert.equal(await lista.getByRole("checkbox").count(), 0);
+    assert.equal(await lista.getByRole("button", { name: /Enviar/ }).count(), 0);
+    assert.equal(await lista.getByRole("button", { name: /^Abrir WhatsApp de / }).count(), 3);
+
+    await lista.getByRole("button", { name: "Abrir WhatsApp de Bia Fictícia" }).click();
+    const d = mensagemAniversario(s);
+    await d.getByText("Bia Fictícia", { exact: true }).waitFor();
+    const texto = d.getByLabel("Mensagem", { exact: true });
+    const sugerida = await texto.inputValue();
+    assert.match(sugerida, /^Olá, Bia! 💜/, "nome preenchido");
+    assert.match(sugerida, /feliz aniversário/, "mensagem de aniversário");
+    assert.deepEqual(await aberturas(s), [], "abrir o diálogo não abre conversa");
+
+    const editada = `${sugerida}\nPassa aqui para pegar seu mimo 🎁`;
+    await texto.fill(editada);
+    await d.getByRole("button", { name: "Abrir no WhatsApp" }).click();
+    await s.pagina.getByText("Conversa aberta no WhatsApp.").waitFor();
+    assert.deepEqual(await aberturas(s), [
+      `https://wa.me/5583900000002?text=${encodeURIComponent(editada)}`,
+    ]);
+
+    // O diálogo da mensagem fecha e a lista continua aberta para a próxima aniversariante.
+    await lista.getByRole("button", { name: "Abrir WhatsApp de Cris Fictícia" }).click();
+    await mensagemAniversario(s).getByText("Cris Fictícia", { exact: true }).waitFor();
+    await mensagemAniversario(s).getByRole("button", { name: "Abrir no WhatsApp" }).click();
+    await esperarAte(async () => (await aberturas(s)).length === 2, "segunda abertura");
+    const segunda = new URL((await aberturas(s))[1]);
+    assert.equal(segunda.pathname, "/5583900000003");
+    assert.match(segunda.searchParams.get("text"), /^Olá, Cris! 💜/);
+
+    assert.deepEqual(chamadasWhatsappDesde(s, antes), [], "nem Evolution nem Meta");
+    assert.deepEqual(
+      s.backend.chamadas.slice(antes).filter(([mt]) => mt !== "GET"),
+      [],
+      "nenhuma escrita no backend",
+    );
+    await s.encerrar();
+  });
+
+  test("aniversariantes: usa a mensagem padrão de aniversário das Configurações com {nome}; Cancelar e Esc voltam à lista; Fechar fecha tudo", async () => {
+    const s = await novaSessao();
+    s.backend.mensagensPadrao.push({
+      id: "00000000-0000-4000-8000-00000000000a",
+      titulo: "Feliz aniversário",
+      conteudo: "Parabéns, {nome}! 🎂 Hoje tem 10% para você.",
+    });
+    await capturarAberturas(s);
+    const { lista, antes } = await abrirAniversariantes(s);
+
+    await lista.getByRole("button", { name: "Abrir WhatsApp de Ana Fictícia" }).click();
+    const d = mensagemAniversario(s);
+    const texto = d.getByLabel("Mensagem", { exact: true });
+    await esperarAte(
+      async () => (await texto.inputValue()) === "Parabéns, Ana! 🎂 Hoje tem 10% para você.",
+      "mensagem padrão de aniversário preenchida",
+    );
+    assert.match(
+      await d.getByRole("combobox", { name: "Mensagem padrão" }).innerText(),
+      /Feliz aniversário/,
+    );
+
+    await d.getByRole("button", { name: "Cancelar" }).click();
+    await esperarAte(async () => (await d.count()) === 0, "diálogo da mensagem fechado");
+    await lista.getByRole("button", { name: "Abrir WhatsApp de Ana Fictícia" }).waitFor();
+
+    await lista.getByRole("button", { name: "Abrir WhatsApp de Bia Fictícia" }).click();
+    await d.getByLabel("Mensagem", { exact: true }).waitFor();
+    await s.pagina.keyboard.press("Escape");
+    await esperarAte(async () => (await d.count()) === 0, "Esc fecha só a mensagem");
+    await lista.getByRole("button", { name: "Abrir WhatsApp de Bia Fictícia" }).waitFor();
+
+    await lista.getByRole("button", { name: "Fechar" }).click();
+    await esperarAte(async () => (await dialogo(s.pagina).count()) === 0, "tudo fechado");
+    assert.deepEqual(await aberturas(s), [], "cancelar e fechar não abrem conversa");
+    assert.deepEqual(chamadasWhatsappDesde(s, antes), []);
+    await s.encerrar();
+  });
+
+  test("aniversariantes: telefone inválido mostra o motivo e não abre diálogo nem conversa", async () => {
+    const s = await novaSessao();
+    await capturarAberturas(s);
+    await s.contexto.route(
+      (u) => u.pathname === `${PREFIXO_API}/api/v1/clientes`,
+      (r) =>
+        r.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: [
+              ...CLIENTES,
+              cliente("65f1a2b3c4d5e6f7a8b9c0d9", "Dani Fictícia", "(83) 9999-1234", 1993),
+            ],
+          }),
+        }),
+    );
+    const { lista, antes } = await abrirAniversariantes(s);
+    const linha = lista.locator('[data-cliente-id="65f1a2b3c4d5e6f7a8b9c0d9"]');
+    await linha.getByText(/^Sem WhatsApp válido: Parece um celular sem o nono dígito/).waitFor();
+    const botao = linha.getByRole("button", { name: "Abrir WhatsApp de Dani Fictícia" });
+    assert.match(await botao.getAttribute("title"), /^Telefone inválido para o WhatsApp: /);
+    await botao.click();
+    await s.pagina.getByText("Não é possível abrir o WhatsApp de Dani Fictícia").waitFor();
+    assert.equal(await mensagemAniversario(s).count(), 0, "o diálogo da mensagem não abre");
+    assert.deepEqual(await aberturas(s), []);
+    assert.deepEqual(chamadasWhatsappDesde(s, antes), []);
     await s.encerrar();
   });
 });

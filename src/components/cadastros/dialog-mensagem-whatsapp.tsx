@@ -24,7 +24,11 @@ import type { TipoDestinatarioWhatsapp } from "@/services/api/whatsapp.api";
 import { abrirConversaWhatsapp } from "@/services/whatsapp/abrir-conversa";
 import { TEMPLATES_WHATSAPP, type TipoMensagemWhatsapp } from "@/services/whatsapp/messages";
 import { formatarTelefone } from "@/utils/cliente";
-import { montarLinkWhatsapp, preencherNome } from "@/utils/whatsapp-link";
+import {
+  encontrarMensagemPadraoAniversario,
+  montarLinkWhatsapp,
+  preencherNome,
+} from "@/utils/whatsapp-link";
 
 /**
  * Destinatário genérico: serve para cliente, fornecedor e vendedor. `tipoMensagem` escolhe a sugestão de texto.
@@ -49,6 +53,7 @@ const EM_BRANCO = "__em_branco__";
  * Fase 1 (`wa.me`) — monta o link oficial `https://wa.me/55DDDNUMERO?text=...` com a mensagem ATUAL (escolhida entre a
  * sugestão da loja e as mensagens padrão de Configurações, com `{nome}`/`{{nome}}` trocado pelo primeiro nome, e
  * editada à vontade) e abre a conversa no WhatsApp. NADA é enviado por aqui: a pessoa confere e envia no WhatsApp.
+ * Fase 2 — com `tipoMensagem: "aniversario"`, a mensagem inicial é a padrão de aniversário das Configurações, se houver.
  */
 export function DialogMensagemWhatsapp({
   alvo,
@@ -65,12 +70,20 @@ export function DialogMensagemWhatsapp({
   const template = alvo ? TEMPLATES_WHATSAPP[alvo.tipoMensagem] : null;
   const telefone = alvo ? formatarTelefone(alvo.telefone) : "";
   const link = alvo ? montarLinkWhatsapp(alvo.telefone, mensagem) : null;
+  // Fase 2 — aniversário: começa pela mensagem padrão de aniversário das Configurações, se houver.
+  const padraoAniversario = useMemo(() => encontrarMensagemPadraoAniversario(padroes), [padroes]);
 
   useEffect(() => {
     if (!alvo) return;
-    setEscolha(SUGESTAO);
-    setMensagem(preencherNome(TEMPLATES_WHATSAPP[alvo.tipoMensagem].corpo, alvo.nome));
-  }, [alvo]);
+    const padrao = alvo.tipoMensagem === "aniversario" ? padraoAniversario : undefined;
+    setEscolha(padrao ? padrao.id : SUGESTAO);
+    setMensagem(
+      preencherNome(
+        padrao ? padrao.conteudo : TEMPLATES_WHATSAPP[alvo.tipoMensagem].corpo,
+        alvo.nome,
+      ),
+    );
+  }, [alvo, padraoAniversario]);
 
   function escolher(valor: string) {
     if (!alvo) return;

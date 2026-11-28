@@ -15,11 +15,14 @@ export function BotaoWhatsapp({
   nome,
   numero,
   variante = "icone",
+  rotulo,
   onClick,
 }: {
   nome: string;
   numero: string;
   variante?: "icone" | "botao";
+  /** Texto do botão (variante "botao"); com ele, o nome acessível passa a incluir o nome da pessoa. */
+  rotulo?: string;
   onClick: () => void;
 }) {
   const telefone = normalizarTelefoneWhatsapp(numero);
@@ -43,13 +46,14 @@ export function BotaoWhatsapp({
         size="sm"
         onClick={clicar}
         title={titulo}
+        aria-label={rotulo ? `${rotulo} de ${nome}` : undefined}
         className={cn(
           "border-success/40 text-success hover:bg-success/10 hover:text-success",
           !telefone.valido && "opacity-50",
         )}
       >
         <MessageCircle aria-hidden className="size-4" />
-        WhatsApp
+        {rotulo ?? "WhatsApp"}
       </Button>
     );
   }

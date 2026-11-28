@@ -227,7 +227,7 @@ function ClientesPage() {
           </Button>
           <Button variant="outline" onClick={() => setAniversariantesAberto(true)}>
             <Cake aria-hidden className="size-4" />
-            Aniversariantes (Evolution)
+            Aniversariantes
           </Button>
           <Button onClick={abrirNovo}>
             <Plus aria-hidden className="size-4" />
