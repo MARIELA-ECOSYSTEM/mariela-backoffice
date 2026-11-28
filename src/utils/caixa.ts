@@ -63,6 +63,26 @@ export function conferenciaDoFechamento(resumo: ResumoCaixa, valorDigitado: stri
   };
 }
 
+/**
+ * Fase 2 (P2-02) — o que a tela mostra como valor da GAVETA: o dinheiro físico esperado (`dinheiroEsperado`) quando o
+ * servidor o informa; num servidor anterior, o saldo de todas as formas com o rótulo antigo ("Saldo esperado").
+ */
+export function gavetaDoResumo(resumo: ResumoCaixa): { valor: number; rotulo: string } {
+  return typeof resumo.dinheiroEsperado === "number"
+    ? { valor: resumo.dinheiroEsperado, rotulo: "Dinheiro esperado na gaveta" }
+    : { valor: resumo.saldoEsperado, rotulo: "Saldo esperado" };
+}
+
+/** Mesma comparação do backend (`normalizarFormaPagamento`): sem acento, sem diferença de maiúsculas e espaços. */
+function normalizarForma(forma: string): string {
+  return forma.normalize("NFD").replace(/\p{M}/gu, "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Forma padrão das movimentações manuais da gaveta: "Dinheiro" (como cadastrada); sem ela, a primeira da lista. */
+export function formaPadraoDaGaveta(formas: readonly string[]): string {
+  return formas.find((forma) => normalizarForma(forma) === "dinheiro") ?? formas[0] ?? "Dinheiro";
+}
+
 export type OrdenacaoCaixa =
   | "data-desc"
   | "data-asc"

@@ -18,42 +18,59 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AvisoOperacaoPendente } from "@/components/common/aviso-operacao-pendente";
 import { useConfiguracoes } from "@/hooks/use-configuracoes";
 import { formatarMoeda } from "@/utils/format";
-import { gerarIdempotencyKey } from "@/utils/idempotencia";
+import { formaPadraoDaGaveta, gavetaDoResumo } from "@/utils/caixa";
+import type { OperacaoPendente } from "@/utils/operacao-pendente";
 import {
   MOTIVOS_ENTRADA,
   MOTIVOS_SAIDA,
   type EntradaCaixaPayload,
+  type ResumoCaixa,
   type SaidaCaixaPayload,
 } from "@/types/caixa";
+
+const FORMAS_PADRAO = ["Dinheiro"];
 
 /**
  * Entrada/saída manual. A saída exige motivo, descrição e forma de pagamento
  * — mas NÃO bloqueia por saldo (Etapa 18.6): o backend permite sangria maior
  * que o saldo disponível (Caixa pode ficar negativo, ver Etapas 18.2-18.4),
  * então o frontend não pode impedir uma operação que o backend permite
- * deliberadamente. `saldoDisponivel` continua exibido apenas como informação
+ * deliberadamente. O dinheiro da gaveta continua exibido apenas como informação
  * ao operador, nunca como limite de validação.
+ *
+ * Fase 2 — (P2-02) a informação é o DINHEIRO esperado na gaveta (`gavetaDoResumo`), não o saldo de todas as formas, e
+ * a forma de pagamento vem preenchida com "Dinheiro". (P1-02) O payload sai SEM `idempotencyKey`: a página anexa a
+ * chave da operação; com uma operação incerta, o diálogo mostra só o aviso (reenviar a mesma ou descartar).
  */
 export function MovimentacaoCaixaDialog({
   tipo,
   open,
   onOpenChange,
-  saldoDisponivel,
+  resumo,
   salvando,
+  pendente,
   onConfirmar,
+  onTentarNovamente,
+  onDescartarPendente,
 }: {
   tipo: "entrada" | "saida";
   open: boolean;
   onOpenChange: (aberto: boolean) => void;
-  saldoDisponivel: number;
+  resumo: ResumoCaixa;
   salvando: boolean;
+  /** Operação incerta deste tipo neste caixa, se houver. */
+  pendente: OperacaoPendente<EntradaCaixaPayload | SaidaCaixaPayload> | null;
   onConfirmar: (payload: EntradaCaixaPayload | SaidaCaixaPayload) => void;
+  onTentarNovamente: () => void;
+  onDescartarPendente: () => void;
 }) {
   const { data: configuracoes } = useConfiguracoes();
-  const formas = configuracoes?.formasPagamento ?? ["Dinheiro"];
+  const formas = configuracoes?.formasPagamento ?? FORMAS_PADRAO;
   const sugestoes = tipo === "entrada" ? MOTIVOS_ENTRADA : MOTIVOS_SAIDA;
+  const gaveta = gavetaDoResumo(resumo);
 
   const [descricao, setDescricao] = useState("");
   const [valor, setValor] = useState("");
@@ -66,7 +83,7 @@ export function MovimentacaoCaixaDialog({
     if (!open) return;
     setDescricao("");
     setValor("");
-    setFormaPagamento(formas[0] ?? "Dinheiro");
+    setFormaPagamento(formaPadraoDaGaveta(formas));
     setMotivo(sugestoes[0]!);
     setObservacao("");
     setConfirmando(false);
@@ -84,7 +101,6 @@ export function MovimentacaoCaixaDialog({
       valor: numero,
       formaPagamento,
       observacao: observacao.trim(),
-      idempotencyKey: gerarIdempotencyKey(),
     };
     onConfirmar(tipo === "saida" ? { ...base, motivo } : base);
   }
@@ -99,11 +115,20 @@ export function MovimentacaoCaixaDialog({
           <DialogDescription>
             {tipo === "entrada"
               ? "Suprimentos e ajustes que aumentam o valor em gaveta."
-              : `Retiradas e despesas. Saldo disponível: ${formatarMoeda(saldoDisponivel)}.`}
+              : `Retiradas e despesas. ${gaveta.rotulo}: ${formatarMoeda(gaveta.valor)}.`}
           </DialogDescription>
         </DialogHeader>
 
-        {confirmando ? (
+        {pendente ? (
+          <AvisoOperacaoPendente
+            resumo={`${tipo === "entrada" ? "Entrada" : "Saída"} de ${formatarMoeda(
+              pendente.payload.valor,
+            )} em ${pendente.payload.formaPagamento} — ${pendente.payload.descricao}`}
+            enviando={salvando}
+            onTentarNovamente={onTentarNovamente}
+            onDescartar={onDescartarPendente}
+          />
+        ) : confirmando ? (
           <div className="space-y-3">
             <p className="text-sm">Confirmar o registro desta movimentação?</p>
             <dl className="space-y-1 rounded-lg bg-secondary/60 px-4 py-3 text-sm">
@@ -205,18 +230,26 @@ export function MovimentacaoCaixaDialog({
         )}
 
         <DialogFooter>
-          <Button
-            variant="ghost"
-            onClick={() => (confirmando ? setConfirmando(false) : onOpenChange(false))}
-          >
-            {confirmando ? "Voltar" : "Cancelar"}
-          </Button>
-          <Button
-            disabled={invalido || salvando}
-            onClick={() => (confirmando ? confirmar() : setConfirmando(true))}
-          >
-            {salvando ? "Registrando…" : confirmando ? "Confirmar" : "Continuar"}
-          </Button>
+          {pendente ? (
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Fechar
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => (confirmando ? setConfirmando(false) : onOpenChange(false))}
+              >
+                {confirmando ? "Voltar" : "Cancelar"}
+              </Button>
+              <Button
+                disabled={invalido || salvando}
+                onClick={() => (confirmando ? confirmar() : setConfirmando(true))}
+              >
+                {salvando ? "Registrando…" : confirmando ? "Confirmar" : "Continuar"}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

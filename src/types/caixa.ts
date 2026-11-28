@@ -246,7 +246,8 @@ export interface EntradaCaixaPayload {
   formaPagamento: FormaPagamento;
   observacao?: string | undefined;
   /**
-   * Gerada no cliente a cada tentativa, para o backend deduplicar retries
+   * Uma por OPERAÇÃO (Fase 2, `utils/operacao-pendente.ts`), reusada em toda
+   * nova tentativa, para o backend deduplicar retries
    * (Etapa 18.30). `FechamentoCaixaPayload` NÃO tem este campo: o backend
    * real não aceita `idempotencyKey` no fechamento (`FechamentoCaixaDto`
    * não a declara), então o frontend não deve enviá-la ali.

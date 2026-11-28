@@ -258,7 +258,7 @@ export interface VendasEstatisticas {
 export interface BaixaParcelaPayload {
   formaPagamento: string;
   /**
-   * Gerada no cliente a cada tentativa, para o backend deduplicar retries.
+   * Uma por OPERAÇÃO (Fase 2, `utils/operacao-pendente.ts`), reusada em toda nova tentativa, para o backend deduplicar retries.
    * Obrigatória no backend real (`BaixarParcelaDto.idempotencyKey`, `@IsNotEmpty()`).
    */
   idempotencyKey: string;
@@ -280,7 +280,7 @@ export interface RegistrarRecebimentoPayload {
   /** Obrigatório no backend quando modalidade = "debito" | "credito". */
   adquirenteId?: string;
   /**
-   * Gerada no cliente a cada tentativa, para o backend deduplicar retries.
+   * Uma por OPERAÇÃO (Fase 2, `utils/operacao-pendente.ts`), reusada em toda nova tentativa, para o backend deduplicar retries.
    * Obrigatória no backend real (`RegistrarRecebimentoDto.idempotencyKey`, `@IsNotEmpty()`).
    */
   idempotencyKey: string;

@@ -28,7 +28,7 @@ import {
   CancelamentoDialog,
   type AvisoOperacaoCancelamento,
 } from "@/components/vendas/cancelamento-dialog";
-import { RecebimentoDialog } from "@/components/vendas/recebimento-dialog";
+import { RecebimentoDialog, type DadosRecebimento } from "@/components/vendas/recebimento-dialog";
 import {
   useBaixarParcela,
   useCancelarVenda,
@@ -48,6 +48,13 @@ import {
 import { formatarData, formatarDataHora, formatarMoeda, pluralizar } from "@/utils/format";
 import { gerarIdempotencyKey } from "@/utils/idempotencia";
 import {
+  concluirOperacao,
+  contextoOperacao,
+  descartarOperacao,
+  iniciarOperacao,
+  operacaoPendente,
+} from "@/utils/operacao-pendente";
+import {
   avaliarOperacaoPelaChave,
   decidirChave,
   ehResultadoIncerto,
@@ -63,11 +70,7 @@ import {
   type StatusRestauracaoOperacao,
 } from "@/utils/operacao-cancelamento";
 import { vendasApi } from "@/services/api/vendas.api";
-import {
-  LABEL_STATUS_VENDA,
-  type CancelamentoPayload,
-  type RegistrarRecebimentoPayload,
-} from "@/types/venda";
+import { LABEL_STATUS_VENDA, type CancelamentoPayload, type ParcelaVenda } from "@/types/venda";
 import { VARIANTE_STATUS_VENDA, descricaoItemVenda, percentualDesconto } from "@/utils/venda";
 
 export const Route = createFileRoute("/_backoffice/vendas/$id")({
@@ -262,48 +265,64 @@ function VendaDetalhePage() {
   const receber = useReceberPagamento(id);
   const queryClient = useQueryClient();
   const [cancelamentoAberto, setCancelamentoAberto] = useState(false);
-  const [recebimentoAberto, setRecebimentoAberto] = useState(false);
-  // Guardas síncronas via ref — Etapa 20.20. `baixarParcela` NÃO recebeu
-  // guarda: o backend (vendas.service.ts `baixarParcela`) marca `parcela
-  // .pagoEm` dentro do mesmo `salvarComRetentativa` (retry com concorrência
-  // otimista do Mongoose, `optimisticConcurrency: true` no schema) e relê
-  // esse campo a cada tentativa — uma parcela só pode ser baixada uma única
-  // vez, com ou sem `idempotencyKey` e mesmo sob duas requisições
-  // concorrentes com chaves diferentes. Já `registrarRecebimento` e
-  // `confirmarCancelamento` (devolução parcial) NÃO têm um invariante
-  // equivalente para valores/quantidades PARCIAIS: se o usuário recebe/
-  // devolve menos que o saldo/quantidade total, o saldo remanescente após a
-  // 1ª chamada ainda é suficiente para a 2ª chamada (com sua própria
-  // idempotencyKey diferente) passar pelas mesmas validações e duplicar o
-  // efeito financeiro/de estoque — confirmado por leitura de
-  // `vendas.service.ts` (`receberPagamento`, `cancelar` caminho parcial),
-  // não por reprodução dinâmica (proibida sem fabricar dados financeiros).
-  const registrandoRecebimentoRef = useRef(false);
+  /**
+   * Fase 2 — "Receber pagamento" (valor livre) e "Dar baixa" (uma parcela) usam o MESMO diálogo
+   * (`RecebimentoDialog`): `null` = fechado; `{ parcela: null }` = recebimento livre; `{ parcela }` = baixa da parcela.
+   */
+  const [recebimento, setRecebimento] = useState<{ parcela: ParcelaVenda | null } | null>(null);
+  // O registro das operações pendentes fica fora do React (`utils/operacao-pendente.ts`); este contador só força a
+  // releitura dele depois de cada envio/descarte.
+  const [, setVersaoPendentes] = useState(0);
+  // Guarda síncrona via ref — Etapa 20.20 — do cancelamento. O duplo clique no recebimento/baixa é barrado por
+  // `iniciarOperacao` (recusa um segundo envio enquanto o primeiro está em andamento).
   const cancelandoRef = useRef(false);
 
-  async function baixarParcela(parcelaId: string, formaPagamento: string) {
-    try {
-      await baixar.mutateAsync({
-        parcelaId,
-        payload: { formaPagamento, idempotencyKey: gerarIdempotencyKey() },
-      });
-      toast.success("Parcela baixada.");
-    } catch (err) {
-      toast.error(mensagemDeErro(err, "Não foi possível baixar a parcela."));
-    }
+  function contextoDoRecebimento(parcela: ParcelaVenda | null): string {
+    return parcela
+      ? contextoOperacao.baixaParcela(id, parcela.id)
+      : contextoOperacao.recebimento(id);
   }
 
-  async function registrarRecebimento(payload: RegistrarRecebimentoPayload) {
-    if (registrandoRecebimentoRef.current) return;
-    registrandoRecebimentoRef.current = true;
+  /**
+   * Fase 2 (P1-02/P2-01) — UMA `idempotencyKey` por operação de recebimento ou baixa, reusada em toda nova tentativa.
+   * Recebimento parcial NÃO tem invariante no backend que barre uma segunda chamada com chave diferente (o saldo
+   * remanescente ainda comporta outro recebimento): por isso uma operação INCERTA fica pendente e só pode ser
+   * reenviada (mesma chave → o backend devolve o pagamento já gravado) ou descartada pelo operador.
+   */
+  async function registrarRecebimento(parcela: ParcelaVenda | null, dados: DadosRecebimento) {
+    const contexto = contextoDoRecebimento(parcela);
+    const operacao = iniciarOperacao(contexto, dados);
+    if (!operacao) return; // envio desta operação ainda em andamento
+    setVersaoPendentes((versao) => versao + 1);
     try {
-      await receber.mutateAsync(payload);
-      toast.success("Recebimento registrado.");
-      setRecebimentoAberto(false);
+      if (parcela) {
+        await baixar.mutateAsync({
+          parcelaId: parcela.id,
+          payload: { formaPagamento: operacao.payload.forma, idempotencyKey: operacao.chave },
+        });
+      } else {
+        await receber.mutateAsync({ ...operacao.payload, idempotencyKey: operacao.chave });
+      }
+      concluirOperacao(contexto);
+      toast.success(parcela ? "Parcela baixada." : "Recebimento registrado.");
+      setRecebimento(null);
     } catch (err) {
-      toast.error(mensagemDeErro(err, "Não foi possível registrar o recebimento."));
+      if (concluirOperacao(contexto, err) === "incerta") {
+        toast.error(
+          "O servidor não confirmou o recebimento. Use “Tentar novamente” — não registre de novo.",
+        );
+      } else {
+        toast.error(
+          mensagemDeErro(
+            err,
+            parcela
+              ? "Não foi possível baixar a parcela."
+              : "Não foi possível registrar o recebimento.",
+          ),
+        );
+      }
     } finally {
-      registrandoRecebimentoRef.current = false;
+      setVersaoPendentes((versao) => versao + 1);
     }
   }
 
@@ -646,6 +665,12 @@ function VendaDetalhePage() {
     }
   }
 
+  const operacaoDoRecebimento = recebimento
+    ? operacaoPendente<DadosRecebimento>(contextoDoRecebimento(recebimento.parcela))
+    : null;
+  const pendenteDoRecebimento =
+    operacaoDoRecebimento?.estado === "incerta" ? operacaoDoRecebimento : null;
+
   return (
     <Page
       titulo="Detalhe da venda"
@@ -664,7 +689,7 @@ function VendaDetalhePage() {
             </Link>
           </Button>
           {venda && venda.status === "em_pagamento" && venda.valorPendente > 0 ? (
-            <Button onClick={() => setRecebimentoAberto(true)}>
+            <Button onClick={() => setRecebimento({ parcela: null })}>
               <HandCoins aria-hidden className="size-4" />
               Receber pagamento
             </Button>
@@ -876,7 +901,7 @@ function VendaDetalhePage() {
                             size="sm"
                             variant="outline"
                             disabled={baixar.isPending}
-                            onClick={() => void baixarParcela(parcela.id, venda.formaPagamento)}
+                            onClick={() => setRecebimento({ parcela })}
                           >
                             Dar baixa
                           </Button>
@@ -1029,10 +1054,27 @@ function VendaDetalhePage() {
 
           <RecebimentoDialog
             venda={venda}
-            open={recebimentoAberto}
-            onOpenChange={setRecebimentoAberto}
-            salvando={receber.isPending}
-            onConfirmar={(payload) => void registrarRecebimento(payload)}
+            parcela={recebimento?.parcela ?? null}
+            open={recebimento !== null}
+            onOpenChange={(aberto) => {
+              if (!aberto) setRecebimento(null);
+            }}
+            salvando={receber.isPending || baixar.isPending}
+            pendente={pendenteDoRecebimento}
+            onConfirmar={(dados) => void registrarRecebimento(recebimento?.parcela ?? null, dados)}
+            onTentarNovamente={() => {
+              // A operação incerta é reenviada com o próprio payload e a própria chave (o argumento é ignorado).
+              if (pendenteDoRecebimento) {
+                void registrarRecebimento(
+                  recebimento?.parcela ?? null,
+                  pendenteDoRecebimento.payload,
+                );
+              }
+            }}
+            onDescartarPendente={() => {
+              descartarOperacao(contextoDoRecebimento(recebimento?.parcela ?? null));
+              setVersaoPendentes((versao) => versao + 1);
+            }}
           />
         </div>
       )}

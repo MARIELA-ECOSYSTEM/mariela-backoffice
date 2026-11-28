@@ -5,7 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CodigoBadge } from "@/components/common/codigo-badge";
 import { LABEL_STATUS_CAIXA, type Caixa } from "@/types/caixa";
-import { LABEL_DIFERENCA, VARIANTE_STATUS_CAIXA, situacaoDiferenca } from "@/utils/caixa";
+import {
+  LABEL_DIFERENCA,
+  VARIANTE_STATUS_CAIXA,
+  gavetaDoResumo,
+  situacaoDiferenca,
+} from "@/utils/caixa";
 import { formatarDataHora, formatarMoeda, pluralizar } from "@/utils/format";
 
 export function CaixasGrid({ children }: { children: React.ReactNode }) {
@@ -25,6 +30,7 @@ export function CaixasGridSkeleton() {
 /** Card de caixa — mesma linguagem visual das listagens de vendas e cadastros. */
 export function CaixaCard({ caixa }: { caixa: Caixa }) {
   const diferenca = caixa.fechamento ? situacaoDiferenca(caixa.fechamento.diferenca) : null;
+  const gaveta = gavetaDoResumo(caixa.resumo);
 
   return (
     <Card className="group h-full overflow-hidden transition-shadow duration-200 hover:shadow-raised">
@@ -42,9 +48,9 @@ export function CaixaCard({ caixa }: { caixa: Caixa }) {
             params={{ id: caixa.id }}
             className="font-display text-2xl leading-tight transition-colors hover:text-primary"
           >
-            {formatarMoeda(caixa.resumo.saldoEsperado)}
+            {formatarMoeda(gaveta.valor)}
           </Link>
-          <p className="mt-1 text-xs font-medium text-muted-foreground">Saldo esperado</p>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">{gaveta.rotulo}</p>
         </div>
 
         <div className="space-y-1.5 text-sm">

@@ -34,7 +34,19 @@ import {
   type EntradaCaixaPayload,
   type SaidaCaixaPayload,
 } from "@/types/caixa";
-import { LABEL_DIFERENCA, VARIANTE_STATUS_CAIXA, situacaoDiferenca } from "@/utils/caixa";
+import {
+  LABEL_DIFERENCA,
+  VARIANTE_STATUS_CAIXA,
+  gavetaDoResumo,
+  situacaoDiferenca,
+} from "@/utils/caixa";
+import {
+  concluirOperacao,
+  contextoOperacao,
+  descartarOperacao,
+  iniciarOperacao,
+  operacaoPendente,
+} from "@/utils/operacao-pendente";
 import { LABEL_STATUS_VENDA } from "@/types/venda";
 import { VARIANTE_STATUS_VENDA } from "@/utils/venda";
 
@@ -153,13 +165,12 @@ function CaixaDetalhePage() {
 
   const [movimentacao, setMovimentacao] = useState<"entrada" | "saida" | null>(null);
   const [fechamentoAberto, setFechamentoAberto] = useState(false);
-  // Guarda síncrona via ref: `entrada.isPending`/`saida.isPending` só refletem
-  // a mutação em andamento após o próximo render, o que não é rápido o
-  // suficiente para barrar um duplo clique real no botão "Confirmar" do
-  // diálogo (o segundo clique pode disparar antes do botão ser desabilitado).
-  // Um ref muda de valor imediatamente. Precisa ficar antes dos `return`
-  // condicionais abaixo (regra dos hooks: mesma ordem em todo render).
-  const registrandoRef = useRef(false);
+  // Fase 2 (P1-02) — o registro das operações pendentes fica fora do React (`utils/operacao-pendente.ts`); este
+  // contador só força a releitura dele depois de cada envio/descarte.
+  const [, setVersaoPendentes] = useState(0);
+  // Guarda síncrona via ref para o fechamento (o duplo clique nas movimentações é barrado por `iniciarOperacao`, que
+  // recusa um segundo envio enquanto o primeiro está em andamento). Precisa ficar antes dos `return` condicionais
+  // abaixo (regra dos hooks: mesma ordem em todo render).
   const fechandoRef = useRef(false);
 
   if (isPending) {
@@ -181,25 +192,46 @@ function CaixaDetalhePage() {
   const aberto = caixa.status === "aberto";
   const diferenca = caixa.fechamento ? situacaoDiferenca(caixa.fechamento.diferenca) : null;
 
+  const gaveta = gavetaDoResumo(caixa.resumo);
+  const pendenteDoDialogo = movimentacao
+    ? operacaoPendente<EntradaCaixaPayload | SaidaCaixaPayload>(
+        contextoOperacao.caixa(movimentacao, id),
+      )
+    : null;
+
+  /**
+   * Fase 2 (P1-02) — UMA `idempotencyKey` por operação: uma nova tentativa de uma operação incerta reenvia o mesmo
+   * payload com a mesma chave (o backend devolve o movimento já gravado, sem duplicar).
+   */
   function registrar(tipo: "entrada" | "saida", payload: EntradaCaixaPayload | SaidaCaixaPayload) {
-    if (registrandoRef.current) return;
-    registrandoRef.current = true;
+    const contexto = contextoOperacao.caixa(tipo, id);
+    const operacao = iniciarOperacao(contexto, payload);
+    if (!operacao) return; // envio desta operação ainda em andamento
+    const enviado = { ...operacao.payload, idempotencyKey: operacao.chave };
     const callbacks = {
       onSuccess: () => {
+        concluirOperacao(contexto);
         toast.success(tipo === "entrada" ? "Entrada registrada." : "Saída registrada.");
         setMovimentacao(null);
       },
-      onError: (erro: unknown) => toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação.")),
-      onSettled: () => {
-        registrandoRef.current = false;
+      onError: (erro: unknown) => {
+        if (concluirOperacao(contexto, erro) === "incerta") {
+          toast.error(
+            "O servidor não confirmou a operação. Use “Tentar novamente” — não registre de novo.",
+          );
+        } else {
+          toast.error(mensagemDeErro(erro, "Não foi possível concluir a operação."));
+        }
       },
+      onSettled: () => setVersaoPendentes((versao) => versao + 1),
     };
+    setVersaoPendentes((versao) => versao + 1);
     // `motivo` só existe em SaidaCaixaPayload — usado aqui como discriminante
     // para o TypeScript estreitar corretamente o tipo de `payload`.
-    if ("motivo" in payload) {
-      saida.mutate(payload, callbacks);
+    if ("motivo" in enviado) {
+      saida.mutate(enviado, callbacks);
     } else {
-      entrada.mutate(payload, callbacks);
+      entrada.mutate(enviado, callbacks);
     }
   }
 
@@ -259,8 +291,8 @@ function CaixaDetalhePage() {
           <DadoCabecalho rotulo="Valor inicial">
             {formatarMoeda(caixa.abertura.valorInicial)}
           </DadoCabecalho>
-          <DadoCabecalho rotulo="Saldo esperado" destaque>
-            {formatarMoeda(caixa.resumo.saldoEsperado)}
+          <DadoCabecalho rotulo={gaveta.rotulo} destaque>
+            {formatarMoeda(gaveta.valor)}
           </DadoCabecalho>
           {caixa.fechamento && diferenca ? (
             <>
@@ -330,7 +362,22 @@ function CaixaDetalhePage() {
 
           <GrupoResumo titulo="Saldo">
             <ResumoItem rotulo="Valor de abertura" valor={caixa.resumo.valorAbertura} />
-            <ResumoItem rotulo="Saldo esperado" valor={caixa.resumo.saldoEsperado} tom="destaque" />
+            {typeof caixa.resumo.dinheiroEsperado === "number" ? (
+              <>
+                <ResumoItem
+                  rotulo="Dinheiro esperado na gaveta"
+                  valor={caixa.resumo.dinheiroEsperado}
+                  tom="destaque"
+                />
+                <ResumoItem rotulo="Saldo de todas as formas" valor={caixa.resumo.saldoEsperado} />
+              </>
+            ) : (
+              <ResumoItem
+                rotulo="Saldo esperado"
+                valor={caixa.resumo.saldoEsperado}
+                tom="destaque"
+              />
+            )}
           </GrupoResumo>
         </CardContent>
       </Card>
@@ -505,9 +552,18 @@ function CaixaDetalhePage() {
           onOpenChange={(estado) => {
             if (!estado) setMovimentacao(null);
           }}
-          saldoDisponivel={caixa.resumo.saldoEsperado}
+          resumo={caixa.resumo}
           salvando={entrada.isPending || saida.isPending}
+          pendente={pendenteDoDialogo?.estado === "incerta" ? pendenteDoDialogo : null}
           onConfirmar={(payload) => registrar(movimentacao, payload)}
+          onTentarNovamente={() => {
+            // A operação incerta é reenviada com o próprio payload e a própria chave (o argumento é ignorado).
+            if (pendenteDoDialogo) registrar(movimentacao, pendenteDoDialogo.payload);
+          }}
+          onDescartarPendente={() => {
+            descartarOperacao(contextoOperacao.caixa(movimentacao, id));
+            setVersaoPendentes((versao) => versao + 1);
+          }}
         />
       ) : null}
 

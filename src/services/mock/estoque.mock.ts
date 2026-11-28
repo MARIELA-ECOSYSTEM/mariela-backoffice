@@ -10,6 +10,34 @@ import type {
 } from "@/types/estoque";
 import type { Variante } from "@/types/variante";
 
+/**
+ * Fase 2 — espelho de `EstoqueService.registrarManual` do backend: mesma `idempotencyKey` + mesma movimentação →
+ * replay (devolve o produto como está, sem movimentar de novo); mesma chave + movimentação diferente → 409.
+ */
+const movimentacoesPorChave = new Map<string, string>();
+
+function replayDaChave(
+  idempotencyKey: string | undefined,
+  assinatura: string,
+  produtoId: string,
+): { data: Produto } | null {
+  const chave = idempotencyKey?.trim();
+  if (!chave) return null;
+  const anterior = movimentacoesPorChave.get(chave);
+  if (anterior === undefined) return null;
+  if (anterior !== assinatura) {
+    throw ApiError.conflict(
+      "Esta idempotencyKey já foi usada para uma movimentação de estoque diferente. Gere uma nova chave para esta operação.",
+    );
+  }
+  return { data: clonar(encontrarProduto(produtoId)) };
+}
+
+function lembrarChave(idempotencyKey: string | undefined, assinatura: string): void {
+  const chave = idempotencyKey?.trim();
+  if (chave) movimentacoesPorChave.set(chave, assinatura);
+}
+
 function encontrarProduto(id: string): Produto {
   const produto = db.produtos.find((p) => p.id === id);
   if (!produto) throw ApiError.notFound("Produto não encontrado.");
@@ -66,6 +94,15 @@ export function registerEstoqueMocks(): void {
 
   registerMock("POST", "/estoque/entrada", ({ body }) => {
     const payload = (body ?? {}) as EntradaEstoqueRequest;
+    const assinatura = JSON.stringify([
+      "entrada",
+      payload.produtoId,
+      payload.varianteId,
+      payload.tamanhoId ?? payload.tamanho ?? null,
+      payload.quantidade,
+    ]);
+    const replay = replayDaChave(payload.idempotencyKey, assinatura, payload.produtoId);
+    if (replay) return replay;
     if (!payload.quantidade || payload.quantidade <= 0) {
       throw ApiError.validation("Dados inválidos.", [
         { field: "quantidade", message: "Quantidade deve ser maior que zero." },
@@ -98,11 +135,21 @@ export function registerEstoqueMocks(): void {
     }
 
     recalcularProduto(produto);
+    lembrarChave(payload.idempotencyKey, assinatura);
     return { data: clonar(produto) };
   });
 
   registerMock("POST", "/estoque/saida", ({ body }) => {
     const payload = (body ?? {}) as SaidaEstoqueRequest;
+    const assinatura = JSON.stringify([
+      "saida",
+      payload.produtoId,
+      payload.varianteId,
+      payload.tamanhoId,
+      payload.quantidade,
+    ]);
+    const replay = replayDaChave(payload.idempotencyKey, assinatura, payload.produtoId);
+    if (replay) return replay;
     const errors: ApiFieldError[] = [];
     if (!payload.quantidade || payload.quantidade <= 0)
       errors.push({ field: "quantidade", message: "Quantidade deve ser maior que zero." });
@@ -125,6 +172,7 @@ export function registerEstoqueMocks(): void {
 
     tamanho.quantidade -= payload.quantidade;
     recalcularProduto(produto);
+    lembrarChave(payload.idempotencyKey, assinatura);
     return { data: clonar(produto) };
   });
 }

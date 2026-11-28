@@ -43,6 +43,7 @@ import {
   caixaNaFaixa,
   caixaNoPeriodo,
   caixaTemDiferenca,
+  gavetaDoResumo,
   ordenarCaixas,
   type OrdenacaoCaixa,
   type PeriodoCaixa,
@@ -236,9 +237,11 @@ function CaixaPage() {
                 </p>
               </div>
               <div className="space-y-0.5">
-                <p className="text-xs font-medium text-muted-foreground">Saldo esperado</p>
+                <p className="text-xs font-medium text-muted-foreground">
+                  {gavetaDoResumo(atual.resumo).rotulo}
+                </p>
                 <p className="text-xl font-semibold tabular-nums text-primary">
-                  {formatarMoeda(atual.resumo.saldoEsperado)}
+                  {formatarMoeda(gavetaDoResumo(atual.resumo).valor)}
                 </p>
               </div>
             </div>

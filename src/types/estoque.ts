@@ -6,6 +6,8 @@ export interface EntradaEstoqueRequest {
   /** Informe tamanho para criar um novo tamanho na variante. */
   tamanho?: string | undefined;
   quantidade: number;
+  /** Fase 2 — uma por operação, reusada em toda nova tentativa (`EntradaEstoqueDto.idempotencyKey`, opcional). */
+  idempotencyKey?: string;
 }
 
 export interface SaidaEstoqueRequest {
@@ -14,6 +16,8 @@ export interface SaidaEstoqueRequest {
   tamanhoId: string;
   quantidade: number;
   motivo: string;
+  /** Fase 2 — uma por operação, reusada em toda nova tentativa (`SaidaEstoqueDto.idempotencyKey`, opcional). */
+  idempotencyKey?: string;
 }
 
 /** Distribuição do estoque de uma cor (variante) por tamanho. */
