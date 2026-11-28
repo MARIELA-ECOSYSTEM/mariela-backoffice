@@ -341,7 +341,6 @@ function ClientesPage() {
                   <BotaoWhatsapp
                     nome={cliente.nome}
                     numero={numeroWhatsapp(cliente)}
-                    legado
                     onClick={() =>
                       setAlvoMensagem({
                         id: cliente.id,

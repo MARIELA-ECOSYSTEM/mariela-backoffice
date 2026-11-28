@@ -614,11 +614,9 @@ describe("envio individual por modelo", () => {
   test("modelo → prévia do backend → confirmação → envio com chave UUID v4, sem telefone nem texto; resultado do backend", async () => {
     const s = await novaSessao();
     await s.abrirClientes();
-    // Os dois fluxos convivem: o da Evolution continua lá, identificado como legado.
+    // Os dois caminhos convivem: o link `wa.me` (Fase 1) continua ao lado do oficial.
     await s.pagina
-      .getByRole("button", {
-        name: "Enviar mensagem de WhatsApp para Ana Fictícia (Evolution, legado)",
-      })
+      .getByRole("button", { name: "Abrir conversa no WhatsApp com Ana Fictícia" })
       .waitFor();
     await abrirEnvioOficial(s);
     const d = dialogo(s.pagina);
@@ -1042,18 +1040,122 @@ describe("campanha de aniversário", () => {
 // ─── Regressão: fluxo da Evolution e cadastros ───────────────────────────────────────────────────────────────────────
 
 describe("regressão", () => {
-  test("Evolution continua: o botão legado abre o diálogo antigo (texto livre) e não chama o fluxo oficial", async () => {
+  test("o botão do link wa.me abre o diálogo de mensagem (texto livre) e não chama o fluxo oficial", async () => {
     const s = await novaSessao();
     await s.abrirClientes();
     await s.pagina
-      .getByRole("button", {
-        name: "Enviar mensagem de WhatsApp para Ana Fictícia (Evolution, legado)",
-      })
+      .getByRole("button", { name: "Abrir conversa no WhatsApp com Ana Fictícia" })
       .click();
-    await dialogo(s.pagina).getByLabel("Mensagem").waitFor();
+    await dialogo(s.pagina).getByLabel("Mensagem", { exact: true }).waitFor();
     assert.ok(!s.backend.chamadas.some(([, c]) => c.startsWith("/integracoes/whatsapp/templates")));
     await dialogo(s.pagina).getByRole("button", { name: "Cancelar" }).click();
     await s.pagina.getByRole("button", { name: "Aniversariantes (Evolution)" }).waitFor();
+    await s.encerrar();
+  });
+});
+
+// ─── Fase 1 (wa.me) — link de conversa, sem envio automático ───────────────────────────────────────────────────────
+
+describe("WhatsApp via link wa.me (Fase 1)", () => {
+  /** Troca `window.open` por um registro (nada sai do navegador) — vale para as próximas navegações do contexto. */
+  async function capturarAberturas(s) {
+    await s.contexto.addInitScript(() => {
+      window.__aberturasWhatsapp = [];
+      window.open = (url) => {
+        window.__aberturasWhatsapp.push(String(url));
+        return null;
+      };
+    });
+  }
+  const aberturas = (s) => s.pagina.evaluate(() => window.__aberturasWhatsapp ?? []);
+  /** Nenhuma escrita em rotas de WhatsApp do backend (nem Evolution, nem oficial). */
+  const escritasWhatsapp = (s) =>
+    s.backend.chamadas.filter(([mt, c]) => mt !== "GET" && c.startsWith("/integracoes/whatsapp"));
+
+  test("telefone válido: sugestão com o primeiro nome, edição usada no link exato; nenhum envio", async () => {
+    const s = await novaSessao();
+    await capturarAberturas(s);
+    await s.abrirClientes();
+    const botao = s.pagina.getByRole("button", {
+      name: "Abrir conversa no WhatsApp com Ana Fictícia",
+    });
+    assert.equal(await botao.getAttribute("title"), "Abrir conversa no WhatsApp com 83900000001");
+    await botao.click();
+    const d = dialogo(s.pagina);
+    const texto = d.getByLabel("Mensagem", { exact: true });
+    await texto.waitFor();
+    assert.match(await texto.inputValue(), /^Olá, Ana! 💜/, "{{nome}} trocado pelo primeiro nome");
+
+    const editada =
+      "Oi, Ana! Chegou a coleção de verão ☀️ — venha ver: até 30% off & frete grátis?";
+    await texto.fill(editada);
+    await d.getByRole("button", { name: "Abrir no WhatsApp" }).click();
+    await s.pagina.getByText("Conversa aberta no WhatsApp.").waitFor();
+
+    assert.deepEqual(await aberturas(s), [
+      `https://wa.me/5583900000001?text=${encodeURIComponent(editada)}`,
+    ]);
+    const url = new URL((await aberturas(s))[0]);
+    assert.equal(url.searchParams.get("text"), editada, "acentos, emoji e pontuação preservados");
+    assert.deepEqual(escritasWhatsapp(s), [], "nenhuma mensagem enviada pelo backend");
+    await s.encerrar();
+  });
+
+  test("mensagem padrão das Configurações com {nome}: nome trocado; 'Em branco' abre a conversa sem texto", async () => {
+    const s = await novaSessao();
+    s.backend.mensagensPadrao.push({
+      id: "00000000-0000-4000-8000-000000000009",
+      titulo: "Retorno com nome",
+      conteudo: "Oi, {nome}! Sua peça chegou.",
+    });
+    await capturarAberturas(s);
+    await s.abrirClientes();
+    await s.pagina
+      .getByRole("button", { name: "Abrir conversa no WhatsApp com Bia Fictícia" })
+      .click();
+    const d = dialogo(s.pagina);
+    await escolherOpcao(s.pagina, "Mensagem padrão", "Retorno com nome");
+    assert.equal(
+      await d.getByLabel("Mensagem", { exact: true }).inputValue(),
+      "Oi, Bia! Sua peça chegou.",
+    );
+    await escolherOpcao(s.pagina, "Mensagem padrão", "Em branco");
+    assert.equal(await d.getByLabel("Mensagem", { exact: true }).inputValue(), "");
+    await d.getByRole("button", { name: "Abrir no WhatsApp" }).click();
+    await esperarAte(async () => (await aberturas(s)).length === 1, "abertura do link");
+    assert.deepEqual(await aberturas(s), ["https://wa.me/5583900000002"]);
+    assert.deepEqual(escritasWhatsapp(s), []);
+    await s.encerrar();
+  });
+
+  test("telefone inválido: o botão avisa e nenhum link é aberto", async () => {
+    const s = await novaSessao();
+    await capturarAberturas(s);
+    // Uma cliente a mais, com telefone incompleto (só nesta sessão).
+    await s.contexto.route(
+      (u) => u.pathname === `${PREFIXO_API}/api/v1/clientes`,
+      (r) =>
+        r.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: [
+              ...CLIENTES,
+              cliente("65f1a2b3c4d5e6f7a8b9c0d9", "Dani Fictícia", "8399991", 1993),
+            ],
+          }),
+        }),
+    );
+    await s.abrirClientes();
+    const botao = s.pagina.getByRole("button", {
+      name: "Abrir conversa no WhatsApp com Dani Fictícia",
+    });
+    assert.match(await botao.getAttribute("title"), /^Telefone inválido para o WhatsApp: /);
+    await botao.click();
+    await s.pagina.getByText("Não é possível abrir o WhatsApp de Dani Fictícia").waitFor();
+    assert.equal(await dialogo(s.pagina).count(), 0, "o diálogo não abre");
+    assert.deepEqual(await aberturas(s), []);
+    assert.deepEqual(escritasWhatsapp(s), []);
     await s.encerrar();
   });
 });

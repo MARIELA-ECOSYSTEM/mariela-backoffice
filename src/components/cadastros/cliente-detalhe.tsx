@@ -36,7 +36,7 @@ export function ClienteDetalhe({
   cliente: Cliente | null;
   onOpenChange: (aberto: boolean) => void;
   onEnviarMensagem: (cliente: Cliente) => void;
-  /** Fase 22.8.9.10.6 — envio pelo WhatsApp oficial (Meta). Sem ela, só o botão da Evolution aparece. */
+  /** Fase 22.8.9.10.6 — envio pelo WhatsApp oficial (Meta). Sem ela, só o botão do link `wa.me` aparece. */
   onEnviarOficial?: (cliente: Cliente) => void;
 }) {
   const vendas = useVendasDoCliente(cliente?.id ?? null);
@@ -69,7 +69,6 @@ export function ClienteDetalhe({
                     nome={cliente.nome}
                     numero={numeroWhatsapp(cliente)}
                     variante="botao"
-                    legado={onEnviarOficial !== undefined}
                     onClick={() => onEnviarMensagem(cliente)}
                   />
                 </div>

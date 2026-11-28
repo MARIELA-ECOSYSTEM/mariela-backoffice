@@ -1,30 +1,39 @@
 import { MessageCircle } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { normalizarTelefoneWhatsapp } from "@/utils/whatsapp-link";
 
 /**
- * Botão de WhatsApp. Abre o Dialog de composição de mensagem
- * (`DialogMensagemWhatsapp`), que envia via `POST /integracoes/whatsapp/mensagens`
- * (Evolution API/Baileys — Etapa Pré-22) quando a API real está conectada.
+ * Botão de WhatsApp (Clientes, Fornecedores e Vendedores). Abre o diálogo de mensagem (`DialogMensagemWhatsapp`), que
+ * abre a conversa pelo link `wa.me` — nada é enviado automaticamente.
+ *
+ * Fase 1 (`wa.me`) — o telefone é validado antes: inválido, o botão fica esmaecido (motivo no título) e o clique só
+ * mostra o motivo num aviso — o diálogo não abre e nenhum link é montado.
  */
 export function BotaoWhatsapp({
   nome,
   numero,
   variante = "icone",
-  legado = false,
   onClick,
 }: {
   nome: string;
   numero: string;
   variante?: "icone" | "botao";
-  /**
-   * Fase 22.8.9.10.6 — onde o WhatsApp oficial (Meta) também está disponível (Clientes), identifica este botão como o
-   * fluxo antigo da Evolution, mantido durante a transição. Sem a propriedade, nada muda (Fornecedores/Vendedores).
-   */
-  legado?: boolean;
   onClick: () => void;
 }) {
-  const habilitado = numero.trim().length > 0;
-  const sufixo = legado ? " (Evolution, legado)" : "";
+  const telefone = normalizarTelefoneWhatsapp(numero);
+  const titulo = telefone.valido
+    ? `Abrir conversa no WhatsApp com ${numero}`
+    : `Telefone inválido para o WhatsApp: ${telefone.motivo}`;
+
+  function clicar() {
+    if (!telefone.valido) {
+      toast.error(`Não é possível abrir o WhatsApp de ${nome}: ${telefone.motivo}`);
+      return;
+    }
+    onClick();
+  }
 
   if (variante === "botao") {
     return (
@@ -32,13 +41,15 @@ export function BotaoWhatsapp({
         type="button"
         variant="outline"
         size="sm"
-        disabled={!habilitado}
-        onClick={onClick}
-        title={habilitado ? `Enviar mensagem para ${numero}${sufixo}` : "Sem telefone cadastrado"}
-        className="border-success/40 text-success hover:bg-success/10 hover:text-success"
+        onClick={clicar}
+        title={titulo}
+        className={cn(
+          "border-success/40 text-success hover:bg-success/10 hover:text-success",
+          !telefone.valido && "opacity-50",
+        )}
       >
         <MessageCircle aria-hidden className="size-4" />
-        {legado ? "Evolution (legado)" : "Enviar mensagem"}
+        WhatsApp
       </Button>
     );
   }
@@ -48,11 +59,13 @@ export function BotaoWhatsapp({
       type="button"
       variant="ghost"
       size="icon"
-      disabled={!habilitado}
-      onClick={onClick}
-      aria-label={`Enviar mensagem de WhatsApp para ${nome}${sufixo}`}
-      title={habilitado ? `Enviar mensagem para ${numero}${sufixo}` : "Sem telefone cadastrado"}
-      className="text-success hover:bg-success/10 hover:text-success"
+      onClick={clicar}
+      aria-label={`Abrir conversa no WhatsApp com ${nome}`}
+      title={titulo}
+      className={cn(
+        "text-success hover:bg-success/10 hover:text-success",
+        !telefone.valido && "opacity-50",
+      )}
     >
       <MessageCircle aria-hidden className="size-4" />
     </Button>
